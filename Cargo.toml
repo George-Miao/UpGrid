@@ -11,6 +11,8 @@ snafu = "0.8.6"
 tap = "1.0.1"
 uuid = { version = "1.17.0", features = ["v7", "serde"] }
 tracing = "0.1.41"
+url = { version = "2.5.4", features = ["serde"] }
+async-stream = "0.3.6"
 
 [dependencies.openraft-rt-compio]
 git = "https://github.com/databendlabs/openraft.git"

@@ -3,7 +3,7 @@ use openraft_rt_compio::CompioRuntime;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::network::AddrNode;
+use crate::network::UrlNode;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Req {}
@@ -15,7 +15,7 @@ declare_raft_types! {
     pub TC:
        D = Req,
        R = Res,
-       Node = AddrNode,
+       Node = UrlNode,
        NodeId = Uuid,
        AsyncRuntime = CompioRuntime,
 }

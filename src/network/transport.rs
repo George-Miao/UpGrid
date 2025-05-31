@@ -6,11 +6,13 @@ use compio::{
         codec::{Decoder, Encoder},
         frame::LengthDelimited,
     },
-    net::{TcpStream, ToSocketAddrsAsync},
+    net::{TcpListener, TcpStream, ToSocketAddrsAsync},
 };
+use openraft_rt_compio::futures::Stream;
 use serde::{Serialize, de::DeserializeOwned};
 use snafu::prelude::*;
 use tarpc::Transport;
+use tracing::debug;
 
 const _: () = {
     const fn assert_is_transport<T: Transport<(), ()>>() {}
@@ -63,4 +65,20 @@ pub async fn connect_framed<In, Out>(
         PostcardCodec {},
         LengthDelimited::new(),
     ))
+}
+
+pub fn listen_framed<Io, Out>(
+    addr: impl ToSocketAddrsAsync,
+) -> impl Stream<Item = io::Result<Framed<TcpStream, PostcardCodec, LengthDelimited, Io, Out>>> {
+    async_stream::try_stream! {
+        let listener = TcpListener::bind(addr).await?;
+        debug!(?listener, "Listening for connections");
+
+        loop {
+            let (stream, addr) = listener.accept().await?;
+            debug!(?addr, "Accepted connection");
+            let framed = Framed::new(stream, PostcardCodec {}, LengthDelimited::new());
+            yield framed;
+        }
+    }
 }

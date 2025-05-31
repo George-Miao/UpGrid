@@ -1,10 +1,7 @@
 mod rpc;
 mod transport;
 
-use std::{
-    net::SocketAddr,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use openraft::{
     RPCTypes, RaftNetwork, RaftNetworkFactory,
@@ -19,43 +16,77 @@ use openraft::{
     },
 };
 use openraft_rt_compio::futures::io;
+pub use rpc::UpgridServer;
 use serde::{Deserialize, Serialize};
 use tap::Tap;
 use tarpc::{client::RpcError, context::Context};
 use tracing::debug;
+use url::Url;
 
 use crate::{
     TC,
     network::rpc::{ClientPool, UpgridServiceClient},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AddrNode {
-    addr: SocketAddr,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UrlNode {
+    url: Url,
+    scheme: Scheme,
 }
 
-pub struct TarpcNetwork {
+impl UrlNode {
+    pub fn new(url: Url) -> crate::Result<Self> {
+        let scheme = match url.scheme() {
+            "up" => Scheme::Up,
+            "ups" => Scheme::Ups,
+            _ => return Err(crate::Error::UrlInvalidScheme { url }),
+        };
+
+        Ok(Self { url, scheme })
+    }
+
+    pub fn is_up(&self) -> bool {
+        self.scheme == Scheme::Up
+    }
+
+    pub fn is_ups(&self) -> bool {
+        self.scheme == Scheme::Ups
+    }
+
+    pub fn url(&self) -> &Url {
+        &self.url
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+enum Scheme {
+    Up,
+    Ups,
+}
+
+/// [`RaftNetworkFactory`] implementation for Upgrid using tarpc.
+pub struct UpgridNetwork {
     self_id: NodeIdOf<TC>,
     pool: ClientPool,
 }
 
-impl TarpcNetwork {
+impl UpgridNetwork {
     pub fn new(self_id: NodeIdOf<TC>) -> Self {
-        TarpcNetwork {
+        UpgridNetwork {
             self_id,
             pool: Default::default(),
         }
     }
 }
 
-impl RaftNetworkFactory<TC> for TarpcNetwork {
+impl RaftNetworkFactory<TC> for UpgridNetwork {
     type Network = TarpcConnector;
 
     async fn new_client(&mut self, target_id: NodeIdOf<TC>, target: &NodeOf<TC>) -> Self::Network {
         TarpcConnector {
             self_id: self.self_id,
             target_id,
-            target: *target,
+            target: target.clone(),
             pool: self.pool.clone(),
         }
     }
@@ -65,13 +96,13 @@ impl RaftNetworkFactory<TC> for TarpcNetwork {
 pub struct TarpcConnector {
     self_id: NodeIdOf<TC>,
     target_id: NodeIdOf<TC>,
-    target: AddrNode,
+    target: UrlNode,
     pool: ClientPool,
 }
 
 impl TarpcConnector {
     async fn client(&self) -> io::Result<UpgridServiceClient> {
-        self.pool.get_client(self.target_id, self.target.addr).await
+        self.pool.get_client(self.target_id, &self.target.url).await
     }
 
     fn context(&self, option: RPCOption) -> Context {
@@ -120,7 +151,7 @@ impl RaftNetwork<TC> for TarpcConnector {
             .install_snapshot(self.context(option), rpc)
             .await
             .map_err(|e| self.map_tarpc_err(RPCTypes::InstallSnapshot, e))?
-            .map_err(|e| RemoteError::new_with_node(self.target_id, self.target, e).into())
+            .map_err(|e| RemoteError::new_with_node(self.target_id, self.target.clone(), e).into())
     }
 
     async fn append_entries(
@@ -134,7 +165,7 @@ impl RaftNetwork<TC> for TarpcConnector {
             .append_entries(self.context(option), rpc)
             .await
             .map_err(|e| self.map_tarpc_err(RPCTypes::AppendEntries, e))?
-            .map_err(|e| RemoteError::new_with_node(self.target_id, self.target, e).into())
+            .map_err(|e| RemoteError::new_with_node(self.target_id, self.target.clone(), e).into())
     }
 
     async fn vote(
@@ -148,6 +179,6 @@ impl RaftNetwork<TC> for TarpcConnector {
             .vote(self.context(option), rpc)
             .await
             .map_err(|e| self.map_tarpc_err(RPCTypes::Vote, e))?
-            .map_err(|e| RemoteError::new_with_node(self.target_id, self.target, e).into())
+            .map_err(|e| RemoteError::new_with_node(self.target_id, self.target.clone(), e).into())
     }
 }
