@@ -1,18 +1,17 @@
 use std::io;
 
-use compio::{
-    io::framed::{
-        Framed,
-        codec::{Decoder, Encoder},
-        frame::LengthDelimited,
-    },
-    net::{TcpListener, TcpStream, ToSocketAddrsAsync},
+use compio::io::framed::{
+    Framed,
+    codec::{Decoder, Encoder},
+    frame::LengthDelimited,
 };
+use compio_quic::{Connection, RecvStream, SendStream};
 use openraft_rt_compio::futures::Stream;
 use serde::{Serialize, de::DeserializeOwned};
 use snafu::prelude::*;
 use tarpc::Transport;
-use tracing::debug;
+
+use crate::{QuicIncomingStreamSnafu, Result};
 
 const _: () = {
     const fn assert_is_transport<T: Transport<(), ()>>() {}
@@ -39,7 +38,7 @@ pub struct PostcardCodec {}
 impl<Item: Serialize> Encoder<Item> for PostcardCodec {
     type Error = PostcardCodecError;
 
-    fn encode(&mut self, item: Item, buf: &mut Vec<u8>) -> Result<(), Self::Error> {
+    fn encode(&mut self, item: Item, buf: &mut Vec<u8>) -> Result<(), PostcardCodecError> {
         postcard::to_io(&item, buf)
             .context(PostcardSnafu)
             .map(|_| ())
@@ -49,35 +48,27 @@ impl<Item: Serialize> Encoder<Item> for PostcardCodec {
 impl<Item: DeserializeOwned> Decoder<Item> for PostcardCodec {
     type Error = PostcardCodecError;
 
-    fn decode(&mut self, buf: &[u8]) -> Result<Item, Self::Error> {
+    fn decode(&mut self, buf: &[u8]) -> Result<Item, PostcardCodecError> {
         postcard::from_bytes(buf).context(PostcardSnafu)
     }
 }
 
-pub type FramedConn<In, Out> = Framed<TcpStream, PostcardCodec, LengthDelimited, In, Out>;
+pub type FramedConn<In, Out> =
+    Framed<RecvStream, SendStream, PostcardCodec, LengthDelimited, In, Out>;
 
-pub async fn connect_framed<In, Out>(
-    addr: impl ToSocketAddrsAsync,
-) -> io::Result<FramedConn<In, Out>> {
-    let stream = TcpStream::connect(addr).await?;
-    Ok(Framed::new(
-        stream,
-        PostcardCodec {},
-        LengthDelimited::new(),
-    ))
+pub fn bi_stream_framed<In, Out>(send: SendStream, recv: RecvStream) -> FramedConn<In, Out> {
+    Framed::new(PostcardCodec {}, LengthDelimited::new())
+        .with_reader(recv)
+        .with_writer(send)
 }
 
-pub fn listen_framed<Io, Out>(
-    addr: impl ToSocketAddrsAsync,
-) -> impl Stream<Item = io::Result<Framed<TcpStream, PostcardCodec, LengthDelimited, Io, Out>>> {
+pub fn accept_framed<In, Out>(
+    connection: Connection,
+) -> impl Stream<Item = Result<FramedConn<In, Out>>> {
     async_stream::try_stream! {
-        let listener = TcpListener::bind(addr).await?;
-        debug!(?listener, "Listening for connections");
-
         loop {
-            let (stream, addr) = listener.accept().await?;
-            debug!(?addr, "Accepted connection");
-            let framed = Framed::new(stream, PostcardCodec {}, LengthDelimited::new());
+            let (send, recv) = connection.accept_bi().await.context(QuicIncomingStreamSnafu)?;
+            let framed = bi_stream_framed(send, recv);
             yield framed;
         }
     }

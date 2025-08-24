@@ -1,8 +1,13 @@
+mod controller;
 mod rpc;
 mod transport;
 
-use std::time::{Duration, Instant};
+use std::{
+    fmt::{Display, Formatter},
+    time::{Duration, Instant},
+};
 
+pub use controller::Controller;
 use openraft::{
     RPCTypes, RaftNetwork, RaftNetworkFactory,
     alias::{NodeIdOf, NodeOf},
@@ -15,67 +20,94 @@ use openraft::{
         InstallSnapshotResponse, VoteRequest, VoteResponse,
     },
 };
-use openraft_rt_compio::futures::io;
 pub use rpc::UpgridServer;
 use serde::{Deserialize, Serialize};
+use snafu::{OptionExt, ResultExt};
 use tap::Tap;
 use tarpc::{client::RpcError, context::Context};
 use tracing::debug;
+pub use transport::bi_stream_framed;
 use url::Url;
 
 use crate::{
-    TC,
-    network::rpc::{ClientPool, UpgridServiceClient},
+    Result, UrlInvalidHostSnafu, UrlParseSnafu,
+    network::rpc::UpgridServiceClient,
+    raft::{Identity, TC},
 };
 
+const DEFAULT_UP_PORT: u16 = 11451;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct UrlNode {
-    url: Url,
+pub struct UpgridNode {
+    host: String,
+    port: u16,
     scheme: Scheme,
 }
 
-impl UrlNode {
-    pub fn new(url: Url) -> crate::Result<Self> {
+impl Display for UpgridNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}://{}:{}", self.scheme, self.host, self.port)
+    }
+}
+
+impl UpgridNode {
+    pub fn new<U, E>(url: U) -> crate::Result<Self>
+    where
+        U: TryInto<Url, Error = E>,
+        E: std::error::Error + 'static,
+    {
+        let url = url
+            .try_into()
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+            .context(UrlParseSnafu)?;
         let scheme = match url.scheme() {
             "up" => Scheme::Up,
-            "ups" => Scheme::Ups,
             _ => return Err(crate::Error::UrlInvalidScheme { url }),
         };
+        let host = url
+            .host_str()
+            .with_context(|| UrlInvalidHostSnafu { url: url.clone() })?
+            .to_string();
+        let port = url.port().unwrap_or(DEFAULT_UP_PORT);
 
-        Ok(Self { url, scheme })
+        Ok(Self { host, port, scheme })
     }
 
     pub fn is_up(&self) -> bool {
         self.scheme == Scheme::Up
     }
 
-    pub fn is_ups(&self) -> bool {
-        self.scheme == Scheme::Ups
+    pub fn host(&self) -> &str {
+        &self.host
     }
 
-    pub fn url(&self) -> &Url {
-        &self.url
+    pub fn port(&self) -> u16 {
+        self.port
     }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 enum Scheme {
     Up,
-    Ups,
+}
+
+impl Display for Scheme {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Scheme::Up => write!(f, "up"),
+        }
+    }
 }
 
 /// [`RaftNetworkFactory`] implementation for Upgrid using tarpc.
 pub struct UpgridNetwork {
-    self_id: NodeIdOf<TC>,
-    pool: ClientPool,
+    id: Identity,
+    controller: Controller,
 }
 
 impl UpgridNetwork {
-    pub fn new(self_id: NodeIdOf<TC>) -> Self {
-        UpgridNetwork {
-            self_id,
-            pool: Default::default(),
-        }
+    pub fn new(id: Identity, controller: Controller) -> Self {
+        UpgridNetwork { id, controller }
     }
 }
 
@@ -84,25 +116,26 @@ impl RaftNetworkFactory<TC> for UpgridNetwork {
 
     async fn new_client(&mut self, target_id: NodeIdOf<TC>, target: &NodeOf<TC>) -> Self::Network {
         TarpcConnector {
-            self_id: self.self_id,
+            self_id: self.id.id,
             target_id,
             target: target.clone(),
-            pool: self.pool.clone(),
+            controller: self.controller.clone(),
         }
     }
 }
 
+/// Raft network connector implemented with tarpc
 #[derive(Clone)]
 pub struct TarpcConnector {
     self_id: NodeIdOf<TC>,
     target_id: NodeIdOf<TC>,
-    target: UrlNode,
-    pool: ClientPool,
+    target: UpgridNode,
+    controller: Controller,
 }
 
 impl TarpcConnector {
-    async fn client(&self) -> io::Result<UpgridServiceClient> {
-        self.pool.get_client(self.target_id, &self.target.url).await
+    async fn client(&self) -> Result<UpgridServiceClient> {
+        self.controller.get_client(&self.target).await
     }
 
     fn context(&self, option: RPCOption) -> Context {
@@ -117,7 +150,6 @@ impl TarpcConnector {
         match error {
             error @ (RpcError::Shutdown | RpcError::Send(_) | RpcError::Channel(_)) => {
                 debug!(%error, "connection error");
-                self.pool.drop_client(&self.target_id);
                 Unreachable::new(&error).into()
             }
             RpcError::DeadlineExceeded => {

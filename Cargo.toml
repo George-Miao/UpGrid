@@ -6,26 +6,49 @@ edition = "2024"
 [dependencies]
 postcard = { version = "1.1.1", features = ["use-std"], default-features = false }
 serde = { version = "1.0.219", features = ["derive"] }
-tarpc = { version = "0.36.0", features = ["serde1"] }
-snafu = "0.8.6"
-tap = "1.0.1"
-uuid = { version = "1.17.0", features = ["v7", "serde"] }
-tracing = "0.1.41"
+tarpc = { version = "0.36.0", features = ["serde1"], git = "https://github.com/George-Miao/tarpc.git" }
+snafu = { version = "0.8.6", features = ["futures"] }
+uuid = { version = "1.17.0", features = ["serde", "v7"] }
 url = { version = "2.5.4", features = ["serde"] }
+
+tracing = "0.1.41"
+tap = "1.0.1"
 async-stream = "0.3.6"
+compio-quic = "0.4.0"
+quick_cache = "0.6.16"
+rcgen = "0.14.3"
+tracing-subscriber = "0.3.19"
+
+[dependencies.rustls]
+version = "0.23.31"
+default-features = false
+features = ["ring"]
 
 [dependencies.openraft-rt-compio]
-git = "https://github.com/databendlabs/openraft.git"
+git = "https://github.com/George-Miao/openraft.git"
 version = "0.10.0"
 
 [dependencies.compio]
-version = "0.14.0"
-features = ["macros", "runtime"]
+version = "0.15.0"
+features = ["macros", "runtime", "enable_log"]
 
 [dependencies.openraft]
 version = "0.10.0"
-git = "https://github.com/databendlabs/openraft.git"
+git = "https://github.com/George-Miao/openraft.git"
 features = ["serde", "singlethreaded", "type-alias"]
 
 [patch.crates-io]
-compio = { git = "https://github.com/compio-rs/compio" }
+compio = { git = "https://github.com/compio-rs/compio.git", branch = "fix/framed-io" }
+compio-buf = { git = "https://github.com/compio-rs/compio.git", branch = "fix/framed-io" }
+compio-dispatcher = { git = "https://github.com/compio-rs/compio.git", branch = "fix/framed-io" }
+compio-driver = { git = "https://github.com/compio-rs/compio.git", branch = "fix/framed-io" }
+compio-fs = { git = "https://github.com/compio-rs/compio.git", branch = "fix/framed-io" }
+compio-io = { git = "https://github.com/compio-rs/compio.git", branch = "fix/framed-io" }
+compio-log = { git = "https://github.com/compio-rs/compio.git", branch = "fix/framed-io" }
+compio-macros = { git = "https://github.com/compio-rs/compio.git", branch = "fix/framed-io" }
+compio-net = { git = "https://github.com/compio-rs/compio.git", branch = "fix/framed-io" }
+compio-process = { git = "https://github.com/compio-rs/compio.git", branch = "fix/framed-io" }
+compio-quic = { git = "https://github.com/compio-rs/compio.git", branch = "fix/framed-io" }
+compio-runtime = { git = "https://github.com/compio-rs/compio.git", branch = "fix/framed-io" }
+compio-signal = { git = "https://github.com/compio-rs/compio.git", branch = "fix/framed-io" }
+compio-tls = { git = "https://github.com/compio-rs/compio.git", branch = "fix/framed-io" }

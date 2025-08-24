@@ -14,7 +14,7 @@ use openraft::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{TC, raft::Res};
+use crate::raft::{Res, TC};
 
 #[derive(Debug)]
 pub struct StoredSnapshot {

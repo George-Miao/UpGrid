@@ -24,8 +24,10 @@
         with pkgs; {
           devShells.default = mkShell {
             buildInputs = [
+              cargo-feature
               openssl
               pkg-config
+              lldb_21
               (rust-bin.selectLatestNightlyWith (toolchain:
                 toolchain.default.override {
                   extensions = ["rust-src"];
