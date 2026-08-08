@@ -24,6 +24,10 @@ export class UpgridApp extends LitElement {
   @state() private selected?: Target;
   @state() private channelKind: "webhook" | "telegram" = "webhook";
   @state() private joinCommand = "";
+  @state() private search = "";
+  @state() private statusFilter = "all";
+  @state() private sort = "name";
+  @state() private selectedIds = new Set<string>();
   private events?: EventSource;
 
   static styles = css`
@@ -82,9 +86,11 @@ export class UpgridApp extends LitElement {
     .badge { border: 1px solid #3c554a; border-radius: 999px; color: #a7c3b7; padding: 2px 7px; font-size: 10px; text-transform: uppercase; }
     .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 17px 20px; border-bottom: 1px solid var(--line); }
     .panel-head h2 { margin: 0; font-size: 14px; }
-    .target { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px; border: 0; border-bottom: 1px solid #202925; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+    .target-wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; border-bottom: 1px solid #202925; padding-left: 20px; }
+    .target-wrap:last-child { border-bottom: 0; }
+    .select-target { width: 15px; height: 15px; accent-color: var(--green); }
+    .target { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px 17px 14px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
     .target:hover { background: #17201c; }
-    .target:last-child { border-bottom: 0; }
     .state { width: 10px; height: 10px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px currentColor; }
     .state.up { color: var(--green); background: var(--green); }
     .state.down { color: var(--red); background: var(--red); }
@@ -95,6 +101,9 @@ export class UpgridApp extends LitElement {
     .latency span { color: var(--muted); font-size: 11px; }
     .empty { padding: 54px 20px; color: var(--muted); text-align: center; }
     .notice { margin: 0 0 16px; border: 1px solid #7b3937; border-radius: 10px; background: #391b1a; color: #ffb3af; padding: 10px 12px; }
+    .toolbar { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+    .toolbar input, .toolbar select { padding: 7px 9px; }
+    .bulk { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--line); background: #16221d; }
     dialog { width: min(580px, calc(100% - 28px)); border: 1px solid var(--line); border-radius: 17px; background: var(--panel); color: var(--text); padding: 0; box-shadow: 0 28px 90px #000b; }
     dialog::backdrop { background: #040706cc; backdrop-filter: blur(5px); }
     .dialog-head { padding: 20px 22px 15px; border-bottom: 1px solid var(--line); }
@@ -121,6 +130,8 @@ export class UpgridApp extends LitElement {
       nav { display: none; }
       .summary { grid-template-columns: 1fr 1fr; }
       .resources { grid-template-columns: 1fr; }
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      .toolbar input { grid-column: 1 / -1; }
       .heading { align-items: flex-start; gap: 16px; }
       .target { grid-template-columns: auto minmax(0, 1fr); }
       .latency { grid-column: 2; text-align: left; }
@@ -372,10 +383,69 @@ export class UpgridApp extends LitElement {
     }
   }
 
+  private toggleSelected(id: string, checked: boolean): void {
+    const next = new Set(this.selectedIds);
+    checked ? next.add(id) : next.delete(id);
+    this.selectedIds = next;
+  }
+
+  private async bulkPause(paused: boolean): Promise<void> {
+    this.saving = true;
+    try {
+      await Promise.all(
+        [...this.selectedIds].map((id) =>
+          request<Target>(`/api/v1/targets/${id}/${paused ? "pause" : "resume"}`, {
+            method: "POST",
+          }),
+        ),
+      );
+      this.selectedIds = new Set();
+      await this.refresh();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  private async bulkDelete(): Promise<void> {
+    if (!window.confirm(`Delete ${this.selectedIds.size} selected Targets and their history?`)) return;
+    this.saving = true;
+    try {
+      await Promise.all(
+        [...this.selectedIds].map((id) =>
+          request<void>(`/api/v1/targets/${id}`, { method: "DELETE" }),
+        ),
+      );
+      this.selectedIds = new Set();
+      await this.refresh();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.saving = false;
+    }
+  }
+
   protected render() {
     const up = this.targets.filter((target) => target.availability === "up").length;
     const down = this.targets.filter((target) => target.availability === "down").length;
     const pending = this.alerts.filter((alert) => alert.delivery === "pending").length;
+    const visibleTargets = this.targets
+      .filter((target) =>
+        `${target.name} ${target.url}`.toLowerCase().includes(this.search.toLowerCase()),
+      )
+      .filter((target) =>
+        this.statusFilter === "all"
+          ? true
+          : this.statusFilter === "paused"
+            ? target.paused
+            : target.availability === this.statusFilter,
+      )
+      .sort((left, right) =>
+        this.sort === "status"
+          ? left.availability.localeCompare(right.availability) || left.name.localeCompare(right.name)
+          : left.name.localeCompare(right.name),
+      );
     return html`
       <main class="shell">
         <header>
@@ -407,9 +477,15 @@ export class UpgridApp extends LitElement {
         </section>
         <section class="panel" id="targets">
           <div class="panel-head"><h2>Targets</h2><span class="meta">${this.targets.length} configured</span></div>
-          ${this.targets.length
-            ? this.targets.map((target) => this.renderTarget(target))
-            : html`<div class="empty">No targets yet. Add the first one to begin monitoring.</div>`}
+          <div class="toolbar">
+            <input aria-label="Search targets" type="search" placeholder="Search name or URL" .value=${this.search} @input=${(event: Event) => (this.search = (event.target as HTMLInputElement).value)} />
+            <select aria-label="Filter targets" .value=${this.statusFilter} @change=${(event: Event) => (this.statusFilter = (event.target as HTMLSelectElement).value)}><option value="all">All states</option><option value="up">Up</option><option value="down">Down</option><option value="unknown">Unknown</option><option value="paused">Paused</option></select>
+            <select aria-label="Sort targets" .value=${this.sort} @change=${(event: Event) => (this.sort = (event.target as HTMLSelectElement).value)}><option value="name">Sort by name</option><option value="status">Sort by status</option></select>
+          </div>
+          ${this.selectedIds.size ? html`<div class="bulk"><span class="meta">${this.selectedIds.size} selected</span><button class="button secondary" @click=${() => this.bulkPause(true)}>Pause selected</button><button class="button secondary" @click=${() => this.bulkPause(false)}>Resume selected</button><button class="button danger" @click=${this.bulkDelete}>Delete selected</button></div>` : nothing}
+          ${visibleTargets.length
+            ? visibleTargets.map((target) => this.renderTarget(target))
+            : html`<div class="empty">${this.targets.length ? "No Targets match these filters." : "No targets yet. Add the first one to begin monitoring."}</div>`}
         </section>
         <section class="resources" aria-label="Notification configuration">
           <section class="panel">
@@ -487,17 +563,20 @@ export class UpgridApp extends LitElement {
   private renderTarget(target: Target) {
     const latest = target.latest_evaluation;
     return html`
-      <button class="target" aria-label=${target.name} @click=${() => this.openTarget(target)}>
-        <i class="state ${target.availability}" aria-label=${target.availability}></i>
-        <div>
-          <h3>${target.name}</h3>
-          <div class="meta">${target.paused ? "Paused · " : ""}${target.method} · ${target.url} · every ${target.interval_seconds}s</div>
-        </div>
-        <div class="latency">
-          <strong>${latest ? `${latest.latency_ms} ms` : "—"}</strong>
-          <span>${latest ? (latest.status_code ?? "network error") : "waiting"}</span>
-        </div>
-      </button>
+      <div class="target-wrap">
+        <input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} .checked=${this.selectedIds.has(target.id)} @change=${(event: Event) => this.toggleSelected(target.id, (event.target as HTMLInputElement).checked)} />
+        <button class="target" aria-label=${target.name} @click=${() => this.openTarget(target)}>
+          <i class="state ${target.availability}" aria-label=${target.availability}></i>
+          <div>
+            <h3>${target.name}</h3>
+            <div class="meta">${target.paused ? "Paused · " : ""}${target.method} · ${target.url} · every ${target.interval_seconds}s</div>
+          </div>
+          <div class="latency">
+            <strong>${latest ? `${latest.latency_ms} ms` : "—"}</strong>
+            <span>${latest ? (latest.status_code ?? "network error") : "waiting"}</span>
+          </div>
+        </button>
+      </div>
     `;
   }
 

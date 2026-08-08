@@ -83,3 +83,21 @@ test("shows the local Raft topology and leader", async ({ page }) => {
   await expect(cluster.getByText("Leader")).toBeVisible();
   await expect(cluster.getByText("This node")).toBeVisible();
 });
+
+test("filters and bulk-pauses selected targets", async ({ page }) => {
+  await page.goto("/");
+  for (const name of ["Search alpha", "Search beta"]) {
+    await page.getByRole("button", { name: "Add target" }).click();
+    const dialog = page.getByRole("dialog", { name: "Add target" });
+    await dialog.getByLabel("Name").fill(name);
+    await dialog.getByLabel("URL").fill("https://example.com");
+    await dialog.getByRole("button", { name: "Create target" }).click();
+  }
+
+  await page.getByLabel("Search targets").fill("alpha");
+  await expect(page.getByRole("button", { name: "Search alpha" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Search beta" })).not.toBeVisible();
+  await page.getByLabel("Select Search alpha").check();
+  await page.getByRole("button", { name: "Pause selected" }).click();
+  await expect(page.getByRole("button", { name: "Search alpha" })).toContainText("Paused");
+});
