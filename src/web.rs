@@ -235,6 +235,7 @@ struct TargetView {
     consecutive_failures: u32,
     latest_evaluation: Option<EvaluationView>,
     history: Vec<EvaluationView>,
+    paused: bool,
 }
 
 impl From<&TargetState> for TargetView {
@@ -279,6 +280,7 @@ impl From<&TargetState> for TargetView {
                 .take(100)
                 .map(EvaluationView::from)
                 .collect(),
+            paused: state.paused,
         }
     }
 }
@@ -460,6 +462,43 @@ async fn delete_target(
         .apply(Command::DeleteTarget(TargetId(id)))
         .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[utoipa::path(post, path = "/api/v1/targets/{id}/pause", params(("id" = Uuid, Path)), responses((status = 200, body = TargetView), (status = 401, body = ErrorBody), (status = 404, body = ErrorBody), (status = 503, body = ErrorBody)))]
+async fn pause_target(
+    State(state): State<WebState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TargetView>, ApiError> {
+    set_target_paused(&state, TargetId(id), true).await
+}
+
+#[utoipa::path(post, path = "/api/v1/targets/{id}/resume", params(("id" = Uuid, Path)), responses((status = 200, body = TargetView), (status = 401, body = ErrorBody), (status = 404, body = ErrorBody), (status = 503, body = ErrorBody)))]
+async fn resume_target(
+    State(state): State<WebState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TargetView>, ApiError> {
+    set_target_paused(&state, TargetId(id), false).await
+}
+
+async fn set_target_paused(
+    state: &WebState,
+    id: TargetId,
+    paused: bool,
+) -> Result<Json<TargetView>, ApiError> {
+    state
+        .cluster
+        .apply(Command::SetTargetPaused {
+            target_id: id,
+            paused,
+        })
+        .await?;
+    let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
+    snapshot
+        .targets
+        .get(&id)
+        .map(TargetView::from)
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found(format!("target not found: {}", id.0)))
 }
 
 fn target_from_input(id: TargetId, input: PutTargetRequest) -> Result<Target, ApiError> {
@@ -808,6 +847,8 @@ fn api_routes() -> OpenApiRouter<WebState> {
     OpenApiRouter::new()
         .routes(routes!(list_targets, create_target))
         .routes(routes!(get_target, update_target, delete_target))
+        .routes(routes!(pause_target))
+        .routes(routes!(resume_target))
         .routes(routes!(list_channels, create_channel))
         .routes(routes!(list_secrets, create_secret))
         .routes(routes!(create_join_link))

@@ -106,6 +106,7 @@ fn plan_assignments(
     state
         .targets
         .values()
+        .filter(|target_state| !target_state.paused)
         .filter_map(|target_state| {
             let existing = state
                 .assignments

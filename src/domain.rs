@@ -350,6 +350,8 @@ pub struct TargetState {
     pub consecutive_failures: u32,
     pub latest_evaluation: Option<Evaluation>,
     pub history: BTreeMap<u64, Evaluation>,
+    #[serde(default)]
+    pub paused: bool,
 }
 
 impl TargetState {
@@ -360,6 +362,7 @@ impl TargetState {
             consecutive_failures: 0,
             latest_evaluation: None,
             history: BTreeMap::new(),
+            paused: false,
         }
     }
 }
@@ -433,6 +436,10 @@ pub enum Command {
         consumed_at_ms: u64,
     },
     AssignEvaluations(Vec<EvaluationAssignment>),
+    SetTargetPaused {
+        target_id: TargetId,
+        paused: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -453,6 +460,10 @@ pub enum CommandResult {
     HistoryRetentionSet(u64),
     JoinTokenStored,
     JoinTokenConsumed,
+    TargetPauseSet {
+        target_id: TargetId,
+        paused: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -674,6 +685,18 @@ impl ApplicationState {
                 self.history_retention_ms = retention_ms;
                 Ok(CommandResult::HistoryRetentionSet(retention_ms))
             }
+            Command::SetTargetPaused { target_id, paused } => {
+                let target = self
+                    .targets
+                    .get_mut(&target_id)
+                    .ok_or(DomainError::TargetNotFound(target_id))?;
+                target.paused = paused;
+                if paused {
+                    self.assignments
+                        .retain(|evaluation_id, _| evaluation_id.target_id != target_id);
+                }
+                Ok(CommandResult::TargetPauseSet { target_id, paused })
+            }
             Command::PutJoinToken {
                 hash,
                 expires_at_ms,
@@ -783,6 +806,9 @@ impl ApplicationState {
         let Some(target) = self.targets.get(&assignment.id.target_id) else {
             return Ok(CommandResult::EvaluationDiscarded);
         };
+        if target.paused {
+            return Ok(CommandResult::EvaluationDiscarded);
+        }
         if target
             .latest_evaluation
             .as_ref()
@@ -823,6 +849,9 @@ impl ApplicationState {
         let Some(target_state) = self.targets.get_mut(&evaluation.id.target_id) else {
             return Ok(CommandResult::EvaluationDiscarded);
         };
+        if target_state.paused {
+            return Ok(CommandResult::EvaluationDiscarded);
+        }
         if target_state
             .history
             .contains_key(&evaluation.id.scheduled_at_ms)
@@ -1312,6 +1341,48 @@ mod tests {
         assert_eq!(target_state.target.name, "Renamed");
         assert_eq!(target_state.availability, AvailabilityState::Up);
         assert_eq!(target_state.history.len(), 1);
+    }
+
+    #[test]
+    fn pausing_a_target_preserves_history_and_cancels_assignments() {
+        let (mut state, target_id, _) = state_with_target();
+        state
+            .apply(Command::RecordEvaluation(evaluation(
+                target_id, 1_000, true,
+            )))
+            .unwrap();
+        let evaluation_id = EvaluationId {
+            target_id,
+            scheduled_at_ms: 2_000,
+        };
+        state
+            .apply(Command::AssignEvaluation(EvaluationAssignment {
+                id: evaluation_id,
+                executor_node_id: id(10),
+                assigned_at_ms: 1_900,
+                expires_at_ms: 3_000,
+                attempt: 1,
+            }))
+            .unwrap();
+
+        state
+            .apply(Command::SetTargetPaused {
+                target_id,
+                paused: true,
+            })
+            .unwrap();
+
+        assert!(state.targets[&target_id].paused);
+        assert_eq!(state.targets[&target_id].history.len(), 1);
+        assert!(!state.assignments.contains_key(&evaluation_id));
+
+        state
+            .apply(Command::SetTargetPaused {
+                target_id,
+                paused: false,
+            })
+            .unwrap();
+        assert!(!state.targets[&target_id].paused);
     }
 
     #[test]

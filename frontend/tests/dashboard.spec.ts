@@ -57,3 +57,20 @@ test("configures notification resources and creates a join command", async ({ pa
   const join = page.getByRole("dialog", { name: "Join a node" });
   await expect(join.getByText(/upgrid --join 'ups:\/\//)).toBeVisible();
 });
+
+test("pauses and resumes cluster-wide evaluations", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add target" }).click();
+  const addTarget = page.getByRole("dialog", { name: "Add target" });
+  await addTarget.getByLabel("Name").fill("Pausing target");
+  await addTarget.getByLabel("URL").fill("https://example.com");
+  await addTarget.getByRole("button", { name: "Create target" }).click();
+
+  await page.getByRole("button", { name: "Pausing target" }).click();
+  await page.getByRole("button", { name: "Pause evaluations" }).click();
+  await expect(page.getByRole("button", { name: "Pausing target" })).toContainText("Paused");
+
+  await page.getByRole("button", { name: "Pausing target" }).click();
+  await page.getByRole("button", { name: "Resume evaluations" }).click();
+  await expect(page.getByRole("button", { name: "Pausing target" })).not.toContainText("Paused");
+});

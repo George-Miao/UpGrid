@@ -64,11 +64,22 @@ MVP ships only after the runnable slice and every gate in `docs/MVP-IMPLEMENTATI
 
 ## Post-MVP Candidates
 
+### Agile Iteration 1 — Operator workflow
+
+Delivered after the runnable MVP:
+
+- Lit/TypeScript WebUI built with pnpm and embedded as a reproducible binary artifact
+- Browser-tested Target creation, editing, history inspection, deletion, pause, and resume
+- WebUI workflows for Secrets, Telegram/webhook Channels, alert history, and Join Links
+
+Pausing a Target preserves its configuration and history, cancels its outstanding assignment, discards late results, and suppresses new evaluations until it is resumed.
+
+### Candidate backlog
+
 - Additional target types such as TCP-connect, DNS, ICMP, and TLS-certificate evaluation
 - Regex, JSONPath, response-header, latency-threshold, and scripted HTTP assertions
 - Custom HTTPS CA bundles and mutual-TLS Target credentials
 - Cron or calendar-based scheduling if usage demonstrates a need
-- Target pause and resume, preserving configuration and history while suppressing evaluations and alerts
 - Replicated user identities, API tokens, sessions, and role-based access control
 - Capabilities prioritized from real usage and operator feedback
 

@@ -283,6 +283,22 @@ export class UpgridApp extends LitElement {
     }
   }
 
+  private async setPaused(paused: boolean): Promise<void> {
+    if (!this.selected) return;
+    this.saving = true;
+    try {
+      await request<Target>(`/api/v1/targets/${this.selected.id}/${paused ? "pause" : "resume"}`, {
+        method: "POST",
+      });
+      this.closeDetailDialog();
+      await this.refresh();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.saving = false;
+    }
+  }
+
   private async createSecret(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
@@ -471,7 +487,7 @@ export class UpgridApp extends LitElement {
         <i class="state ${target.availability}" aria-label=${target.availability}></i>
         <div>
           <h3>${target.name}</h3>
-          <div class="meta">${target.method} · ${target.url} · every ${target.interval_seconds}s</div>
+          <div class="meta">${target.paused ? "Paused · " : ""}${target.method} · ${target.url} · every ${target.interval_seconds}s</div>
         </div>
         <div class="latency">
           <strong>${latest ? `${latest.latency_ms} ms` : "—"}</strong>
@@ -510,6 +526,7 @@ export class UpgridApp extends LitElement {
           </div>
           <div class="dialog-actions">
             <button class="button danger" type="button" @click=${this.deleteTarget}>Delete target</button>
+            <button class="button secondary" type="button" @click=${() => this.setPaused(!target.paused)}>${target.paused ? "Resume evaluations" : "Pause evaluations"}</button>
             <button class="button secondary" type="button" @click=${this.closeDetailDialog}>Close</button>
             <button class="button" type="submit" ?disabled=${this.saving}>Save changes</button>
           </div>

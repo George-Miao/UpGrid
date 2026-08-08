@@ -28,6 +28,7 @@ export interface Target {
   latest_evaluation: Evaluation | null;
   history: Evaluation[];
   notification_channel_ids: string[];
+  paused: boolean;
 }
 
 export type ConfigValue =
