@@ -13,6 +13,13 @@ export interface Target {
   name: string;
   url: string;
   method: string;
+  headers: Record<string, ConfigValue>;
+  body: ConfigValue | null;
+  accepted_statuses: Array<{ start: number; end: number }>;
+  follow_redirects: boolean;
+  max_redirects: number;
+  body_contains: string | null;
+  skip_tls_verification: boolean;
   availability: "unknown" | "up" | "down";
   consecutive_failures: number;
   interval_seconds: number;
@@ -20,7 +27,12 @@ export interface Target {
   failure_threshold: number;
   latest_evaluation: Evaluation | null;
   history: Evaluation[];
+  notification_channel_ids: string[];
 }
+
+export type ConfigValue =
+  | { kind: "literal"; value: string }
+  | { kind: "secret"; secret_id: string };
 
 export interface Channel {
   id: string;
@@ -48,8 +60,8 @@ export interface TargetInput {
   interval_seconds: number;
   timeout_seconds: number;
   failure_threshold: number;
-  headers: Record<string, string>;
-  body: string | null;
+  headers: Record<string, string | { secret_id: string }>;
+  body: string | { secret_id: string } | null;
   body_contains: string | null;
   skip_tls_verification: boolean;
   notification_channel_ids: string[];

@@ -16,6 +16,7 @@ export class UpgridApp extends LitElement {
   @state() private error = "";
   @state() private live = false;
   @state() private saving = false;
+  @state() private selected?: Target;
   private events?: EventSource;
 
   static styles = css`
@@ -68,7 +69,8 @@ export class UpgridApp extends LitElement {
     .panel { border-radius: 16px; overflow: hidden; }
     .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 17px 20px; border-bottom: 1px solid var(--line); }
     .panel-head h2 { margin: 0; font-size: 14px; }
-    .target { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px; border-bottom: 1px solid #202925; }
+    .target { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px; border: 0; border-bottom: 1px solid #202925; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+    .target:hover { background: #17201c; }
     .target:last-child { border-bottom: 0; }
     .state { width: 10px; height: 10px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px currentColor; }
     .state.up { color: var(--green); background: var(--green); }
@@ -92,6 +94,14 @@ export class UpgridApp extends LitElement {
     input:focus, select:focus { border-color: #4b936c; }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
     .secondary { background: transparent; color: var(--muted); border-color: var(--line); }
+    .danger { margin-right: auto; background: transparent; color: #ff9b97; border-color: #633b39; }
+    .check { display: flex; align-items: center; gap: 8px; }
+    .check input { width: auto; }
+    .history { margin: 0 22px 22px; border-top: 1px solid var(--line); padding-top: 18px; }
+    .history h3 { margin: 0 0 10px; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 7px 5px; border-bottom: 1px solid #202925; text-align: left; }
+    th { color: var(--muted); font-weight: 500; }
     @media (max-width: 720px) {
       .shell { padding: 20px 14px 60px; }
       nav { display: none; }
@@ -137,6 +147,18 @@ export class UpgridApp extends LitElement {
     this.renderRoot.querySelector<HTMLDialogElement>("#target-dialog")?.close();
   }
 
+  private openTarget(target: Target): void {
+    this.selected = target;
+    void this.updateComplete.then(() =>
+      this.renderRoot.querySelector<HTMLDialogElement>("#detail-dialog")?.showModal(),
+    );
+  }
+
+  private closeDetailDialog(): void {
+    this.renderRoot.querySelector<HTMLDialogElement>("#detail-dialog")?.close();
+    this.selected = undefined;
+  }
+
   private async createTarget(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
@@ -165,6 +187,72 @@ export class UpgridApp extends LitElement {
       });
       form.reset();
       this.closeTargetDialog();
+      await this.refresh();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  private async updateTarget(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    if (!this.selected) return;
+    const form = event.currentTarget as HTMLFormElement;
+    const fields = new FormData(form);
+    const statuses = String(fields.get("statuses"))
+      .split(",")
+      .map((part) => {
+        const [start, end] = part.trim().split("-").map(Number);
+        return { start, end: end || start };
+      });
+    const input: TargetInput = {
+      name: String(fields.get("name")),
+      url: String(fields.get("url")),
+      method: String(fields.get("method")),
+      accepted_statuses: statuses,
+      follow_redirects: fields.get("follow_redirects") === "on",
+      max_redirects: Number(fields.get("max_redirects")),
+      interval_seconds: Number(fields.get("interval")),
+      timeout_seconds: Number(fields.get("timeout")),
+      failure_threshold: Number(fields.get("failures")),
+      headers: Object.fromEntries(
+        Object.entries(this.selected.headers).map(([name, value]) => [
+          name,
+          value.kind === "literal" ? value.value : { secret_id: value.secret_id },
+        ]),
+      ),
+      body:
+        this.selected.body?.kind === "literal"
+          ? this.selected.body.value
+          : this.selected.body
+            ? { secret_id: this.selected.body.secret_id }
+            : null,
+      body_contains: String(fields.get("body_contains")) || null,
+      skip_tls_verification: fields.get("skip_tls_verification") === "on",
+      notification_channel_ids: this.selected.notification_channel_ids,
+    };
+    this.saving = true;
+    try {
+      await request<Target>(`/api/v1/targets/${this.selected.id}`, {
+        method: "PUT",
+        body: JSON.stringify(input),
+      });
+      this.closeDetailDialog();
+      await this.refresh();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  private async deleteTarget(): Promise<void> {
+    if (!this.selected || !window.confirm("Delete this target and its history?")) return;
+    this.saving = true;
+    try {
+      await request<void>(`/api/v1/targets/${this.selected.id}`, { method: "DELETE" });
+      this.closeDetailDialog();
       await this.refresh();
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
@@ -212,8 +300,8 @@ export class UpgridApp extends LitElement {
             : html`<div class="empty">No targets yet. Add the first one to begin monitoring.</div>`}
         </section>
       </main>
-      <dialog id="target-dialog">
-        <div class="dialog-head"><h2>Add target</h2><p>Start monitoring an HTTP or HTTPS endpoint.</p></div>
+      <dialog id="target-dialog" aria-labelledby="add-target-title">
+        <div class="dialog-head"><h2 id="add-target-title">Add target</h2><p>Start monitoring an HTTP or HTTPS endpoint.</p></div>
         <form @submit=${this.createTarget}>
           <label>Name<input name="name" placeholder="Production API" required /></label>
           <label>URL<input name="url" type="url" placeholder="https://example.com/health" required /></label>
@@ -231,13 +319,14 @@ export class UpgridApp extends LitElement {
           </div>
         </form>
       </dialog>
+      ${this.selected ? this.renderDetail(this.selected) : nothing}
     `;
   }
 
   private renderTarget(target: Target) {
     const latest = target.latest_evaluation;
     return html`
-      <article class="target">
+      <button class="target" aria-label=${target.name} @click=${() => this.openTarget(target)}>
         <i class="state ${target.availability}" aria-label=${target.availability}></i>
         <div>
           <h3>${target.name}</h3>
@@ -247,7 +336,50 @@ export class UpgridApp extends LitElement {
           <strong>${latest ? `${latest.latency_ms} ms` : "—"}</strong>
           <span>${latest ? (latest.status_code ?? "network error") : "waiting"}</span>
         </div>
-      </article>
+      </button>
+    `;
+  }
+
+  private renderDetail(target: Target) {
+    const statuses = target.accepted_statuses
+      .map((range) => (range.start === range.end ? range.start : `${range.start}-${range.end}`))
+      .join(",");
+    return html`
+      <dialog id="detail-dialog" aria-labelledby="target-detail-title">
+        <div class="dialog-head"><h2 id="target-detail-title">Target details</h2><p>${target.id}</p></div>
+        <form @submit=${this.updateTarget}>
+          <label>Name<input name="name" .value=${target.name} required /></label>
+          <label>URL<input name="url" type="url" .value=${target.url} required /></label>
+          <div class="row">
+            <label>Method<input name="method" .value=${target.method} required /></label>
+            <label>Expected statuses<input name="statuses" .value=${statuses} required /></label>
+          </div>
+          <div class="row">
+            <label>Interval (seconds)<input name="interval" type="number" min="1" .value=${String(target.interval_seconds)} required /></label>
+            <label>Timeout (seconds)<input name="timeout" type="number" min="1" .value=${String(target.timeout_seconds)} required /></label>
+          </div>
+          <div class="row">
+            <label>Failures before Down<input name="failures" type="number" min="1" .value=${String(target.failure_threshold)} required /></label>
+            <label>Maximum redirects<input name="max_redirects" type="number" min="0" .value=${String(target.max_redirects)} required /></label>
+          </div>
+          <label>Body must contain<input name="body_contains" .value=${target.body_contains ?? ""} /></label>
+          <div class="row">
+            <label class="check"><input name="follow_redirects" type="checkbox" .checked=${target.follow_redirects} />Follow redirects</label>
+            <label class="check"><input name="skip_tls_verification" type="checkbox" .checked=${target.skip_tls_verification} />Skip TLS verification</label>
+          </div>
+          <div class="dialog-actions">
+            <button class="button danger" type="button" @click=${this.deleteTarget}>Delete target</button>
+            <button class="button secondary" type="button" @click=${this.closeDetailDialog}>Close</button>
+            <button class="button" type="submit" ?disabled=${this.saving}>Save changes</button>
+          </div>
+        </form>
+        <section class="history">
+          <h3>Evaluation history</h3>
+          ${target.history.length
+            ? html`<table><thead><tr><th>Time</th><th>Result</th><th>Status</th><th>Latency</th></tr></thead><tbody>${target.history.map((item) => html`<tr><td>${new Date(item.recorded_at_ms).toLocaleString()}</td><td>${item.succeeded ? "Up" : "Failed"}</td><td>${item.status_code ?? "—"}</td><td>${item.latency_ms} ms</td></tr>`)}</tbody></table>`
+            : html`<p class="meta">No evaluations recorded yet.</p>`}
+        </section>
+      </dialog>
     `;
   }
 }
