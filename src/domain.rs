@@ -440,6 +440,8 @@ pub enum Command {
         target_id: TargetId,
         paused: bool,
     },
+    DeleteSecret(SecretId),
+    DeleteNotificationChannel(NotificationChannelId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -464,6 +466,8 @@ pub enum CommandResult {
         target_id: TargetId,
         paused: bool,
     },
+    SecretDeleted(SecretId),
+    NotificationChannelDeleted(NotificationChannelId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -696,6 +700,40 @@ impl ApplicationState {
                         .retain(|evaluation_id, _| evaluation_id.target_id != target_id);
                 }
                 Ok(CommandResult::TargetPauseSet { target_id, paused })
+            }
+            Command::DeleteNotificationChannel(channel_id) => {
+                if self
+                    .targets
+                    .values()
+                    .any(|target| target.target.notification_channels.contains(&channel_id))
+                {
+                    return Err(DomainError::InvalidNotificationChannel(
+                        "notification channel is still referenced by a Target".to_owned(),
+                    ));
+                }
+                self.notification_channels
+                    .remove(&channel_id)
+                    .ok_or(DomainError::NotificationChannelNotFound(channel_id))?;
+                Ok(CommandResult::NotificationChannelDeleted(channel_id))
+            }
+            Command::DeleteSecret(secret_id) => {
+                let target_reference = self
+                    .targets
+                    .values()
+                    .any(|target| target.target.http.secret_ids().any(|id| id == secret_id));
+                let channel_reference = self
+                    .notification_channels
+                    .values()
+                    .any(|channel| channel.secret_ids().contains(&secret_id));
+                if target_reference || channel_reference {
+                    return Err(DomainError::InvalidSecret(
+                        "secret is still referenced by a Target or Notification Channel".to_owned(),
+                    ));
+                }
+                self.secrets
+                    .remove(&secret_id)
+                    .ok_or(DomainError::SecretNotFound(secret_id))?;
+                Ok(CommandResult::SecretDeleted(secret_id))
             }
             Command::PutJoinToken {
                 hash,
@@ -1193,6 +1231,27 @@ mod tests {
                 .unwrap_err(),
             DomainError::SecretNotFound(secret_id)
         );
+    }
+
+    #[test]
+    fn referenced_channels_and_secrets_cannot_be_deleted() {
+        let (mut state, target_id, channel_id) = state_with_target();
+        let secret_id = SecretId(id(1));
+
+        assert!(
+            state
+                .apply(Command::DeleteNotificationChannel(channel_id))
+                .is_err()
+        );
+        assert!(state.apply(Command::DeleteSecret(secret_id)).is_err());
+
+        state.apply(Command::DeleteTarget(target_id)).unwrap();
+        state
+            .apply(Command::DeleteNotificationChannel(channel_id))
+            .unwrap();
+        state.apply(Command::DeleteSecret(secret_id)).unwrap();
+        assert!(state.notification_channels.is_empty());
+        assert!(state.secrets.is_empty());
     }
 
     #[test]

@@ -626,6 +626,20 @@ async fn create_channel(
     ))
 }
 
+#[utoipa::path(delete, path = "/api/v1/channels/{id}", params(("id" = Uuid, Path)), responses((status = 204), (status = 401, body = ErrorBody), (status = 404, body = ErrorBody), (status = 422, body = ErrorBody), (status = 503, body = ErrorBody)))]
+async fn delete_channel(
+    State(state): State<WebState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, ApiError> {
+    state
+        .cluster
+        .apply(Command::DeleteNotificationChannel(NotificationChannelId(
+            id,
+        )))
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 #[utoipa::path(get, path = "/api/v1/secrets", responses((status = 200, body = [SecretView]), (status = 401, body = ErrorBody), (status = 503, body = ErrorBody)))]
 async fn list_secrets(State(state): State<WebState>) -> Result<Json<Vec<SecretView>>, ApiError> {
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
@@ -658,6 +672,18 @@ async fn create_secret(
             snapshot.secrets.get(&id).expect("created secret exists"),
         )),
     ))
+}
+
+#[utoipa::path(delete, path = "/api/v1/secrets/{id}", params(("id" = Uuid, Path)), responses((status = 204), (status = 401, body = ErrorBody), (status = 404, body = ErrorBody), (status = 422, body = ErrorBody), (status = 503, body = ErrorBody)))]
+async fn delete_secret(
+    State(state): State<WebState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, ApiError> {
+    state
+        .cluster
+        .apply(Command::DeleteSecret(SecretId(id)))
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[utoipa::path(post, path = "/api/v1/join-links", request_body = CreateJoinLinkRequest, responses((status = 201, body = JoinLinkView), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 503, body = ErrorBody)))]
@@ -888,7 +914,9 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(pause_target))
         .routes(routes!(resume_target))
         .routes(routes!(list_channels, create_channel))
+        .routes(routes!(delete_channel))
         .routes(routes!(list_secrets, create_secret))
+        .routes(routes!(delete_secret))
         .routes(routes!(create_join_link))
         .routes(routes!(list_alerts))
         .routes(routes!(get_cluster))

@@ -53,6 +53,13 @@ test("configures notification resources and creates a join command", async ({ pa
   await channel.getByRole("button", { name: "Create channel" }).click();
   await expect(page.getByText("Operations webhook")).toBeVisible();
 
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Delete channel Operations webhook" }).click();
+  await expect(page.getByText("Operations webhook")).not.toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Delete secret Webhook token" }).click();
+  await expect(page.getByText("Webhook token")).not.toBeVisible();
+
   await page.getByRole("button", { name: "Add node" }).first().click();
   const join = page.getByRole("dialog", { name: "Join a node" });
   await expect(join.getByText(/upgrid --join 'ups:\/\//)).toBeVisible();

@@ -426,6 +426,16 @@ export class UpgridApp extends LitElement {
     }
   }
 
+  private async deleteResource(kind: "channels" | "secrets", id: string, name: string): Promise<void> {
+    if (!window.confirm(`Delete ${name}?`)) return;
+    try {
+      await request<void>(`/api/v1/${kind}/${id}`, { method: "DELETE" });
+      await this.refresh();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    }
+  }
+
   protected render() {
     const up = this.targets.filter((target) => target.availability === "up").length;
     const down = this.targets.filter((target) => target.availability === "down").length;
@@ -491,13 +501,13 @@ export class UpgridApp extends LitElement {
           <section class="panel">
             <div class="panel-head"><h2>Notification channels</h2><button class="button secondary" @click=${() => this.showDialog("channel-dialog")}>Add channel</button></div>
             ${this.channels.length
-              ? this.channels.map((channel) => html`<div class="resource"><div><strong>${channel.name}</strong><code>${channel.destination}</code></div><span class="badge">${channel.kind}</span></div>`)
+              ? this.channels.map((channel) => html`<div class="resource"><div><strong>${channel.name}</strong><code>${channel.destination}</code></div><div class="actions"><span class="badge">${channel.kind}</span><button class="button danger" aria-label=${`Delete channel ${channel.name}`} @click=${() => this.deleteResource("channels", channel.id, channel.name)}>Delete</button></div></div>`)
               : html`<div class="empty">No notification channels.</div>`}
           </section>
           <section class="panel">
             <div class="panel-head"><h2>Secrets</h2><button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div>
             ${this.secrets.length
-              ? this.secrets.map((secret) => html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id}</code></div><span class="badge">write-only</span></div>`)
+              ? this.secrets.map((secret) => html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id}</code></div><div class="actions"><span class="badge">write-only</span><button class="button danger" aria-label=${`Delete secret ${secret.name}`} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}>Delete</button></div></div>`)
               : html`<div class="empty">No reusable Secrets.</div>`}
           </section>
           <section class="panel" id="alerts">
