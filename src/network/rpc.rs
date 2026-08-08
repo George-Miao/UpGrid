@@ -1,21 +1,53 @@
-use compio::runtime::spawn;
+use std::{rc::Rc, time::Instant};
+
+use compio::time::sleep;
 use openraft::{
-    error::{ClientWriteError, InstallSnapshotError, RaftError},
+    ReadPolicy,
+    alias::LogIdOf,
+    async_runtime::watch::WatchReceiver,
+    error::{
+        ChangeMembershipError, CheckIsLeaderError, ClientWriteError, InstallSnapshotError,
+        RaftError,
+    },
     raft::{
-        AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest,
+        AppendEntriesRequest, AppendEntriesResponse, ClientWriteResponse, InstallSnapshotRequest,
         InstallSnapshotResponse, VoteRequest, VoteResponse,
     },
 };
+use openraft_rt_compio::futures::lock::Mutex;
+use serde::{Deserialize, Serialize};
 use tarpc::context::Context;
 
 use crate::{
     Result,
-    raft::{Identity, Raft, TC},
+    domain::{Command, DomainError},
+    raft::{Identity, Raft, Req, TC},
+    secret::hash_join_token,
+    utils::uuid_v7_now,
 };
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum JoinError {
+    Raft(RaftError<TC, ClientWriteError<TC>>),
+    Rejected(DomainError),
+}
+
+impl std::fmt::Display for JoinError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Raft(error) => error.fmt(formatter),
+            Self::Rejected(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for JoinError {}
 
 #[tarpc::service]
 pub trait UpgridService {
-    async fn ask_to_join(remote: Identity) -> Result<(), RaftError<TC, ClientWriteError<TC>>>;
+    async fn deployment_key_fingerprint() -> [u8; 32];
+
+    async fn ask_to_join(remote: Identity, token: String) -> Result<(), JoinError>;
 
     async fn install_snapshot(
         req: InstallSnapshotRequest<TC>,
@@ -26,32 +58,144 @@ pub trait UpgridService {
     ) -> Result<AppendEntriesResponse<TC>, RaftError<TC>>;
 
     async fn vote(req: VoteRequest<TC>) -> Result<VoteResponse<TC>, RaftError<TC>>;
+
+    async fn client_write(
+        req: Req,
+    ) -> Result<ClientWriteResponse<TC>, RaftError<TC, ClientWriteError<TC>>>;
+
+    async fn read_index() -> Result<Option<LogIdOf<TC>>, RaftError<TC, CheckIsLeaderError<TC>>>;
 }
 
 #[derive(Clone)]
 pub struct UpgridServer {
     raft: Raft,
+    membership_changes: Rc<Mutex<()>>,
+    deployment_key_fingerprint: [u8; 32],
 }
 
 impl UpgridServer {
-    pub fn new(raft: Raft) -> Self {
-        Self { raft }
+    pub fn new(
+        raft: Raft,
+        membership_changes: Rc<Mutex<()>>,
+        deployment_key_fingerprint: [u8; 32],
+    ) -> Self {
+        Self {
+            raft,
+            membership_changes,
+            deployment_key_fingerprint,
+        }
+    }
+
+    async fn add_learner_when_ready(
+        &self,
+        context: &Context,
+        remote: &Identity,
+    ) -> Result<(), RaftError<TC, ClientWriteError<TC>>> {
+        loop {
+            match self
+                .raft
+                .add_learner(remote.id, remote.node.clone(), true)
+                .await
+            {
+                Ok(_) => return Ok(()),
+                Err(error)
+                    if is_membership_change_in_progress(&error)
+                        && Instant::now() < context.deadline =>
+                {
+                    sleep(std::time::Duration::from_millis(50)).await;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    async fn promote_learner_when_ready(
+        &self,
+        context: &Context,
+        voters: &std::collections::BTreeSet<uuid::Uuid>,
+    ) -> Result<(), RaftError<TC, ClientWriteError<TC>>> {
+        loop {
+            match self.raft.change_membership(voters.clone(), false).await {
+                Ok(_) => return Ok(()),
+                Err(error)
+                    if is_membership_change_in_progress(&error)
+                        && Instant::now() < context.deadline =>
+                {
+                    sleep(std::time::Duration::from_millis(50)).await;
+                }
+                Err(error) => return Err(error),
+            }
+        }
     }
 }
 
+fn is_membership_change_in_progress(error: &RaftError<TC, ClientWriteError<TC>>) -> bool {
+    matches!(
+        error,
+        RaftError::APIError(ClientWriteError::ChangeMembershipError(
+            ChangeMembershipError::InProgress(_)
+        ))
+    )
+}
+
 impl UpgridService for UpgridServer {
+    async fn deployment_key_fingerprint(self, _: Context) -> [u8; 32] {
+        self.deployment_key_fingerprint
+    }
+
     async fn ask_to_join(
         self,
-        _: tarpc::context::Context,
+        context: tarpc::context::Context,
         remote: Identity,
-    ) -> Result<(), RaftError<TC, ClientWriteError<TC>>> {
-        spawn(async move {
-            if let Err(e) = self.raft.add_learner(remote.id, remote.node, false).await {
-                tracing::error!(?e, "Failed to add learner");
-            }
-        })
-        .detach();
-
+        token: String,
+    ) -> Result<(), JoinError> {
+        let _membership_change = self.membership_changes.lock().await;
+        let remote_id = remote.id;
+        let metrics = self.raft.metrics();
+        let (already_known, mut voters) = {
+            let current = metrics.borrow_watched();
+            let membership = current.membership_config.membership();
+            (
+                membership.nodes().any(|(node_id, _)| *node_id == remote_id),
+                membership
+                    .voter_ids()
+                    .collect::<std::collections::BTreeSet<_>>(),
+            )
+        };
+        if voters.contains(&remote_id) {
+            return Ok(());
+        }
+        let now_ms = crate::app::now_ms();
+        let consumed = self
+            .raft
+            .client_write(Req {
+                operation_id: uuid_v7_now(),
+                submitted_at_ms: now_ms,
+                command: Command::ConsumeJoinToken {
+                    hash: hash_join_token(&token),
+                    consumed_at_ms: now_ms,
+                },
+            })
+            .await
+            .map_err(JoinError::Raft)?;
+        consumed.data.result.map_err(JoinError::Rejected)?;
+        if !already_known {
+            self.add_learner_when_ready(&context, &remote)
+                .await
+                .map_err(JoinError::Raft)?;
+            voters = self
+                .raft
+                .metrics()
+                .borrow_watched()
+                .membership_config
+                .membership()
+                .voter_ids()
+                .collect();
+        }
+        voters.insert(remote_id);
+        self.promote_learner_when_ready(&context, &voters)
+            .await
+            .map_err(JoinError::Raft)?;
         Ok(())
     }
 
@@ -78,11 +222,26 @@ impl UpgridService for UpgridServer {
     ) -> Result<VoteResponse<TC>, RaftError<TC>> {
         self.raft.vote(req).await
     }
+
+    async fn client_write(
+        self,
+        _: Context,
+        req: Req,
+    ) -> Result<ClientWriteResponse<TC>, RaftError<TC, ClientWriteError<TC>>> {
+        self.raft.client_write(req).await
+    }
+
+    async fn read_index(
+        self,
+        _: Context,
+    ) -> Result<Option<LogIdOf<TC>>, RaftError<TC, CheckIsLeaderError<TC>>> {
+        self.raft.ensure_linearizable(ReadPolicy::ReadIndex).await
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use std::{str::FromStr, time::Duration};
+    use std::time::Duration;
 
     use compio::{runtime::spawn, time::sleep};
     use openraft_rt_compio::futures::{StreamExt, future::try_join};
@@ -99,15 +258,31 @@ mod test {
     use super::*;
     use crate::{network::bi_stream_framed, utils::unsafe_endpoint};
 
+    #[test]
+    fn recognizes_membership_change_in_progress() {
+        let error = RaftError::APIError(ClientWriteError::ChangeMembershipError(
+            openraft::error::ChangeMembershipError::InProgress(openraft::error::InProgress {
+                committed: None,
+                membership_log_id: None,
+            }),
+        ));
+        assert!(is_membership_change_in_progress(&error));
+    }
+
     #[derive(Clone)]
     pub struct DummyServer {}
 
     impl UpgridService for DummyServer {
+        async fn deployment_key_fingerprint(self, _: Context) -> [u8; 32] {
+            [0; 32]
+        }
+
         async fn ask_to_join(
             self,
             _: tarpc::context::Context,
             remote: Identity,
-        ) -> Result<(), RaftError<TC, ClientWriteError<TC>>> {
+            _: String,
+        ) -> Result<(), JoinError> {
             info!(?remote, "Ask to join");
             Ok(())
         }
@@ -142,10 +317,25 @@ mod test {
                 last_log_id: None,
             })
         }
+
+        async fn client_write(
+            self,
+            _: Context,
+            _: Req,
+        ) -> Result<ClientWriteResponse<TC>, RaftError<TC, ClientWriteError<TC>>> {
+            unimplemented!("the transport smoke test does not issue writes")
+        }
+
+        async fn read_index(
+            self,
+            _: Context,
+        ) -> Result<Option<LogIdOf<TC>>, RaftError<TC, CheckIsLeaderError<TC>>> {
+            unimplemented!("the transport smoke test does not issue reads")
+        }
     }
 
     #[compio::test]
-    async fn test_dummy_server() {
+    async fn reused_client_supports_concurrent_requests() {
         let target_filter = Targets::new()
             .with_default(LevelFilter::INFO)
             .with_target("rustls", LevelFilter::WARN);
@@ -155,13 +345,17 @@ mod test {
         tracing_subscriber::registry().with(fmt).init();
 
         let (e1, e2) = try_join(
-            unsafe_endpoint("localhost".to_owned(), 11451),
-            unsafe_endpoint("localhost".to_owned(), 11452),
+            unsafe_endpoint("localhost".to_owned(), 0),
+            unsafe_endpoint("localhost".to_owned(), 0),
         )
         .await
         .unwrap();
+        let server_addr = std::net::SocketAddr::from((
+            std::net::Ipv4Addr::LOCALHOST,
+            e1.local_addr().unwrap().port(),
+        ));
 
-        let _handle = spawn(async move {
+        let server_handle = spawn(async move {
             let conn = e1
                 .wait_incoming()
                 .await
@@ -179,13 +373,14 @@ mod test {
 
             info!("Stream accepted");
 
-            BaseChannel::with_defaults(transport)
-                .requests()
-                .execute(DummyServer {}.serve())
-                .for_each(|f| async move {
-                    spawn(f).detach();
-                })
-                .await;
+            let mut requests = Box::pin(BaseChannel::with_defaults(transport).requests());
+            while let Some(request) = requests.next().await {
+                match request {
+                    Ok(request) => spawn(request.execute(DummyServer {}.serve())).detach(),
+                    Err(error) => return Some(format!("{error:?}")),
+                }
+            }
+            None
         });
 
         sleep(Duration::from_secs(1)).await;
@@ -193,11 +388,7 @@ mod test {
         info!("Connecting to server...");
 
         let conn = e2
-            .connect(
-                FromStr::from_str("127.0.0.1:11451").unwrap(),
-                "localhost",
-                None,
-            )
+            .connect(server_addr, "localhost", None)
             .unwrap()
             .await
             .unwrap();
@@ -216,17 +407,28 @@ mod test {
 
         let config = Config::default();
         let NewClient { client, dispatch } = UpgridServiceClient::new(config, transport);
-        spawn(dispatch).detach();
-        client
-            .ask_to_join(Context::current(), Identity::new("up://dummy").unwrap())
-            .await
-            .unwrap()
-            .unwrap();
+        let dispatch_handle = spawn(dispatch);
+        let first_client = client.clone();
+        let second_client = client.clone();
+        let first = first_client.ask_to_join(
+            Context::current(),
+            Identity::new("up://dummy").unwrap(),
+            "test".to_owned(),
+        );
+        let second = second_client.ask_to_join(
+            Context::current(),
+            Identity::new("up://dummy").unwrap(),
+            "test".to_owned(),
+        );
+        let (first, second) = try_join(first, second).await.unwrap();
+        first.unwrap();
+        second.unwrap();
+        drop(first_client);
+        drop(second_client);
+        drop(client);
+        dispatch_handle.await.unwrap().unwrap();
 
-        client
-            .ask_to_join(Context::current(), Identity::new("up://dummy").unwrap())
-            .await
-            .unwrap()
-            .unwrap();
+        let server_error = server_handle.await.unwrap();
+        assert_eq!(server_error, None, "server transport should close cleanly");
     }
 }

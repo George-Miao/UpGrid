@@ -1,3 +1,7 @@
 /target
 /.direnv
 /.vscode
+/upgrid-data*/
+/vendor/**/.cargo-ok
+/vendor/**/.cargo_vcs_info.json
+/vendor/**/Cargo.lock

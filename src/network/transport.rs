@@ -1,9 +1,12 @@
 use std::io;
 
-use compio::io::framed::{
-    Framed,
-    codec::{Decoder, Encoder},
-    frame::LengthDelimited,
+use compio::{
+    buf::{IoBuf, IoBufMut, IoBufMutExt, Slice},
+    io::framed::{
+        Framed,
+        codec::{Decoder, Encoder},
+        frame::LengthDelimited,
+    },
 };
 use compio_quic::{Connection, RecvStream, SendStream};
 use openraft_rt_compio::futures::Stream;
@@ -35,20 +38,20 @@ impl From<io::Error> for PostcardCodecError {
 
 pub struct PostcardCodec {}
 
-impl<Item: Serialize> Encoder<Item> for PostcardCodec {
+impl<Item: Serialize, B: IoBufMut> Encoder<Item, B> for PostcardCodec {
     type Error = PostcardCodecError;
 
-    fn encode(&mut self, item: Item, buf: &mut Vec<u8>) -> Result<(), PostcardCodecError> {
-        postcard::to_io(&item, buf)
+    fn encode(&mut self, item: Item, buf: &mut B) -> Result<(), PostcardCodecError> {
+        postcard::to_io(&item, buf.as_writer())
             .context(PostcardSnafu)
             .map(|_| ())
     }
 }
 
-impl<Item: DeserializeOwned> Decoder<Item> for PostcardCodec {
+impl<Item: DeserializeOwned, B: IoBuf> Decoder<Item, B> for PostcardCodec {
     type Error = PostcardCodecError;
 
-    fn decode(&mut self, buf: &[u8]) -> Result<Item, PostcardCodecError> {
+    fn decode(&mut self, buf: &Slice<B>) -> Result<Item, PostcardCodecError> {
         postcard::from_bytes(buf).context(PostcardSnafu)
     }
 }

@@ -10,7 +10,7 @@ use compio::{
 };
 use compio_quic::{Connection, Endpoint, Incoming};
 use openraft::alias::NodeOf;
-use openraft_rt_compio::futures::{FutureExt, StreamExt};
+use openraft_rt_compio::futures::{FutureExt, StreamExt, lock::Mutex};
 use quick_cache::{Equivalent, unsync::Cache};
 use snafu::{OptionExt, ResultExt, futures::TryFutureExt as SnafuTryFutureExt};
 use tap::Pipe;
@@ -18,7 +18,7 @@ use tarpc::{
     client::{Config, NewClient},
     server::{BaseChannel, Channel},
 };
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::{
     QuicConnectSnafu, QuicConnectionSnafu, QuicIncomingStreamSnafu, ResolveEmptySnafu,
@@ -39,7 +39,8 @@ struct ConnectionKey {
 
 #[derive(Debug)]
 struct ConnectionEntry {
-    conn: Connection,
+    _conn: Connection,
+    client: UpgridServiceClient,
     _server_handle: JoinHandle<()>,
 }
 
@@ -55,17 +56,22 @@ type SharedCache<K, V> = Rc<RefCell<Cache<K, V>>>;
 pub struct Controller {
     raft: Rc<OnceCell<Raft>>,
     endpoint: Endpoint,
-    // TODO: Use connecting state and waker queue to prevent multiple simultaneous connection
-    // effort
     connections: SharedCache<ConnectionKey, ConnectionEntry>,
+    // Serializes cache misses so concurrent heartbeats create one peer session.
+    connection_changes: Rc<Mutex<()>>,
+    membership_changes: Rc<Mutex<()>>,
+    deployment_key_fingerprint: [u8; 32],
 }
 
 impl Controller {
-    pub fn new(endpoint: Endpoint) -> Self {
+    pub fn new(endpoint: Endpoint, deployment_key_fingerprint: [u8; 32]) -> Self {
         Self {
             raft: Rc::new(OnceCell::new()),
             endpoint,
             connections: Rc::new(RefCell::new(Cache::new(64))),
+            connection_changes: Rc::new(Mutex::new(())),
+            membership_changes: Rc::new(Mutex::new(())),
+            deployment_key_fingerprint,
         }
     }
 
@@ -77,6 +83,21 @@ impl Controller {
 
     fn raft(&self) -> &Raft {
         self.raft.get().expect("Raft should be initialized")
+    }
+
+    pub fn invalidate_client(&self, node: &NodeOf<TC>) {
+        if self
+            .connections
+            .borrow_mut()
+            .remove(&(node.host(), node.port()))
+            .is_some()
+        {
+            debug!(
+                host = node.host(),
+                port = node.port(),
+                "invalidated RPC client"
+            );
+        }
     }
 
     pub async fn accept(&self, incoming: Incoming) {
@@ -116,7 +137,50 @@ impl Controller {
     }
 
     pub async fn get_client(&self, node: &NodeOf<TC>) -> Result<UpgridServiceClient> {
-        let conn = self.get_conn(node.host(), node.port()).await?;
+        if let Some(entry) = self.connections.borrow().get(&(node.host(), node.port())) {
+            debug!(
+                "Cache hit for RPC client to {}:{}",
+                node.host(),
+                node.port()
+            );
+            return Ok(entry.client.clone());
+        }
+
+        let _connection_change = self.connection_changes.lock().await;
+        if let Some(entry) = self.connections.borrow().get(&(node.host(), node.port())) {
+            debug!(
+                "Cache hit for RPC client to {}:{}",
+                node.host(),
+                node.port()
+            );
+            return Ok(entry.client.clone());
+        }
+
+        debug!(
+            "Cache miss for RPC client to {}:{}",
+            node.host(),
+            node.port()
+        );
+
+        let addr = (node.host(), node.port())
+            .to_socket_addrs_async()
+            .context(ResolveSnafu { host: node.host() })
+            .await?
+            .next()
+            .context(ResolveEmptySnafu { host: node.host() })?;
+
+        let conn = self
+            .endpoint
+            .connect(addr, node.host(), None)
+            .context(QuicConnectSnafu {
+                host: node.host(),
+                port: node.port(),
+            })?
+            .context(QuicConnectionSnafu {
+                host: node.host(),
+                port: node.port(),
+            })
+            .await?;
         let transport = conn
             .open_bi_wait()
             .context(QuicIncomingStreamSnafu)
@@ -135,50 +199,29 @@ impl Controller {
         }))
         .detach();
 
-        Ok(client)
-    }
-
-    /// Get connection to another node. If the connection does not exist, create
-    /// a new one and spawn its server task.
-    pub async fn get_conn(&self, host: &str, port: u16) -> Result<Connection> {
-        if let Some(conn) = self.connections.borrow().get(&(host, port)) {
-            debug!("Cache hit for connection to {host}:{port}");
-            return Ok(conn.conn.clone());
-        }
-
-        debug!("Cache miss for connection to {host}:{port}");
-
-        let addr = (host, port)
-            .to_socket_addrs_async()
-            .context(ResolveSnafu { host })
-            .await?
-            .next()
-            .context(ResolveEmptySnafu { host })?;
-
-        let conn = self
-            .endpoint
-            .connect(addr, host, None)
-            .context(QuicConnectSnafu { host, port })?
-            .context(QuicConnectionSnafu { host, port })
-            .await?;
-
         let key = ConnectionKey {
-            host: host.to_string(),
-            port,
+            host: node.host().to_string(),
+            port: node.port(),
         };
 
         let entry = ConnectionEntry {
-            conn: conn.clone(),
+            _conn: conn.clone(),
+            client: client.clone(),
             _server_handle: spawn(self.serve_conn(conn.clone())),
         };
 
         self.connections.borrow_mut().insert(key, entry);
 
-        Ok(conn)
+        Ok(client)
     }
 
     pub fn serve_conn(&self, conn: Connection) -> impl Future<Output = ()> + 'static {
-        let server = UpgridServer::new(self.raft().clone());
+        let server = UpgridServer::new(
+            self.raft().clone(),
+            self.membership_changes.clone(),
+            self.deployment_key_fingerprint,
+        );
+        let peer = conn.remote_address();
 
         async move {
             let mut framed = pin!(accept_framed(conn));
@@ -188,15 +231,20 @@ impl Controller {
                     Ok(conn) => {
                         let server = server.clone();
                         spawn(async move {
-                            BaseChannel::with_defaults(conn)
-                                .requests()
-                                .execute(server.serve())
-                                .for_each(|fut| async move {
-                                    spawn(fut).detach();
-                                })
-                                .await;
+                            let mut requests = pin!(BaseChannel::with_defaults(conn).requests());
+                            while let Some(request) = requests.next().await {
+                                match request {
+                                    Ok(request) => {
+                                        spawn(request.execute(server.clone().serve())).detach()
+                                    }
+                                    Err(error) => {
+                                        tracing::warn!(%peer, ?error, "Node RPC stream failed");
+                                        break;
+                                    }
+                                }
+                            }
 
-                            info!("Disconnected");
+                            debug!("RPC stream disconnected");
                         })
                         .detach()
                     }
@@ -206,7 +254,7 @@ impl Controller {
                 }
             }
 
-            info!("Connection closed");
+            debug!("QUIC connection closed");
         }
     }
 }

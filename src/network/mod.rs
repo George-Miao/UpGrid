@@ -20,12 +20,13 @@ use openraft::{
         InstallSnapshotResponse, VoteRequest, VoteResponse,
     },
 };
-pub use rpc::UpgridServer;
+pub use rpc::{JoinError, UpgridServer};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt};
 use tap::Tap;
 use tarpc::{client::RpcError, context::Context};
 use tracing::debug;
+#[cfg(test)]
 pub use transport::bi_stream_framed;
 use url::Url;
 
@@ -54,11 +55,11 @@ impl UpgridNode {
     pub fn new<U, E>(url: U) -> crate::Result<Self>
     where
         U: TryInto<Url, Error = E>,
-        E: std::error::Error + 'static,
+        E: std::error::Error + Send + Sync + 'static,
     {
         let url = url
             .try_into()
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
             .context(UrlParseSnafu)?;
         let scheme = match url.scheme() {
             "up" => Scheme::Up,
@@ -150,6 +151,7 @@ impl TarpcConnector {
         match error {
             error @ (RpcError::Shutdown | RpcError::Send(_) | RpcError::Channel(_)) => {
                 debug!(%error, "connection error");
+                self.controller.invalidate_client(&self.target);
                 Unreachable::new(&error).into()
             }
             RpcError::DeadlineExceeded => {
@@ -164,6 +166,7 @@ impl TarpcConnector {
             }
             RpcError::Server(error) => {
                 debug!(%error, "server error");
+                self.controller.invalidate_client(&self.target);
                 Unreachable::new(&error).into()
             }
         }

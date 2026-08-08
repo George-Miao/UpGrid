@@ -1,6 +1,8 @@
+use ::rustls::server::VerifierBuilderError;
 use compio_quic::crypto::rustls;
 use openraft::error::{ClientWriteError, Fatal, InitializeError, RaftError};
 use snafu::Snafu;
+use std::path::PathBuf;
 use tarpc::client::RpcError;
 use url::Url;
 
@@ -26,7 +28,9 @@ pub enum Error {
     RpcError { source: RpcError },
 
     #[snafu(display("Failed to parse input url: {}", source))]
-    UrlParse { source: Box<dyn std::error::Error> },
+    UrlParse {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
 
     #[snafu(display("Invalid scheme: {}, expected `up`", url.scheme()))]
     UrlInvalidScheme { url: Url },
@@ -73,8 +77,37 @@ pub enum Error {
     #[snafu(display("TLS error: {}", source))]
     TLSError { source: rustls::Error },
 
+    #[snafu(display("certificate error: {}", source))]
+    CertificateError { source: rcgen::Error },
+
+    #[snafu(display("certificate verifier error: {}", source))]
+    CertificateVerifierError { source: VerifierBuilderError },
+
+    #[snafu(display("QUIC TLS configuration has no usable initial cipher suite"))]
+    QuicCipherSuiteError {
+        source: compio_quic::crypto::rustls::NoInitialCipherSuite,
+    },
+
     #[snafu(display("Failed to create endpoint: {}", source))]
     EndpointCreationError { source: std::io::Error },
+
+    #[snafu(display("Failed to open Raft log at {}: {}", path.display(), source))]
+    RaftLogOpen {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[snafu(display("Failed to open Raft state machine at {}: {}", path.display(), source))]
+    StateMachineOpen {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[snafu(display("deployment key does not match the Cluster"))]
+    DeploymentKeyMismatch,
+
+    #[snafu(display("Cluster rejected join request: {}", source))]
+    JoinRejected { source: crate::network::JoinError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
