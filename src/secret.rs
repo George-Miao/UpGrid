@@ -9,6 +9,7 @@ use ring::{
     digest::{SHA256, digest},
     rand::{SecureRandom, SystemRandom},
 };
+use uuid::Uuid;
 
 const KEY_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
@@ -29,6 +30,18 @@ pub fn hash_join_token(token: &str) -> crate::domain::JoinTokenHash {
             .try_into()
             .expect("SHA-256 output is always 32 bytes"),
     )
+}
+
+pub fn join_operation_id(token: &str, node_id: Uuid) -> Uuid {
+    let hash = hash_join_token(token);
+    let mut material = Vec::with_capacity(hash.0.len() + node_id.as_bytes().len());
+    material.extend_from_slice(&hash.0);
+    material.extend_from_slice(node_id.as_bytes());
+    let digest = digest(&SHA256, &material);
+    let bytes = digest.as_ref()[..16]
+        .try_into()
+        .expect("SHA-256 output is at least 16 bytes");
+    Uuid::from_bytes(bytes)
 }
 
 #[derive(Clone)]
@@ -159,7 +172,9 @@ impl std::error::Error for Error {}
 
 #[cfg(test)]
 mod tests {
-    use super::{Cipher, generate_join_token, hash_join_token};
+    use uuid::Uuid;
+
+    use super::{Cipher, generate_join_token, hash_join_token, join_operation_id};
 
     #[test]
     fn ciphertext_is_authenticated_and_randomized() {
@@ -189,5 +204,24 @@ mod tests {
         assert_ne!(first, second);
         assert_eq!(hash_join_token(&first), hash_join_token(&first));
         assert_ne!(hash_join_token(&first), hash_join_token(&second));
+    }
+
+    #[test]
+    fn join_operation_is_stable_only_for_the_same_token_and_node() {
+        let first_node = Uuid::from_u128(1);
+        let second_node = Uuid::from_u128(2);
+
+        assert_eq!(
+            join_operation_id("token", first_node),
+            join_operation_id("token", first_node)
+        );
+        assert_ne!(
+            join_operation_id("token", first_node),
+            join_operation_id("token", second_node)
+        );
+        assert_ne!(
+            join_operation_id("token", first_node),
+            join_operation_id("other", first_node)
+        );
     }
 }

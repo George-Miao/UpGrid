@@ -26,7 +26,7 @@ The following boundaries are fixed:
 - Targets reference zero or more reusable Notification Channels; each Channel configures a Telegram or webhook destination.
 - Node identity and all Raft safety state survive normal restarts in a durable data directory.
 - Sensitive Target and notification values use referenced, write-only Secrets encrypted before Raft replication.
-- Node admission uses single-use expiring Join Tokens, a pinned Deployment CA, and mutual TLS for inter-node traffic.
+- Node admission uses one opaque `ups://` Join Link containing a single-use expiring token and the deployment material needed for a pinned Deployment CA and mutual TLS. A new Node joins with only `--join <link>` in addition to its ordinary Node configuration.
 - User access uses one static administrative username and password supplied consistently in every Node's local configuration.
 - WebUI and Cluster API requests use HTTP Basic authentication. UpGrid does not require TLS, allowing an operator's reverse proxy to terminate it; operators are responsible for preventing credentials from crossing untrusted networks as plaintext.
 

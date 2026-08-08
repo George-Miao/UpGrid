@@ -22,8 +22,7 @@ use crate::{
     Result,
     domain::{Command, DomainError},
     raft::{Identity, Raft, Req, TC},
-    secret::hash_join_token,
-    utils::uuid_v7_now,
+    secret::{hash_join_token, join_operation_id},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -166,13 +165,14 @@ impl UpgridService for UpgridServer {
             return Ok(());
         }
         let now_ms = crate::app::now_ms();
+        let token_hash = hash_join_token(&token);
         let consumed = self
             .raft
             .client_write(Req {
-                operation_id: uuid_v7_now(),
+                operation_id: join_operation_id(&token, remote_id),
                 submitted_at_ms: now_ms,
                 command: Command::ConsumeJoinToken {
-                    hash: hash_join_token(&token),
+                    hash: token_hash,
                     consumed_at_ms: now_ms,
                 },
             })

@@ -41,6 +41,7 @@ use crate::{
 struct WebState {
     cluster: Handle,
     cipher: Cipher,
+    raft_url: String,
     username: String,
     password: String,
 }
@@ -356,18 +357,18 @@ struct SecretView {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
-struct CreateJoinTokenRequest {
-    #[serde(default = "default_join_token_lifetime")]
+struct CreateJoinLinkRequest {
+    #[serde(default = "default_join_link_lifetime")]
     expires_in_seconds: u64,
 }
 
-fn default_join_token_lifetime() -> u64 {
+fn default_join_link_lifetime() -> u64 {
     600
 }
 
 #[derive(Debug, Serialize, ToSchema)]
-struct JoinTokenView {
-    token: String,
+struct JoinLinkView {
+    url: String,
     expires_at_ms: u64,
 }
 
@@ -605,17 +606,19 @@ async fn create_secret(
     ))
 }
 
-#[utoipa::path(post, path = "/api/v1/join-tokens", request_body = CreateJoinTokenRequest, responses((status = 201, body = JoinTokenView), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 503, body = ErrorBody)))]
-async fn create_join_token(
+#[utoipa::path(post, path = "/api/v1/join-links", request_body = CreateJoinLinkRequest, responses((status = 201, body = JoinLinkView), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 503, body = ErrorBody)))]
+async fn create_join_link(
     State(state): State<WebState>,
-    Json(input): Json<CreateJoinTokenRequest>,
-) -> Result<(StatusCode, Json<JoinTokenView>), ApiError> {
+    Json(input): Json<CreateJoinLinkRequest>,
+) -> Result<(StatusCode, Json<JoinLinkView>), ApiError> {
     if input.expires_in_seconds == 0 || input.expires_in_seconds > 24 * 60 * 60 {
         return Err(ApiError::bad_request(
-            "join token lifetime must be between 1 second and 24 hours",
+            "join link lifetime must be between 1 second and 24 hours",
         ));
     }
     let token = crate::secret::generate_join_token().map_err(ApiError::unavailable)?;
+    let link = crate::admission::JoinLink::issue(&state.raft_url, &state.cipher, token.clone())
+        .map_err(ApiError::bad_request)?;
     let expires_at_ms =
         crate::app::now_ms().saturating_add(input.expires_in_seconds.saturating_mul(1_000));
     state
@@ -627,8 +630,8 @@ async fn create_join_token(
         .await?;
     Ok((
         StatusCode::CREATED,
-        Json(JoinTokenView {
-            token,
+        Json(JoinLinkView {
+            url: link.to_string(),
             expires_at_ms,
         }),
     ))
@@ -741,6 +744,7 @@ async fn serve(
     let state = WebState {
         cluster,
         cipher,
+        raft_url: config.raft_url,
         username: config.username,
         password: config.password,
     };
@@ -778,7 +782,7 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(get_target, update_target, delete_target))
         .routes(routes!(list_channels, create_channel))
         .routes(routes!(list_secrets, create_secret))
-        .routes(routes!(create_join_token))
+        .routes(routes!(create_join_link))
         .routes(routes!(list_alerts))
         .routes(routes!(events))
 }

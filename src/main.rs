@@ -5,6 +5,7 @@ use std::str::FromStr;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{Layer, filter::Targets, layer::SubscriberExt, util::SubscriberInitExt};
 
+mod admission;
 mod app;
 mod cluster;
 mod domain;
@@ -53,28 +54,34 @@ async fn run() -> app::AppResult<()> {
         return Ok(());
     };
     std::fs::create_dir_all(&config.data_dir)?;
-    let cipher = app::load_or_create_cipher(
-        &config.data_dir,
-        config.secret_key.as_deref(),
-        config.join.is_some(),
-    )?;
-    config.secret_key = None;
+    let join = config.join.take();
+    let manual_cipher = config
+        .secret_key
+        .take()
+        .map(|key| secret::Cipher::parse(&key))
+        .transpose()?;
+    let configured_cipher = match (join.as_ref(), manual_cipher) {
+        (Some(link), Some(manual)) if link.cipher().encoded() != manual.encoded() => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "configured deployment key does not match the join link",
+            )
+            .into());
+        }
+        (Some(link), _) => Some(link.cipher().clone()),
+        (None, manual) => manual,
+    };
+    let cipher =
+        app::load_or_create_cipher(&config.data_dir, configured_cipher.as_ref(), join.is_some())?;
     let node_id = app::load_or_create_node_id(&config.data_dir)?;
     let identity = raft::Identity::with_id(node_id, config.raft_url.as_str())?;
     let node = node::Node::open(identity, &config.data_dir, &cipher).await?;
-    let bootstrapping = !node.has_membership() && config.join.is_none();
+    let bootstrapping = !node.has_membership() && join.is_none();
     if node.has_membership() {
         tracing::debug!(%node_id, "resuming persisted Cluster membership");
     } else {
-        if let Some(join) = &config.join {
-            node.join(
-                join.as_str(),
-                config
-                    .join_token
-                    .as_deref()
-                    .expect("join token is validated with configuration"),
-            )
-            .await?;
+        if let Some(join) = join {
+            node.join(join.remote().clone(), join.token()).await?;
         } else {
             node.start_cluster().await?;
         }

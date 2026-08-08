@@ -35,7 +35,6 @@ start_node() {
     --data-dir "${test_root}/node-${number}" \
     --username "$username" \
     --password "$password" \
-    --secret-key "$secret_key" \
     "$@" >"${test_root}/node-${number}.log" 2>&1 &
   pids+=("$!")
 }
@@ -59,18 +58,17 @@ wait_for_api() {
   done
 }
 
-start_node 1
+start_node 1 --secret-key "$secret_key"
 wait_for_api "$api_base_port" "${pids[0]}"
 
 for number in $(seq 2 "$node_count"); do
-  join_token="$(curl --fail --silent --user "${username}:${password}" \
+  join_link="$(curl --fail --silent --user "${username}:${password}" \
     --header 'content-type: application/json' \
     --data '{"expires_in_seconds":300}' \
-    "http://127.0.0.1:${api_base_port}/api/v1/join-tokens" \
-    | jq --raw-output '.token')"
+    "http://127.0.0.1:${api_base_port}/api/v1/join-links" \
+    | jq --raw-output '.url')"
   start_node "$number" \
-    --join "up://127.0.0.1:${raft_base_port}" \
-    --join-token "$join_token"
+    --join "$join_link"
 done
 
 for number in $(seq 2 "$node_count"); do

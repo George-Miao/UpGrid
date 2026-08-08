@@ -489,7 +489,9 @@ impl Display for DomainError {
                 "alert not found for target {} at {}",
                 id.target_id.0, id.evaluation_scheduled_at_ms
             ),
-            Self::InvalidJoinToken => formatter.write_str("join token is invalid or expired"),
+            Self::InvalidJoinToken => {
+                formatter.write_str("join link is invalid, expired, or already used")
+            }
         }
     }
 }
@@ -1415,6 +1417,49 @@ mod tests {
                     consumed_at_ms: 2_001,
                 })
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn join_token_retry_is_idempotent_only_for_the_same_node() {
+        let mut state = ApplicationState::default();
+        let token = "one-time-invitation";
+        let hash = crate::secret::hash_join_token(token);
+        let first_node = id(1);
+        let second_node = id(2);
+        state
+            .apply(Command::PutJoinToken {
+                hash,
+                expires_at_ms: 2_000,
+            })
+            .unwrap();
+
+        let consume = || Command::ConsumeJoinToken {
+            hash,
+            consumed_at_ms: 1_000,
+        };
+        let first_operation = crate::secret::join_operation_id(token, first_node);
+        assert_eq!(
+            state
+                .apply_operation(first_operation, 1_000, consume())
+                .unwrap(),
+            CommandResult::JoinTokenConsumed
+        );
+        assert_eq!(
+            state
+                .apply_operation(first_operation, 1_001, consume())
+                .unwrap(),
+            CommandResult::JoinTokenConsumed
+        );
+        assert_eq!(
+            state
+                .apply_operation(
+                    crate::secret::join_operation_id(token, second_node),
+                    1_001,
+                    consume(),
+                )
+                .unwrap_err(),
+            DomainError::InvalidJoinToken
         );
     }
 }

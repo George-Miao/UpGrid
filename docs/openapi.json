@@ -177,14 +177,14 @@
         }
       }
     },
-    "/api/v1/join-tokens": {
+    "/api/v1/join-links": {
       "post": {
-        "operationId": "create_join_token",
+        "operationId": "create_join_link",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateJoinTokenRequest"
+                "$ref": "#/components/schemas/CreateJoinLinkRequest"
               }
             }
           },
@@ -196,7 +196,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JoinTokenView"
+                  "$ref": "#/components/schemas/JoinLinkView"
                 }
               }
             }
@@ -769,7 +769,7 @@
           }
         ]
       },
-      "CreateJoinTokenRequest": {
+      "CreateJoinLinkRequest": {
         "type": "object",
         "properties": {
           "expires_in_seconds": {
@@ -838,10 +838,10 @@
           }
         }
       },
-      "JoinTokenView": {
+      "JoinLinkView": {
         "type": "object",
         "required": [
-          "token",
+          "url",
           "expires_at_ms"
         ],
         "properties": {
@@ -850,7 +850,7 @@
             "format": "int64",
             "minimum": 0
           },
-          "token": {
+          "url": {
             "type": "string"
           }
         }

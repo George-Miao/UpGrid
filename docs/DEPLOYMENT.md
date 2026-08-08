@@ -29,7 +29,11 @@ location / {
 }
 ```
 
-Do not expose the UpGrid listener directly to an untrusted network: HTTP Basic credentials are plaintext without proxy TLS. Restrict inter-Node UDP ports to Cluster members. Supply the same `UPGRID_USERNAME`, `UPGRID_PASSWORD`, and `UPGRID_SECRET_KEY` to every Node; protect the key as a secret and back it up separately from any one Node. Issue a fresh `/api/v1/join-tokens` token for each new Node. Set `UPGRID_HISTORY_RETENTION_HOURS` consistently when changing the replicated raw-history window.
+Do not expose the UpGrid listener directly to an untrusted network: HTTP Basic credentials are plaintext without proxy TLS. Restrict inter-Node UDP ports to Cluster members. Supply the same `UPGRID_USERNAME` and `UPGRID_PASSWORD` to every Node. Create a fresh `/api/v1/join-links` invitation for each new Node, transfer it through a trusted channel, and never place it in logs, tickets, or shell history. The invitation provisions the deployment key into the new private data directory; protect and back up that key separately from any one Node. Set `UPGRID_HISTORY_RETENTION_HOURS` consistently when changing the replicated raw-history window.
+
+## Node Admission
+
+An authenticated operator creates an invitation from the WebUI's **Add node** action or `POST /api/v1/join-links`. The response is an opaque bearer URL used directly as `upgrid --join 'ups://…'`. Each link admits at most one Node and defaults to a ten-minute membership window. Because it also transports long-lived deployment material, keep the link confidential and discard every copy after use or expiry. Normal restarts use the persisted data directory and do not require another invitation.
 
 ## Operational Checks
 

@@ -22,33 +22,30 @@ See [deployment notes](docs/DEPLOYMENT.md) for Caddy and Nginx examples.
 
 ## Start a three-Node Cluster
 
-Start the first Node as above. Export its generated deployment key and issue one short-lived token for each joining Node:
+Start the first Node as above, then create one short-lived link for each joining Node. The WebUI's **Add node** button creates and copies the same command.
 
 ```sh
-export UPGRID_SECRET_KEY="$(cat upgrid-data/deployment-key)"
-export JOIN_TOKEN_2="$(curl -fsS -u admin:change-me \
+export JOIN_LINK_2="$(curl -fsS -u admin:change-me \
   -H 'content-type: application/json' -d '{"expires_in_seconds":600}' \
-  http://127.0.0.1:8080/api/v1/join-tokens | jq -r .token)"
-export JOIN_TOKEN_3="$(curl -fsS -u admin:change-me \
+  http://127.0.0.1:8080/api/v1/join-links | jq -r .url)"
+export JOIN_LINK_3="$(curl -fsS -u admin:change-me \
   -H 'content-type: application/json' -d '{"expires_in_seconds":600}' \
-  http://127.0.0.1:8080/api/v1/join-tokens | jq -r .token)"
+  http://127.0.0.1:8080/api/v1/join-links | jq -r .url)"
 ```
 
-In two more terminals, use unique API addresses, Raft URLs, and data directories while keeping the same API credentials and deployment key:
+In two more terminals, use unique API addresses, Raft URLs, and data directories while keeping the same API credentials:
 
 ```sh
 cargo run -- --bind 127.0.0.1:8081 --raft-url up://127.0.0.1:11452 \
-  --join up://127.0.0.1:11451 --data-dir upgrid-data-2 \
-  --join-token "$JOIN_TOKEN_2" --username admin --password change-me \
-  --secret-key "$UPGRID_SECRET_KEY"
+  --join "$JOIN_LINK_2" --data-dir upgrid-data-2 \
+  --username admin --password change-me
 
 cargo run -- --bind 127.0.0.1:8082 --raft-url up://127.0.0.1:11453 \
-  --join up://127.0.0.1:11451 --data-dir upgrid-data-3 \
-  --join-token "$JOIN_TOKEN_3" --username admin --password change-me \
-  --secret-key "$UPGRID_SECRET_KEY"
+  --join "$JOIN_LINK_3" --data-dir upgrid-data-3 \
+  --username admin --password change-me
 ```
 
-The deployment key derives the pinned inter-Node CA and encrypts replicated Secrets, so protect it and supply the same value to each Node. Each Join Token is single-use and expires at the requested time. The `up://` hostname must match the advertised address and be reachable by every Node. Any Node's WebUI or API can then be used. On restart, a Node resumes membership from its data directory and safely ignores `--join`. Stop one Node to verify that the remaining quorum elects a leader and continues serving the Cluster.
+The opaque `ups://` link carries both a single-use admission token and the deployment material needed for mutual TLS and replicated Secret decryption. Treat it as a password, never log or archive it, and create a separate link for every Node. The joining process stores the deployment key with private permissions before connecting; the leader atomically consumes the token through Raft. The `up://` hostname advertised by each Node must be reachable by every other Node. On restart, a Node resumes membership from its data directory and no longer needs `--join`.
 
 ## Verify
 

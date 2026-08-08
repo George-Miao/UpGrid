@@ -6,14 +6,15 @@ use std::{
 
 use uuid::Uuid;
 
+use crate::admission::JoinLink;
+
 pub type AppResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 #[derive(Clone)]
 pub struct Config {
     pub bind: String,
     pub raft_url: String,
-    pub join: Option<String>,
-    pub join_token: Option<String>,
+    pub join: Option<JoinLink>,
     pub data_dir: PathBuf,
     pub username: String,
     pub password: String,
@@ -27,8 +28,7 @@ impl Config {
             bind: env::var("UPGRID_BIND").unwrap_or_else(|_| "127.0.0.1:8080".to_owned()),
             raft_url: env::var("UPGRID_RAFT_URL")
                 .unwrap_or_else(|_| "up://127.0.0.1:11451".to_owned()),
-            join: env::var("UPGRID_JOIN").ok(),
-            join_token: env::var("UPGRID_JOIN_TOKEN").ok(),
+            join: None,
             data_dir: env::var_os("UPGRID_DATA_DIR")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("upgrid-data")),
@@ -41,6 +41,7 @@ impl Config {
                 .transpose()?,
         };
 
+        let mut join = env::var("UPGRID_JOIN").ok();
         let mut args = env::args().skip(1);
         while let Some(argument) = args.next() {
             let value = match argument.as_str() {
@@ -59,7 +60,6 @@ impl Config {
                 | "--username"
                 | "--password"
                 | "--secret-key"
-                | "--join-token"
                 | "--history-retention-hours" => args.next().ok_or_else(|| {
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -77,8 +77,7 @@ impl Config {
             match argument.as_str() {
                 "--bind" => config.bind = value,
                 "--raft-url" => config.raft_url = value,
-                "--join" => config.join = Some(value),
-                "--join-token" => config.join_token = Some(value),
+                "--join" => join = Some(value),
                 "--data-dir" => config.data_dir = PathBuf::from(value),
                 "--username" => config.username = value,
                 "--password" => config.password = value,
@@ -89,13 +88,7 @@ impl Config {
                 _ => unreachable!(),
             }
         }
-        if config.join.is_some() && config.join_token.is_none() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "joining a Cluster requires --join-token or UPGRID_JOIN_TOKEN",
-            )
-            .into());
-        }
+        config.join = join.map(|value| JoinLink::parse(&value)).transpose()?;
         Ok(Some(config))
     }
 }
@@ -107,18 +100,17 @@ fn print_help() {
          Options:\n  \
            --bind ADDRESS       API address [default: 127.0.0.1:8080]\n  \
            --raft-url URL       advertised Raft URL [default: up://127.0.0.1:11451]\n  \
-           --join URL           join an existing Node instead of bootstrapping\n  \
-           --join-token TOKEN   single-use token issued by the Cluster\n  \
+           --join JOIN_LINK     join with a single-use ups:// invitation\n  \
            --data-dir PATH      persistent data directory [default: upgrid-data]\n  \
            --username USER      Basic Auth username [default: admin]\n  \
            --password PASSWORD  Basic Auth password [default: upgrid]\n  \
-           --secret-key BASE64  shared 32-byte deployment key\n  \
+           --secret-key BASE64  bootstrap or recovery deployment key\n  \
            --history-retention-hours HOURS\n  \
                                 retain raw evaluations [default: 24]\n  \
            --print-openapi      print generated OpenAPI JSON and exit\n  \
            -h, --help           show this help\n\n\
          The same settings are available as UPGRID_BIND, UPGRID_RAFT_URL,\n\
-         UPGRID_JOIN, UPGRID_JOIN_TOKEN, UPGRID_DATA_DIR, UPGRID_USERNAME,\n\
+         UPGRID_JOIN, UPGRID_DATA_DIR, UPGRID_USERNAME,\n\
          UPGRID_PASSWORD,\n\
          UPGRID_SECRET_KEY, and UPGRID_HISTORY_RETENTION_HOURS."
     );
@@ -144,7 +136,7 @@ fn parse_history_retention(value: &str) -> io::Result<u64> {
 
 pub fn load_or_create_cipher(
     data_dir: &Path,
-    configured: Option<&str>,
+    configured: Option<&crate::secret::Cipher>,
     joining: bool,
 ) -> AppResult<crate::secret::Cipher> {
     let path = data_dir.join("deployment-key");
@@ -153,7 +145,6 @@ pub fn load_or_create_cipher(
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => return Err(error.into()),
     };
-    let configured = configured.map(crate::secret::Cipher::parse).transpose()?;
     match (stored, configured) {
         (Some(stored), Some(configured)) if stored.encoded() != configured.encoded() => {
             Err(io::Error::new(
@@ -165,11 +156,11 @@ pub fn load_or_create_cipher(
         (Some(stored), _) => Ok(stored),
         (None, Some(configured)) => {
             crate::durable::replace_private(&path, configured.encoded().as_bytes())?;
-            Ok(configured)
+            Ok(configured.clone())
         }
         (None, None) if joining => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "joining a Cluster requires --secret-key or UPGRID_SECRET_KEY",
+            "joining a Cluster requires a valid ups:// invitation",
         )
         .into()),
         (None, None) => {
