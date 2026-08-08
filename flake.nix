@@ -25,8 +25,11 @@
           devShells.default = mkShell {
             buildInputs = [
               cargo-feature
+              curl
+              jq
               openssl
               pkg-config
+              ripgrep
               lldb_21
               (rust-bin.selectLatestNightlyWith (toolchain:
                 toolchain.default.override {
