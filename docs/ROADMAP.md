@@ -4,7 +4,7 @@
 
 UpGrid will deliver an MVP first: the smallest production-usable path through cluster operation, target management, evaluation, and presentation. After the MVP, development proceeds through short, prioritized iterations. Post-MVP items are candidates rather than promised releases until selected for an iteration.
 
-## MVP — Release Candidate
+## MVP — Delivered baseline
 
 The following boundaries are fixed:
 
@@ -71,6 +71,7 @@ Delivered after the runnable MVP:
 - Lit/TypeScript WebUI built with pnpm and embedded as a reproducible binary artifact
 - Browser-tested Target creation, editing, history inspection, deletion, pause, and resume
 - WebUI workflows for Secrets, Telegram/webhook Channels, alert history, and Join Links
+- Live Raft topology, Target search/state filters/sorting, bulk actions, and safe cleanup of unused Channels and Secrets
 
 Pausing a Target preserves its configuration and history, cancels its outstanding assignment, discards late results, and suppresses new evaluations until it is resumed.
 
@@ -81,6 +82,9 @@ Pausing a Target preserves its configuration and history, cancels its outstandin
 - Custom HTTPS CA bundles and mutual-TLS Target credentials
 - Cron or calendar-based scheduling if usage demonstrates a need
 - Replicated user identities, API tokens, sessions, and role-based access control
+- Notification Channel editing and test delivery
+- Alert acknowledgement, manual delivery retry, and advanced history filters
+- Safe Node drain and membership removal workflows
 - Capabilities prioritized from real usage and operator feedback
 
 Candidate order and release dates are intentionally not committed yet.
