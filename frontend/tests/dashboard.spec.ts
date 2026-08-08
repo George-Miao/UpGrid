@@ -74,3 +74,12 @@ test("pauses and resumes cluster-wide evaluations", async ({ page }) => {
   await page.getByRole("button", { name: "Resume evaluations" }).click();
   await expect(page.getByRole("button", { name: "Pausing target" })).not.toContainText("Paused");
 });
+
+test("shows the local Raft topology and leader", async ({ page }) => {
+  await page.goto("/");
+
+  const cluster = page.getByRole("region", { name: "Cluster topology" });
+  await expect(cluster.getByText("up://127.0.0.1:18451")).toBeVisible();
+  await expect(cluster.getByText("Leader")).toBeVisible();
+  await expect(cluster.getByText("This node")).toBeVisible();
+});

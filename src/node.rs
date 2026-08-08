@@ -39,6 +39,10 @@ pub struct Node {
 }
 
 impl Node {
+    pub fn node_id(&self) -> uuid::Uuid {
+        self.id.id
+    }
+
     #[cfg(test)]
     pub async fn new<U, E>(advertise_url: U) -> Result<Self>
     where
@@ -355,6 +359,17 @@ impl Node {
             .membership()
             .voter_ids()
             .collect()
+    }
+
+    pub fn cluster_topology(&self) -> (Option<uuid::Uuid>, BTreeMap<uuid::Uuid, String>) {
+        let metrics = self.raft.metrics();
+        let current = metrics.borrow_watched();
+        let members = current
+            .membership_config
+            .nodes()
+            .map(|(node_id, node)| (*node_id, node.to_string()))
+            .collect();
+        (current.current_leader, members)
     }
 }
 

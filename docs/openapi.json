@@ -150,6 +150,43 @@
         }
       }
     },
+    "/api/v1/cluster": {
+      "get": {
+        "operationId": "get_cluster",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/events": {
       "get": {
         "operationId": "events",
@@ -822,6 +859,56 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "ClusterMemberView": {
+        "type": "object",
+        "required": [
+          "id",
+          "raft_url",
+          "leader",
+          "local"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "leader": {
+            "type": "boolean"
+          },
+          "local": {
+            "type": "boolean"
+          },
+          "raft_url": {
+            "type": "string"
+          }
+        }
+      },
+      "ClusterView": {
+        "type": "object",
+        "required": [
+          "local_node_id",
+          "members"
+        ],
+        "properties": {
+          "leader_node_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "local_node_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClusterMemberView"
+            }
           }
         }
       },

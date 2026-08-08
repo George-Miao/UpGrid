@@ -61,6 +61,19 @@ export interface JoinLink {
   expires_at_ms: number;
 }
 
+export interface ClusterMember {
+  id: string;
+  raft_url: string;
+  leader: boolean;
+  local: boolean;
+}
+
+export interface Cluster {
+  leader_node_id: string | null;
+  local_node_id: string;
+  members: ClusterMember[];
+}
+
 export interface TargetInput {
   name: string;
   url: string;

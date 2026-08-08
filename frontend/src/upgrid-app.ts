@@ -3,6 +3,7 @@ import { customElement, state } from "lit/decorators.js";
 import {
   type Alert,
   type Channel,
+  type Cluster,
   type JoinLink,
   type Secret,
   type Target,
@@ -16,6 +17,7 @@ export class UpgridApp extends LitElement {
   @state() private channels: Channel[] = [];
   @state() private alerts: Alert[] = [];
   @state() private secrets: Secret[] = [];
+  @state() private cluster?: Cluster;
   @state() private error = "";
   @state() private live = false;
   @state() private saving = false;
@@ -141,11 +143,12 @@ export class UpgridApp extends LitElement {
 
   private async refresh(): Promise<void> {
     try {
-      [this.targets, this.channels, this.alerts, this.secrets] = await Promise.all([
+      [this.targets, this.channels, this.alerts, this.secrets, this.cluster] = await Promise.all([
         request<Target[]>("/api/v1/targets"),
         request<Channel[]>("/api/v1/channels"),
         request<Alert[]>("/api/v1/alerts"),
         request<Secret[]>("/api/v1/secrets"),
+        request<Cluster>("/api/v1/cluster"),
       ]);
       this.error = "";
     } catch (error) {
@@ -427,9 +430,10 @@ export class UpgridApp extends LitElement {
               ? this.alerts.slice(0, 10).map((alert) => html`<div class="resource"><div><strong>${alert.target_name}</strong><code>${new Date(alert.scheduled_at_ms).toLocaleString()}</code></div><span class="badge">${alert.kind} · ${alert.delivery}</span></div>`)
               : html`<div class="empty">No availability transitions.</div>`}
           </section>
-          <section class="panel" id="cluster">
+          <section class="panel" id="cluster" aria-label="Cluster topology">
             <div class="panel-head"><h2>Cluster access</h2><button class="button secondary" @click=${this.createJoinLink}>Add node</button></div>
-            <div class="empty">Create a single-use, 10-minute Join Link for each new Node.</div>
+            ${this.cluster?.members.map((member) => html`<div class="resource"><div><strong>${member.raft_url}</strong><code>${member.id}</code></div><div class="actions">${member.local ? html`<span class="badge">This node</span>` : nothing}${member.leader ? html`<span class="badge">Leader</span>` : nothing}</div></div>`)}
+            ${this.cluster?.members.length ? nothing : html`<div class="empty">Cluster topology unavailable.</div>`}
           </section>
         </section>
       </main>

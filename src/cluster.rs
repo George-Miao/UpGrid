@@ -29,6 +29,16 @@ enum Request {
     Voters {
         reply: oneshot::Sender<BTreeSet<Uuid>>,
     },
+    Status {
+        reply: oneshot::Sender<Status>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct Status {
+    pub local_node_id: Uuid,
+    pub leader_node_id: Option<Uuid>,
+    pub members: std::collections::BTreeMap<Uuid, String>,
 }
 
 #[derive(Clone)]
@@ -104,6 +114,16 @@ impl Handle {
             .map_err(|_| "cluster runtime stopped before responding".to_owned())
     }
 
+    pub async fn status(&self) -> Result<Status, String> {
+        let (reply, response) = oneshot::channel();
+        self.sender
+            .send(Request::Status { reply })
+            .map_err(|_| "cluster runtime stopped".to_owned())?;
+        response
+            .await
+            .map_err(|_| "cluster runtime stopped before responding".to_owned())
+    }
+
     pub fn version(&self) -> u64 {
         self.version.load(Ordering::Relaxed)
     }
@@ -168,6 +188,14 @@ impl Receiver {
                 }
                 Some(Request::Voters { reply }) => {
                     let _ = reply.send(node.voters());
+                }
+                Some(Request::Status { reply }) => {
+                    let (leader_node_id, members) = node.cluster_topology();
+                    let _ = reply.send(Status {
+                        local_node_id: node.node_id(),
+                        leader_node_id,
+                        members,
+                    });
                 }
                 None => {}
             }

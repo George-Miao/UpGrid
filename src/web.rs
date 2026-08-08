@@ -393,6 +393,21 @@ struct AlertView {
     delivery: String,
 }
 
+#[derive(Debug, Serialize, ToSchema)]
+struct ClusterMemberView {
+    id: Uuid,
+    raft_url: String,
+    leader: bool,
+    local: bool,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+struct ClusterView {
+    leader_node_id: Option<Uuid>,
+    local_node_id: Uuid,
+    members: Vec<ClusterMemberView>,
+}
+
 #[utoipa::path(get, path = "/api/v1/targets", responses((status = 200, body = [TargetView]), (status = 401, body = ErrorBody), (status = 503, body = ErrorBody)))]
 async fn list_targets(State(state): State<WebState>) -> Result<Json<Vec<TargetView>>, ApiError> {
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
@@ -704,6 +719,29 @@ async fn list_alerts(State(state): State<WebState>) -> Result<Json<Vec<AlertView
     Ok(Json(alerts))
 }
 
+#[utoipa::path(get, path = "/api/v1/cluster", responses((status = 200, body = ClusterView), (status = 401, body = ErrorBody), (status = 503, body = ErrorBody)))]
+async fn get_cluster(State(state): State<WebState>) -> Result<Json<ClusterView>, ApiError> {
+    let status = state
+        .cluster
+        .status()
+        .await
+        .map_err(ApiError::unavailable)?;
+    Ok(Json(ClusterView {
+        leader_node_id: status.leader_node_id,
+        local_node_id: status.local_node_id,
+        members: status
+            .members
+            .into_iter()
+            .map(|(id, raft_url)| ClusterMemberView {
+                id,
+                raft_url,
+                leader: status.leader_node_id == Some(id),
+                local: status.local_node_id == id,
+            })
+            .collect(),
+    }))
+}
+
 #[utoipa::path(get, path = "/api/v1/events", responses((status = 200, description = "SSE stream of state versions", body = String, content_type = "text/event-stream"), (status = 401, body = ErrorBody)))]
 async fn events(
     State(state): State<WebState>,
@@ -853,6 +891,7 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(list_secrets, create_secret))
         .routes(routes!(create_join_link))
         .routes(routes!(list_alerts))
+        .routes(routes!(get_cluster))
         .routes(routes!(events))
 }
 
