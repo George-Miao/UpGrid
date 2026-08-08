@@ -50,6 +50,16 @@ export interface Alert {
   delivery: "pending" | "delivered" | "failed";
 }
 
+export interface Secret {
+  id: string;
+  name: string;
+}
+
+export interface JoinLink {
+  url: string;
+  expires_at_ms: number;
+}
+
 export interface TargetInput {
   name: string;
   url: string;

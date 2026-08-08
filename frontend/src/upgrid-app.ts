@@ -3,6 +3,8 @@ import { customElement, state } from "lit/decorators.js";
 import {
   type Alert,
   type Channel,
+  type JoinLink,
+  type Secret,
   type Target,
   type TargetInput,
   request,
@@ -13,10 +15,13 @@ export class UpgridApp extends LitElement {
   @state() private targets: Target[] = [];
   @state() private channels: Channel[] = [];
   @state() private alerts: Alert[] = [];
+  @state() private secrets: Secret[] = [];
   @state() private error = "";
   @state() private live = false;
   @state() private saving = false;
   @state() private selected?: Target;
+  @state() private channelKind: "webhook" | "telegram" = "webhook";
+  @state() private joinCommand = "";
   private events?: EventSource;
 
   static styles = css`
@@ -67,6 +72,12 @@ export class UpgridApp extends LitElement {
     .metric span { display: block; color: var(--muted); font-size: 11px; letter-spacing: .11em; text-transform: uppercase; }
     .metric strong { display: block; margin-top: 5px; font-size: 29px; font-weight: 560; }
     .panel { border-radius: 16px; overflow: hidden; }
+    .resources { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+    .resource { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 20px; border-bottom: 1px solid #202925; }
+    .resource:last-child { border-bottom: 0; }
+    .resource strong { display: block; font-size: 13px; }
+    .resource code { color: var(--muted); font-size: 11px; }
+    .badge { border: 1px solid #3c554a; border-radius: 999px; color: #a7c3b7; padding: 2px 7px; font-size: 10px; text-transform: uppercase; }
     .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 17px 20px; border-bottom: 1px solid var(--line); }
     .panel-head h2 { margin: 0; font-size: 14px; }
     .target { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px; border: 0; border-bottom: 1px solid #202925; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
@@ -99,6 +110,7 @@ export class UpgridApp extends LitElement {
     .check input { width: auto; }
     .history { margin: 0 22px 22px; border-top: 1px solid var(--line); padding-top: 18px; }
     .history h3 { margin: 0 0 10px; font-size: 14px; }
+    .join-command { margin: 20px 22px; border: 1px solid var(--line); border-radius: 10px; background: #0b110e; color: var(--green); padding: 13px; overflow-wrap: anywhere; font: 12px/1.6 ui-monospace, SFMono-Regular, monospace; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th, td { padding: 7px 5px; border-bottom: 1px solid #202925; text-align: left; }
     th { color: var(--muted); font-weight: 500; }
@@ -106,6 +118,7 @@ export class UpgridApp extends LitElement {
       .shell { padding: 20px 14px 60px; }
       nav { display: none; }
       .summary { grid-template-columns: 1fr 1fr; }
+      .resources { grid-template-columns: 1fr; }
       .heading { align-items: flex-start; gap: 16px; }
       .target { grid-template-columns: auto minmax(0, 1fr); }
       .latency { grid-column: 2; text-align: left; }
@@ -128,10 +141,11 @@ export class UpgridApp extends LitElement {
 
   private async refresh(): Promise<void> {
     try {
-      [this.targets, this.channels, this.alerts] = await Promise.all([
+      [this.targets, this.channels, this.alerts, this.secrets] = await Promise.all([
         request<Target[]>("/api/v1/targets"),
         request<Channel[]>("/api/v1/channels"),
         request<Alert[]>("/api/v1/alerts"),
+        request<Secret[]>("/api/v1/secrets"),
       ]);
       this.error = "";
     } catch (error) {
@@ -157,6 +171,14 @@ export class UpgridApp extends LitElement {
   private closeDetailDialog(): void {
     this.renderRoot.querySelector<HTMLDialogElement>("#detail-dialog")?.close();
     this.selected = undefined;
+  }
+
+  private showDialog(id: string): void {
+    this.renderRoot.querySelector<HTMLDialogElement>(`#${id}`)?.showModal();
+  }
+
+  private closeDialog(id: string): void {
+    this.renderRoot.querySelector<HTMLDialogElement>(`#${id}`)?.close();
   }
 
   private async createTarget(event: SubmitEvent): Promise<void> {
@@ -261,6 +283,76 @@ export class UpgridApp extends LitElement {
     }
   }
 
+  private async createSecret(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const fields = new FormData(form);
+    this.saving = true;
+    try {
+      await request<Secret>("/api/v1/secrets", {
+        method: "POST",
+        body: JSON.stringify({ name: fields.get("name"), value: fields.get("value") }),
+      });
+      form.reset();
+      this.closeDialog("secret-dialog");
+      await this.refresh();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  private async createChannel(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const fields = new FormData(form);
+    const body = this.channelKind === "telegram"
+      ? {
+          type: "telegram",
+          name: fields.get("name"),
+          bot_token: fields.get("bot_token"),
+          chat_id: fields.get("chat_id"),
+        }
+      : {
+          type: "webhook",
+          name: fields.get("name"),
+          url: fields.get("url"),
+          headers: {},
+        };
+    this.saving = true;
+    try {
+      await request<Channel>("/api/v1/channels", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      form.reset();
+      this.channelKind = "webhook";
+      this.closeDialog("channel-dialog");
+      await this.refresh();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  private async createJoinLink(): Promise<void> {
+    this.saving = true;
+    try {
+      const link = await request<JoinLink>("/api/v1/join-links", {
+        method: "POST",
+        body: JSON.stringify({ expires_in_seconds: 600 }),
+      });
+      this.joinCommand = `upgrid --join '${link.url}'`;
+      this.showDialog("join-dialog");
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.saving = false;
+    }
+  }
+
   protected render() {
     const up = this.targets.filter((target) => target.availability === "up").length;
     const down = this.targets.filter((target) => target.availability === "down").length;
@@ -279,6 +371,7 @@ export class UpgridApp extends LitElement {
             <a href="#cluster">Cluster</a>
           </nav>
           <div class="actions">
+            <button class="button secondary" @click=${this.createJoinLink} ?disabled=${this.saving}>Add node</button>
             <div class="live"><i class="dot ${this.live ? "on" : ""}"></i>${this.live ? "live" : "connecting"}</div>
           </div>
         </header>
@@ -298,6 +391,30 @@ export class UpgridApp extends LitElement {
           ${this.targets.length
             ? this.targets.map((target) => this.renderTarget(target))
             : html`<div class="empty">No targets yet. Add the first one to begin monitoring.</div>`}
+        </section>
+        <section class="resources" aria-label="Notification configuration">
+          <section class="panel">
+            <div class="panel-head"><h2>Notification channels</h2><button class="button secondary" @click=${() => this.showDialog("channel-dialog")}>Add channel</button></div>
+            ${this.channels.length
+              ? this.channels.map((channel) => html`<div class="resource"><div><strong>${channel.name}</strong><code>${channel.destination}</code></div><span class="badge">${channel.kind}</span></div>`)
+              : html`<div class="empty">No notification channels.</div>`}
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h2>Secrets</h2><button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div>
+            ${this.secrets.length
+              ? this.secrets.map((secret) => html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id}</code></div><span class="badge">write-only</span></div>`)
+              : html`<div class="empty">No reusable Secrets.</div>`}
+          </section>
+          <section class="panel" id="alerts">
+            <div class="panel-head"><h2>Alert history</h2><span class="meta">${this.alerts.length} events</span></div>
+            ${this.alerts.length
+              ? this.alerts.slice(0, 10).map((alert) => html`<div class="resource"><div><strong>${alert.target_name}</strong><code>${new Date(alert.scheduled_at_ms).toLocaleString()}</code></div><span class="badge">${alert.kind} · ${alert.delivery}</span></div>`)
+              : html`<div class="empty">No availability transitions.</div>`}
+          </section>
+          <section class="panel" id="cluster">
+            <div class="panel-head"><h2>Cluster access</h2><button class="button secondary" @click=${this.createJoinLink}>Add node</button></div>
+            <div class="empty">Create a single-use, 10-minute Join Link for each new Node.</div>
+          </section>
         </section>
       </main>
       <dialog id="target-dialog" aria-labelledby="add-target-title">
@@ -320,6 +437,30 @@ export class UpgridApp extends LitElement {
         </form>
       </dialog>
       ${this.selected ? this.renderDetail(this.selected) : nothing}
+      <dialog id="secret-dialog" aria-labelledby="secret-title">
+        <div class="dialog-head"><h2 id="secret-title">Add secret</h2><p>The plaintext is encrypted before replication and never returned.</p></div>
+        <form @submit=${this.createSecret}>
+          <label>Name<input name="name" placeholder="Webhook token" required /></label>
+          <label>Value<input name="value" type="password" autocomplete="new-password" required /></label>
+          <div class="dialog-actions"><button class="button secondary" type="button" @click=${() => this.closeDialog("secret-dialog")}>Cancel</button><button class="button" type="submit" ?disabled=${this.saving}>Create secret</button></div>
+        </form>
+      </dialog>
+      <dialog id="channel-dialog" aria-labelledby="channel-title">
+        <div class="dialog-head"><h2 id="channel-title">Add channel</h2><p>Send transitions through Telegram or a generic webhook.</p></div>
+        <form @submit=${this.createChannel}>
+          <label>Type<select name="type" @change=${(event: Event) => (this.channelKind = (event.target as HTMLSelectElement).value as "webhook" | "telegram")}><option value="webhook">Webhook</option><option value="telegram">Telegram</option></select></label>
+          <label>Name<input name="name" placeholder="On-call" required /></label>
+          ${this.channelKind === "webhook"
+            ? html`<label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/upgrid" required /></label>`
+            : html`<label>Bot token<input name="bot_token" type="password" autocomplete="off" required /></label><label>Chat ID<input name="chat_id" required /></label>`}
+          <div class="dialog-actions"><button class="button secondary" type="button" @click=${() => this.closeDialog("channel-dialog")}>Cancel</button><button class="button" type="submit" ?disabled=${this.saving}>Create channel</button></div>
+        </form>
+      </dialog>
+      <dialog id="join-dialog" aria-labelledby="join-title">
+        <div class="dialog-head"><h2 id="join-title">Join a node</h2><p>This command contains Cluster credentials. Keep it private.</p></div>
+        <div class="join-command">${this.joinCommand}</div>
+        <div class="dialog-actions" style="padding: 0 22px 22px"><button class="button secondary" @click=${() => this.closeDialog("join-dialog")}>Close</button><button class="button" @click=${() => navigator.clipboard.writeText(this.joinCommand)}>Copy command</button></div>
+      </dialog>
     `;
   }
 
