@@ -55,10 +55,17 @@ cargo test --no-run
 cargo test domain::tests
 cargo test scheduler::tests
 cargo test published_openapi_matches_routes
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend build
+scripts/test-webui.sh
 scripts/verify-local-cluster.sh
 ```
 
-The final command starts three local Nodes, writes through a follower, and confirms the Target is readable from every Node. The legacy fixed-port `master` and `worker` network tests are manual fixtures; do not run the unfiltered suite in automation.
+The browser test starts an isolated Node and exercises the embedded UI in Chromium. The final command starts three local Nodes, writes through a follower, and confirms the Target is readable from every Node. The legacy fixed-port `master` and `worker` network tests are manual fixtures; do not run the unfiltered suite in automation.
+
+## WebUI development
+
+The Lit/TypeScript source is in `frontend/src/`. Run `scripts/update-webui.sh` after changing it; Vite rebuilds the checked-in `frontend/dist/` files embedded by the Rust binary. CI rebuilds the same artifact and rejects stale generated output. Install Chromium once with `pnpm --dir frontend exec playwright install chromium` before running browser tests locally.
 
 Run `scripts/update-openapi.sh` after changing API routes or schemas. CI compares the generated contract with `docs/openapi.json`. A running reference deployment can exercise the 1,000-Target SLO with `scripts/verify-reference-workload.sh`.
 

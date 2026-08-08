@@ -27,8 +27,10 @@
               cargo-feature
               curl
               jq
+              nodejs_22
               openssl
               pkg-config
+              pnpm
               ripgrep
               lldb_21
               (rust-bin.selectLatestNightlyWith (toolchain:

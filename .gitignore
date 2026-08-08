@@ -2,6 +2,10 @@
 /.direnv
 /.vscode
 /upgrid-data*/
+/frontend/node_modules/
+/frontend/test-results/
+/frontend/playwright-report/
+/frontend/*.tsbuildinfo
 /vendor/**/.cargo-ok
 /vendor/**/.cargo_vcs_info.json
 /vendor/**/Cargo.lock

@@ -1,0 +1,71 @@
+export interface Evaluation {
+  scheduled_at_ms: number;
+  recorded_at_ms: number;
+  executor_node_id: string;
+  succeeded: boolean;
+  status_code: number | null;
+  latency_ms: number;
+  diagnostic: string | null;
+}
+
+export interface Target {
+  id: string;
+  name: string;
+  url: string;
+  method: string;
+  availability: "unknown" | "up" | "down";
+  consecutive_failures: number;
+  interval_seconds: number;
+  timeout_seconds: number;
+  failure_threshold: number;
+  latest_evaluation: Evaluation | null;
+  history: Evaluation[];
+}
+
+export interface Channel {
+  id: string;
+  name: string;
+  kind: "telegram" | "webhook";
+  destination: string;
+}
+
+export interface Alert {
+  target_id: string;
+  channel_id: string;
+  kind: "down" | "recovered";
+  target_name: string;
+  scheduled_at_ms: number;
+  delivery: "pending" | "delivered" | "failed";
+}
+
+export interface TargetInput {
+  name: string;
+  url: string;
+  method: string;
+  accepted_statuses: Array<{ start: number; end: number }>;
+  follow_redirects: boolean;
+  max_redirects: number;
+  interval_seconds: number;
+  timeout_seconds: number;
+  failure_threshold: number;
+  headers: Record<string, string>;
+  body: string | null;
+  body_contains: string | null;
+  skip_tls_verification: boolean;
+  notification_channel_ids: string[];
+}
+
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    ...init,
+    headers: {
+      ...(init?.body ? { "content-type": "application/json" } : {}),
+      ...init?.headers,
+    },
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(body.error || response.statusText);
+  }
+  return response.status === 204 ? (undefined as T) : response.json();
+}

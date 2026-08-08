@@ -10,7 +10,7 @@ use axum::{
     http::{HeaderValue, StatusCode, header},
     middleware::{self, Next},
     response::{
-        Html, IntoResponse, Response, Sse,
+        IntoResponse, Response, Sse,
         sse::{Event, KeepAlive},
     },
     routing::get,
@@ -685,8 +685,24 @@ async fn events(
     )
 }
 
-async fn index() -> Html<&'static str> {
-    Html(include_str!("webui.html"))
+async fn index() -> impl IntoResponse {
+    (
+        [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        include_str!("../frontend/dist/index.html"),
+    )
+}
+
+async fn webui_script() -> impl IntoResponse {
+    (
+        [
+            (header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (header::CACHE_CONTROL, "public, max-age=3600"),
+        ],
+        include_bytes!("../frontend/dist/assets/app.js").as_slice(),
+    )
 }
 
 async fn favicon() -> impl IntoResponse {
@@ -695,7 +711,7 @@ async fn favicon() -> impl IntoResponse {
             (header::CONTENT_TYPE, "image/svg+xml"),
             (header::CACHE_CONTROL, "public, max-age=86400"),
         ],
-        include_str!("../assets/logo.svg"),
+        include_str!("../frontend/dist/favicon.svg"),
     )
 }
 
@@ -780,6 +796,7 @@ async fn serve(
             "/healthz",
             get(|| async { Json(serde_json::json!({"status": "ok"})) }),
         )
+        .route("/assets/app.js", get(webui_script))
         .route("/favicon.svg", get(favicon))
         .merge(protected);
     let listener = tokio::net::TcpListener::from_std(listener)?;
@@ -871,12 +888,14 @@ mod tests {
     }
 
     #[test]
-    fn webui_uses_svg_logo_as_favicon() {
-        let html = include_str!("webui.html");
-        let logo = include_str!("../assets/logo.svg");
+    fn webui_build_is_embeddable() {
+        let html = include_str!("../frontend/dist/index.html");
+        let script = include_bytes!("../frontend/dist/assets/app.js");
+        let logo = include_str!("../frontend/dist/favicon.svg");
 
         assert!(html.contains("rel=\"icon\" href=\"/favicon.svg\""));
-        assert!(html.contains("class=\"mark\" src=\"/favicon.svg\""));
+        assert!(html.contains("src=\"/assets/app.js\""));
+        assert!(!script.is_empty());
         assert!(logo.starts_with("<svg"));
         assert!(logo.contains("<title id=\"title\">UpGrid</title>"));
     }
