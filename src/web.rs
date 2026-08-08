@@ -695,7 +695,7 @@ async fn favicon() -> impl IntoResponse {
             (header::CONTENT_TYPE, "image/svg+xml"),
             (header::CACHE_CONTROL, "public, max-age=86400"),
         ],
-        include_str!("logo.svg"),
+        include_str!("../assets/logo.svg"),
     )
 }
 
@@ -873,7 +873,7 @@ mod tests {
     #[test]
     fn webui_uses_svg_logo_as_favicon() {
         let html = include_str!("webui.html");
-        let logo = include_str!("logo.svg");
+        let logo = include_str!("../assets/logo.svg");
 
         assert!(html.contains("rel=\"icon\" href=\"/favicon.svg\""));
         assert!(html.contains("class=\"mark\" src=\"/favicon.svg\""));
