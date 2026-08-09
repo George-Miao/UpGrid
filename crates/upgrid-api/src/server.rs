@@ -8,6 +8,7 @@ pub fn start(
     config: Config,
     cluster: Handle,
     cipher: Cipher,
+    notifications: upgrid_notification::Tester,
     oobe: Oobe,
     startup_warning: Option<String>,
 ) -> AppResult<()> {
@@ -27,6 +28,7 @@ pub fn start(
                 config,
                 cluster,
                 cipher,
+                notifications,
                 oobe,
                 startup_warning,
             )) {
@@ -42,6 +44,7 @@ async fn serve(
     config: Config,
     cluster: Handle,
     cipher: Cipher,
+    notifications: upgrid_notification::Tester,
     oobe: Oobe,
     startup_warning: Option<String>,
 ) -> AppResult<()> {
@@ -50,6 +53,7 @@ async fn serve(
     let state = WebState {
         cluster,
         cipher,
+        notifications,
         raft_url: config.raft_url,
         username: config.username,
         password: config.password,
@@ -108,6 +112,7 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(pause_target))
         .routes(routes!(resume_target))
         .routes(routes!(list_channels, create_channel))
+        .routes(routes!(test_channel))
         .routes(routes!(delete_channel))
         .routes(routes!(list_secrets, create_secret))
         .routes(routes!(delete_secret))

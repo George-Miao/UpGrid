@@ -92,15 +92,16 @@ async fn run() -> AppResult<()> {
         );
     }
     let (cluster, receiver) = Handle::new(node_id);
+    let notifications = upgrid_notification::start(cluster.clone(), cipher.clone());
     upgrid_api::start(
         config,
         cluster.clone(),
         cipher.clone(),
+        notifications,
         oobe,
         startup_warning,
     )?;
     worker::start(cluster.clone(), cipher.clone());
-    upgrid_notification::start(cluster, cipher);
     receiver.run(node).await;
     Err(std::io::Error::other("cluster request channel stopped").into())
 }

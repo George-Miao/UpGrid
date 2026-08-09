@@ -120,12 +120,37 @@ export class AppController extends AppState {
       await request<Channel>("/api/v1/channels", { method: "POST", body: JSON.stringify(body) });
       form.reset();
       this.channelKind = "webhook";
+      this.channelTestMessage = "";
       this.closeDialog("channel-dialog");
       await this.refresh();
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
     } finally {
       this.saving = false;
+    }
+  }
+
+  protected openChannelDialog(): void {
+    this.channelTestMessage = "";
+    this.showDialog("channel-dialog");
+  }
+
+  protected async testChannel(event: MouseEvent): Promise<void> {
+    const form = (event.currentTarget as HTMLButtonElement).form;
+    if (!form) return;
+    const required = [...form.querySelectorAll<HTMLInputElement>("[data-test-required]")];
+    if (!required.every((field) => field.reportValidity())) return;
+    this.testingChannel = true;
+    this.channelTestMessage = "";
+    try {
+      const body = channelInput(new FormData(form), this.channelKind);
+      await request<void>("/api/v1/channels/test", { method: "POST", body: JSON.stringify(body) });
+      this.channelTestMessage = "Test sent";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.channelTestMessage = `Test failed: ${message}`;
+    } finally {
+      this.testingChannel = false;
     }
   }
 

@@ -1,5 +1,19 @@
 use super::*;
 
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub(super) enum TestChannelRequest {
+    Telegram {
+        bot_token: String,
+        chat_id: String,
+    },
+    Webhook {
+        url: String,
+        #[serde(default)]
+        headers: BTreeMap<String, String>,
+    },
+}
+
 #[utoipa::path(
     get,
     path = "/api/v1/channels",
@@ -92,6 +106,42 @@ pub(super) async fn create_channel(
                 .expect("created channel exists"),
         )),
     ))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/channels/test",
+    request_body = TestChannelRequest,
+    responses(
+        (status = 204),
+        (status = 400, body = ErrorBody),
+        (status = 401, body = ErrorBody),
+        (status = 422, body = ErrorBody),
+        (status = 503, body = ErrorBody),
+    )
+)]
+pub(super) async fn test_channel(
+    State(state): State<WebState>,
+    Json(input): Json<TestChannelRequest>,
+) -> Result<StatusCode, ApiError> {
+    let channel = match input {
+        TestChannelRequest::Telegram { bot_token, chat_id } => {
+            upgrid_notification::TestChannel::Telegram { bot_token, chat_id }
+        }
+        TestChannelRequest::Webhook { url, headers } => upgrid_notification::TestChannel::Webhook {
+            url: Url::parse(&url).map_err(ApiError::bad_request)?,
+            headers,
+        },
+    };
+    state
+        .notifications
+        .send(channel)
+        .await
+        .map_err(|error| match error {
+            upgrid_notification::TestError::Unavailable => ApiError::unavailable(error),
+            upgrid_notification::TestError::Failed(_) => ApiError::unprocessable(error),
+        })?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[utoipa::path(

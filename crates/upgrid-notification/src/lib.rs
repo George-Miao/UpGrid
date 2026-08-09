@@ -16,12 +16,14 @@ use upgrid_raft::domain::{
 };
 
 mod channel;
+mod test;
 
 #[cfg(test)]
 #[path = "tests.rs"]
 mod notification_tests;
 
 use channel::Request;
+pub use test::{TestChannel, TestError, Tester};
 
 const RETRY_WINDOW_MS: u64 = 24 * 60 * 60 * 1_000;
 
@@ -47,8 +49,8 @@ enum DeliveryError {
     Permanent(String),
 }
 
-/// Starts leader-only alert delivery in the current Compio runtime.
-pub fn start(cluster: Handle, cipher: Cipher) {
+/// Starts alert delivery and channel testing in the current Compio runtime.
+pub fn start(cluster: Handle, cipher: Cipher) -> Tester {
     let notifier = Notifier {
         client: Client::builder()
             .use_rustls_default()
@@ -56,12 +58,15 @@ pub fn start(cluster: Handle, cipher: Cipher) {
             .expect("default HTTP client configuration should be valid"),
         cipher,
     };
-    spawn(run(cluster, notifier)).detach();
+    let (tester, tests) = test::channel();
+    spawn(run(cluster, notifier, tests)).detach();
+    tester
 }
 
-async fn run(cluster: Handle, notifier: Notifier) {
+async fn run(cluster: Handle, notifier: Notifier, mut tests: test::Receiver) {
     let active = Rc::new(RefCell::new(BTreeSet::<AlertId>::new()));
     loop {
+        tests.drain(&notifier);
         if !cluster.is_leader().await {
             sleep(Duration::from_secs(1)).await;
             continue;

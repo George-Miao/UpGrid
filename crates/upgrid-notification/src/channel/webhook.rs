@@ -60,6 +60,26 @@ impl ChannelTarget for Webhook<'_> {
     }
 }
 
+pub(super) fn test_request(
+    url: &Url,
+    headers: &BTreeMap<String, String>,
+) -> Result<Request, String> {
+    let mut headers = headers.clone();
+    headers
+        .entry("content-type".to_owned())
+        .or_insert_with(|| "application/json".to_owned());
+    let body = serde_json::to_vec(&json!({
+        "event": "test",
+        "message": "UpGrid notification channel test",
+    }))
+    .map_err(|error| error.to_string())?;
+    Ok(Request {
+        url: url.clone(),
+        headers,
+        body,
+    })
+}
+
 fn stable_alert_id(alert: &Alert) -> String {
     format!(
         "{}:{}:{}:{}",
@@ -71,4 +91,21 @@ fn stable_alert_id(alert: &Alert) -> String {
             AlertKind::Recovered => "recovered",
         }
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_message_identifies_itself_without_an_alert() {
+        let url = Url::parse("https://example.com/hook").unwrap();
+        let request = test_request(&url, &BTreeMap::new()).unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
+
+        assert_eq!(request.url, url);
+        assert_eq!(request.headers["content-type"], "application/json");
+        assert_eq!(body["event"], "test");
+        assert_eq!(body["message"], "UpGrid notification channel test");
+    }
 }

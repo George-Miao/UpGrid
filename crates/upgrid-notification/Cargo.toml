@@ -10,6 +10,7 @@ cyper.workspace = true
 http.workspace = true
 httpdate.workspace = true
 serde_json.workspace = true
+tokio.workspace = true
 tracing.workspace = true
 upgrid-config.workspace = true
 upgrid-raft.workspace = true

@@ -49,6 +49,7 @@ pub use setup::{OobeChoice, wait_for_oobe};
 struct WebState {
     cluster: Handle,
     cipher: Cipher,
+    notifications: upgrid_notification::Tester,
     raft_url: String,
     username: String,
     password: String,
@@ -78,6 +79,13 @@ impl ApiError {
     fn unavailable(error: impl std::fmt::Display) -> Self {
         Self {
             status: StatusCode::SERVICE_UNAVAILABLE,
+            message: error.to_string(),
+        }
+    }
+
+    fn unprocessable(error: impl std::fmt::Display) -> Self {
+        Self {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
             message: error.to_string(),
         }
     }

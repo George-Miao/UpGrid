@@ -2,6 +2,7 @@ import { css, html, nothing } from "lit";
 import { customElement } from "lit/decorators.js";
 import pauseIcon from "@iconify-icons/lucide/pause";
 import playIcon from "@iconify-icons/lucide/play";
+import deleteIcon from "@iconify-icons/lucide/trash-2";
 import closeIcon from "@iconify-icons/lucide/x";
 import "iconify-icon";
 import "./setup-flow.ts";
@@ -351,12 +352,12 @@ export class UpgridApp extends AppController {
       <dialog id="channel-dialog" aria-labelledby="channel-title" @click=${this.dismissOnBackdrop}>
         <div class="dialog-head"><h2 id="channel-title">Add channel</h2><p>Send transitions through Telegram or a generic webhook.</p></div>
         <form @submit=${this.createChannel}>
-          <label>Type<select name="type" @change=${(event: Event) => (this.channelKind = (event.target as HTMLSelectElement).value as "webhook" | "telegram")}><option value="webhook">Webhook</option><option value="telegram">Telegram</option></select></label>
+          <label>Type<select name="type" @change=${(event: Event) => { this.channelKind = (event.target as HTMLSelectElement).value as "webhook" | "telegram"; this.channelTestMessage = ""; }}><option value="webhook">Webhook</option><option value="telegram">Telegram</option></select></label>
           <label>Name<input name="name" placeholder="On-call" required /></label>
           ${this.channelKind === "webhook"
-            ? html`<label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/upgrid" required /></label>`
-            : html`<label>Bot token<input name="bot_token" type="password" autocomplete="off" required /></label><label>Chat ID<input name="chat_id" required /></label>`}
-          <div class="dialog-actions"><button class="button secondary" type="button" @click=${() => this.closeDialog("channel-dialog")}>Cancel</button><button class="button" type="submit" ?disabled=${this.saving}>Create channel</button></div>
+            ? html`<label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/upgrid" data-test-required required /></label>`
+            : html`<label>Bot token<input name="bot_token" type="password" autocomplete="off" data-test-required required /></label><label>Chat ID<input name="chat_id" data-test-required required /></label>`}
+          <div class="dialog-actions">${this.channelTestMessage ? html`<span class="meta" role="status" style="margin-right:auto">${this.channelTestMessage}</span>` : nothing}<button class="button secondary" type="button" @click=${() => this.closeDialog("channel-dialog")}>Cancel</button><button class="button secondary" type="button" aria-busy=${this.testingChannel} ?disabled=${this.testingChannel || this.saving} @click=${this.testChannel}>${this.testingChannel ? "Sending…" : "Send test"}</button><button class="button" type="submit" ?disabled=${this.saving || this.testingChannel}>Create channel</button></div>
         </form>
       </dialog>
       <dialog id="token-config-dialog" aria-labelledby="token-config-title" @click=${this.dismissOnBackdrop}>
@@ -394,7 +395,7 @@ export class UpgridApp extends AppController {
         </section>
         <section class="panel" aria-label="Secrets">
           <div class="panel-head"><h2>Secrets</h2><button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div>
-          ${this.secrets.length ? this.secrets.map((secret) => html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id}</code></div><div class="actions"><span class="badge">write-only</span><button class="button danger" aria-label=${`Delete secret ${secret.name}`} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}>Delete</button></div></div>`) : html`<div class="empty">No reusable Secrets.</div>`}
+          ${this.secrets.length ? this.secrets.map((secret) => html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id}</code></div><div class="actions"><span class="badge">write-only</span><button class="button danger icon-button" aria-label=${`Delete secret ${secret.name}`} title=${`Delete ${secret.name}`} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div></div>`) : html`<div class="empty">No reusable Secrets.</div>`}
         </section>
       </section>
       <section class="panel" aria-label="Targets">
@@ -404,7 +405,7 @@ export class UpgridApp extends AppController {
           <select aria-label="Filter targets" .value=${this.statusFilter} @change=${(event: Event) => (this.statusFilter = (event.target as HTMLSelectElement).value)}><option value="all">All states</option><option value="up">Up</option><option value="down">Down</option><option value="unknown">Unknown</option><option value="paused">Paused</option></select>
           <select aria-label="Sort targets" .value=${this.sort} @change=${(event: Event) => (this.sort = (event.target as HTMLSelectElement).value)}><option value="name">Sort by name</option><option value="status">Sort by status</option></select>
         </div>
-        ${this.selectedIds.size ? html`<div class="bulk"><span class="meta">${this.selectedIds.size} selected</span><div class="bulk-actions"><button class="button secondary icon-button" aria-label="Unselect all" title="Unselect all" @click=${() => (this.selectedIds = new Set())}><iconify-icon .icon=${closeIcon} aria-hidden="true"></iconify-icon></button>${canPauseSelected ? html`<button class="button warning icon-button" aria-label="Pause selected" title="Pause selected" @click=${() => this.bulkPause(true)}><iconify-icon .icon=${pauseIcon} aria-hidden="true"></iconify-icon></button>` : nothing}${canResumeSelected ? html`<button class="button success icon-button" aria-label="Resume selected" title="Resume selected" @click=${() => this.bulkPause(false)}><iconify-icon .icon=${playIcon} aria-hidden="true"></iconify-icon></button>` : nothing}<button class="button danger" @click=${this.bulkDelete}>Delete selected</button></div></div>` : nothing}
+        ${this.selectedIds.size ? html`<div class="bulk"><span class="meta">${this.selectedIds.size} selected</span><div class="bulk-actions"><button class="button secondary icon-button" aria-label="Unselect all" title="Unselect all" @click=${() => (this.selectedIds = new Set())}><iconify-icon .icon=${closeIcon} aria-hidden="true"></iconify-icon></button>${canPauseSelected ? html`<button class="button warning icon-button" aria-label="Pause selected" title="Pause selected" @click=${() => this.bulkPause(true)}><iconify-icon .icon=${pauseIcon} aria-hidden="true"></iconify-icon></button>` : nothing}${canResumeSelected ? html`<button class="button success icon-button" aria-label="Resume selected" title="Resume selected" @click=${() => this.bulkPause(false)}><iconify-icon .icon=${playIcon} aria-hidden="true"></iconify-icon></button>` : nothing}<button class="button danger icon-button" aria-label="Delete selected" title="Delete selected" @click=${this.bulkDelete}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div></div>` : nothing}
         ${visibleTargets.length
           ? visibleTargets.map((target) => this.renderTarget(target))
           : html`<div class="empty">${this.targets.length ? "No Targets match these filters." : "No targets yet. Add the first one to begin monitoring."}</div>`}
@@ -415,7 +416,7 @@ export class UpgridApp extends AppController {
   private renderAlertsPage() {
     return html`
       <section class="heading" id="alerts">
-        <div><span class="eyebrow">Delivery history</span><h1>Alerts</h1></div><button class="button" @click=${() => this.showDialog("channel-dialog")}>Add channel</button>
+        <div><span class="eyebrow">Delivery history</span><h1>Alerts</h1></div><button class="button" @click=${this.openChannelDialog}>Add channel</button>
       </section>
       <div class="page-columns">
       <section class="panel" aria-label="Alert history">
@@ -426,7 +427,7 @@ export class UpgridApp extends AppController {
       </section>
       <section class="panel" aria-label="Notification channels">
         <div class="panel-head"><h2>Notification channels</h2><span class="meta">${this.channels.length} configured</span></div>
-        ${this.channels.length ? this.channels.map((channel) => html`<div class="resource"><div><strong>${channel.name}</strong><code>${channel.destination}</code></div><div class="actions"><span class="badge">${channel.kind}</span><button class="button danger" aria-label=${`Delete channel ${channel.name}`} @click=${() => this.deleteResource("channels", channel.id, channel.name)}>Delete</button></div></div>`) : html`<div class="empty">No notification channels.</div>`}
+        ${this.channels.length ? this.channels.map((channel) => html`<div class="resource"><div><div class="actions"><strong>${channel.name}</strong><span class="badge">${channel.kind}</span></div><code>${channel.destination}</code></div><button class="button danger icon-button" aria-label=${`Delete channel ${channel.name}`} title=${`Delete ${channel.name}`} @click=${() => this.deleteResource("channels", channel.id, channel.name)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div>`) : html`<div class="empty">No notification channels.</div>`}
       </section>
       </div>
     `;
@@ -492,7 +493,6 @@ export class UpgridApp extends AppController {
   }
 
 }
-
 declare global {
   interface HTMLElementTagNameMap {
     "upgrid-app": UpgridApp;

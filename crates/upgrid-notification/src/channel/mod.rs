@@ -10,6 +10,19 @@ use url::Url;
 mod telegram;
 mod webhook;
 
+/// Unsaved notification configuration used for a one-off delivery test.
+#[derive(Clone, Debug)]
+pub enum TestChannel {
+    Telegram {
+        bot_token: String,
+        chat_id: String,
+    },
+    Webhook {
+        url: Url,
+        headers: BTreeMap<String, String>,
+    },
+}
+
 pub(crate) struct Request {
     pub(crate) url: Url,
     pub(crate) headers: BTreeMap<String, String>,
@@ -37,6 +50,20 @@ pub(crate) fn target(kind: &NotificationChannelKind) -> Box<dyn ChannelTarget + 
         NotificationChannelKind::Webhook { url, headers } => {
             Box::new(webhook::Webhook::new(url, headers))
         }
+    }
+}
+
+pub(crate) fn test_request(channel: &TestChannel) -> Result<Request, String> {
+    match channel {
+        TestChannel::Telegram { bot_token, chat_id } => telegram::test_request(bot_token, chat_id),
+        TestChannel::Webhook { url, headers } => webhook::test_request(url, headers),
+    }
+}
+
+pub(crate) fn test_accepts(channel: &TestChannel, status: StatusCode, body: &[u8]) -> bool {
+    match channel {
+        TestChannel::Telegram { .. } => telegram::accepts(status, body),
+        TestChannel::Webhook { .. } => status.is_success(),
     }
 }
 
