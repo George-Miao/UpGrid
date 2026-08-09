@@ -209,6 +209,11 @@ test("filters and bulk-pauses selected targets", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Search beta" })).not.toBeVisible();
   await page.getByLabel("Select Search alpha").check();
   const pauseSelected = page.getByRole("button", { name: "Pause selected" });
+  await expect(page.getByRole("button", { name: "Unselect all" }).locator("iconify-icon")).toBeVisible();
+  const actionsMargin = await page.locator(".bulk-actions").evaluate((element) =>
+    Number.parseFloat(getComputedStyle(element).marginLeft),
+  );
+  expect(actionsMargin).toBeGreaterThan(0);
   await expect(pauseSelected).toHaveClass(/warning/);
   await expect(pauseSelected.locator("iconify-icon")).toBeVisible();
   await expect(page.getByRole("button", { name: "Resume selected" })).toHaveCount(0);
@@ -222,6 +227,11 @@ test("filters and bulk-pauses selected targets", async ({ page }) => {
   await expect(resumeSelected.locator("iconify-icon")).toBeVisible();
   await resumeSelected.click();
   await expect(page.getByRole("button", { name: "Search alpha" })).not.toContainText("Paused");
+
+  await page.getByLabel("Select Search alpha").check();
+  await page.getByRole("button", { name: "Unselect all" }).click();
+  await expect(page.locator(".bulk")).toHaveCount(0);
+  await expect(page.getByLabel("Select Search alpha")).not.toBeChecked();
 });
 
 test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {

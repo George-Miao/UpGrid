@@ -120,12 +120,12 @@ export class UpgridApp extends LitElement {
     nav a.active { color: var(--text); background: var(--active-bg); }
     .actions { gap: 12px; }
     .live { gap: 7px; }
-    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); transition: background-color 160ms ease, box-shadow 160ms ease; }
     .dot.on { background: var(--green); box-shadow: 0 0 10px var(--green); }
     .heading { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; }
     .heading h1 { margin: 2px 0 0; font-size: clamp(27px, 4vw, 38px); line-height: 1.1; letter-spacing: -.035em; }
     .eyebrow { text-transform: uppercase; letter-spacing: .16em; }
-    .button { border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease; }
+    .button { border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 120ms ease; }
     .button:hover { border-color: var(--button-hover-border); }
     .button:active { transform: translateY(1px); }
     .button:disabled { cursor: not-allowed; opacity: .65; }
@@ -152,7 +152,7 @@ export class UpgridApp extends LitElement {
     .target { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px 17px 14px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
     .target-wrap, .target { transition: background-color 150ms ease; }
     .target-wrap:hover, .target-wrap:hover .target { background: var(--row-hover); }
-    .state { width: 10px; height: 10px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px currentColor; }
+    .state { width: 10px; height: 10px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px currentColor; transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease; }
     .state.up { color: var(--green); background: var(--green); }
     .state.down { color: var(--red); background: var(--red); }
     .state.paused { color: var(--muted); background: var(--muted); box-shadow: none; }
@@ -163,7 +163,7 @@ export class UpgridApp extends LitElement {
     .latency span { color: var(--muted); font-size: 11px; }
     .target-side { display: flex; align-items: center; gap: 20px; }
     .mini-chart { display: flex; width: 88px; height: 32px; align-items: flex-end; gap: 2px; }
-    .mini-bar { flex: 1; min-width: 2px; max-width: 7px; border-radius: 2px 2px 1px 1px; opacity: .75; }
+    .mini-bar { flex: 1; min-width: 2px; max-width: 7px; border-radius: 2px 2px 1px 1px; opacity: .75; transition: background-color 160ms ease, height 180ms ease, opacity 160ms ease; }
     .mini-bar.up { background: var(--green); }
     .mini-bar.down { background: var(--red); }
     .empty { padding: 54px 20px; color: var(--muted); text-align: center; }
@@ -171,6 +171,9 @@ export class UpgridApp extends LitElement {
     .toolbar { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
     .toolbar input, .toolbar select { padding: 7px 9px; }
     .bulk { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--line); background: var(--bulk-bg); }
+    .bulk-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .bulk, .bulk-actions .button { animation: reveal 160ms ease-out; }
+    @keyframes reveal { from { opacity: 0; transform: translateY(-3px); } }
     dialog { width: min(580px, calc(100% - 28px)); border: 1px solid var(--line); border-radius: 17px; background: var(--panel); color: var(--text); padding: 0; box-shadow: 0 28px 90px var(--dialog-shadow); }
     dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(5px); }
     .dialog-head { position: relative; padding: 20px 58px 15px 22px; border-bottom: 1px solid var(--line); }
@@ -252,7 +255,8 @@ export class UpgridApp extends LitElement {
         --join-bg: #eef8f2;
     }
     @media (prefers-reduced-motion: reduce) {
-      :host, nav a, .button, .metric, .panel, .target-wrap, .target, .history-bar, input, select { transition-duration: 0s; }
+      :host, nav a, .button, .metric, .panel, .target-wrap, .target, .dot, .state, .mini-bar, .history-bar, input, select { transition-duration: 0s; }
+      .bulk, .bulk-actions .button { animation-duration: 0s; }
     }
     @media (max-width: 720px) {
       .shell { padding: 20px 14px 60px; }
@@ -774,7 +778,7 @@ export class UpgridApp extends LitElement {
           <select aria-label="Filter targets" .value=${this.statusFilter} @change=${(event: Event) => (this.statusFilter = (event.target as HTMLSelectElement).value)}><option value="all">All states</option><option value="up">Up</option><option value="down">Down</option><option value="unknown">Unknown</option><option value="paused">Paused</option></select>
           <select aria-label="Sort targets" .value=${this.sort} @change=${(event: Event) => (this.sort = (event.target as HTMLSelectElement).value)}><option value="name">Sort by name</option><option value="status">Sort by status</option></select>
         </div>
-        ${this.selectedIds.size ? html`<div class="bulk"><span class="meta">${this.selectedIds.size} selected</span>${canPauseSelected ? html`<button class="button warning icon-button" aria-label="Pause selected" title="Pause selected" @click=${() => this.bulkPause(true)}><iconify-icon .icon=${pauseIcon} aria-hidden="true"></iconify-icon></button>` : nothing}${canResumeSelected ? html`<button class="button success icon-button" aria-label="Resume selected" title="Resume selected" @click=${() => this.bulkPause(false)}><iconify-icon .icon=${playIcon} aria-hidden="true"></iconify-icon></button>` : nothing}<button class="button danger" @click=${this.bulkDelete}>Delete selected</button></div>` : nothing}
+        ${this.selectedIds.size ? html`<div class="bulk"><span class="meta">${this.selectedIds.size} selected</span><div class="bulk-actions"><button class="button secondary icon-button" aria-label="Unselect all" title="Unselect all" @click=${() => (this.selectedIds = new Set())}><iconify-icon .icon=${closeIcon} aria-hidden="true"></iconify-icon></button>${canPauseSelected ? html`<button class="button warning icon-button" aria-label="Pause selected" title="Pause selected" @click=${() => this.bulkPause(true)}><iconify-icon .icon=${pauseIcon} aria-hidden="true"></iconify-icon></button>` : nothing}${canResumeSelected ? html`<button class="button success icon-button" aria-label="Resume selected" title="Resume selected" @click=${() => this.bulkPause(false)}><iconify-icon .icon=${playIcon} aria-hidden="true"></iconify-icon></button>` : nothing}<button class="button danger" @click=${this.bulkDelete}>Delete selected</button></div></div>` : nothing}
         ${visibleTargets.length
           ? visibleTargets.map((target) => this.renderTarget(target))
           : html`<div class="empty">${this.targets.length ? "No Targets match these filters." : "No targets yet. Add the first one to begin monitoring."}</div>`}
