@@ -323,6 +323,12 @@ test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
   expect(channelsBox).not.toBeNull();
   expect(historyBox!.x).toBeLessThan(channelsBox!.x);
   expect(Math.abs(historyBox!.y - channelsBox!.y)).toBeLessThan(2);
+  const [historyHead, channelsHead] = await Promise.all([
+    page.getByRole("region", { name: "Alert history" }).locator(".panel-head").boundingBox(),
+    page.getByRole("region", { name: "Notification channels" }).locator(".panel-head").boundingBox(),
+  ]);
+  expect(Math.abs(historyHead!.height - channelsHead!.height)).toBeLessThan(1);
+  await expect(page.getByRole("region", { name: "Notification channels" }).getByRole("button", { name: "Add channel" })).toHaveCount(0);
 
   await page.getByRole("link", { name: "Cluster" }).click();
   await expect(page).toHaveURL(/\/cluster$/);

@@ -416,7 +416,7 @@ export class UpgridApp extends AppController {
   private renderAlertsPage() {
     return html`
       <section class="heading" id="alerts">
-        <div><span class="eyebrow">Delivery history</span><h1>Alerts</h1></div>
+        <div><span class="eyebrow">Delivery history</span><h1>Alerts</h1></div><button class="button" @click=${() => this.showDialog("channel-dialog")}>Add channel</button>
       </section>
       <div class="page-columns">
       <section class="panel" aria-label="Alert history">
@@ -426,7 +426,7 @@ export class UpgridApp extends AppController {
           : html`<div class="empty">No availability transitions.</div>`}
       </section>
       <section class="panel" aria-label="Notification channels">
-        <div class="panel-head"><h2>Notification channels</h2><button class="button secondary" @click=${() => this.showDialog("channel-dialog")}>Add channel</button></div>
+        <div class="panel-head"><h2>Notification channels</h2><span class="meta">${this.channels.length} configured</span></div>
         ${this.channels.length ? this.channels.map((channel) => html`<div class="resource"><div><strong>${channel.name}</strong><code>${channel.destination}</code></div><div class="actions"><span class="badge">${channel.kind}</span><button class="button danger" aria-label=${`Delete channel ${channel.name}`} @click=${() => this.deleteResource("channels", channel.id, channel.name)}>Delete</button></div></div>`) : html`<div class="empty">No notification channels.</div>`}
       </section>
       </div>
