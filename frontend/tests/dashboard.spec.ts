@@ -218,24 +218,22 @@ test("shows the local Raft topology and leader", async ({ page }) => {
   await page.getByRole("link", { name: "Cluster" }).click();
 
   const cluster = page.getByRole("region", { name: "Cluster topology" });
-  await expect(cluster.getByText("up://127.0.0.1:18451")).toBeVisible();
+  const expectedRaftUrl = process.env.UPGRID_EXPECTED_RAFT_URL ?? "up://127.0.0.1:18451";
+  await expect(cluster.getByText(expectedRaftUrl)).toBeVisible();
   await expect(cluster.locator(".resource strong")).not.toBeEmpty();
-  await expect(cluster.locator(".resource code")).toHaveText("up://127.0.0.1:18451");
+  await expect(cluster.locator(".resource code")).toHaveText(expectedRaftUrl);
   await expect(cluster.getByText("Leader")).toBeVisible();
   await expect(cluster.getByText("This node")).toBeVisible();
 });
 
 test("dismisses a startup compatibility warning", async ({ page }) => {
-  await page.route("**/api/v1/setup", async (route) => {
-    const response = await route.fetch();
-    const setup = await response.json();
-    await route.fulfill({ response, json: { ...setup, warning: "Configured Join Token was ignored." } });
-  });
-  await page.goto("/");
+  await page.goto(process.env.UPGRID_WARNING_URL ?? "http://127.0.0.1:18083");
   const warning = page.getByRole("status");
-  await expect(warning).toContainText("Configured Join Token was ignored.");
+  await expect(warning).toContainText("Configured Join Token is invalid");
   await warning.getByRole("button", { name: "Dismiss" }).click();
   await expect(warning).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("status")).toHaveCount(0);
 });
 
 test("filters and bulk-pauses selected targets", async ({ page }) => {

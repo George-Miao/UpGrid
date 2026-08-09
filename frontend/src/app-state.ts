@@ -56,7 +56,7 @@ export class AppState extends LitElement {
   @state() protected copied = false;
   @state() protected setupMode = false;
   @state() protected setup?: Setup;
-  @state() protected warningDismissed = false;
+  @state() protected warningDismissed = sessionStorage.getItem("upgrid-warning-dismissed") === "1";
   @state() protected unlimitedUses = true;
   @state() protected theme = storedTheme();
   @state() protected detailDirty = false;
@@ -133,6 +133,11 @@ export class AppState extends LitElement {
     this.theme = themes[(themes.indexOf(this.theme) + 1) % themes.length];
     localStorage.setItem("upgrid-theme", this.theme);
     this.applyTheme();
+  }
+
+  protected dismissWarning(): void {
+    sessionStorage.setItem("upgrid-warning-dismissed", "1");
+    this.warningDismissed = true;
   }
 
   protected async refresh(): Promise<void> {

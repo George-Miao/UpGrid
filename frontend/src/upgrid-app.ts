@@ -298,7 +298,7 @@ export class UpgridApp extends AppController {
         </header>
         ${this.error ? html`<div class="notice" role="alert">${this.error}</div>` : nothing}
         ${this.setup?.warning && !this.warningDismissed
-          ? html`<div class="notice" role="status">${this.setup.warning}<button class="button secondary" style="float: right; margin: -6px" @click=${() => (this.warningDismissed = true)}>Dismiss</button></div>`
+          ? html`<div class="notice" role="status">${this.setup.warning}<button class="button secondary" style="float: right; margin: -6px" @click=${this.dismissWarning}>Dismiss</button></div>`
           : nothing}
         ${this.activeSection === "overview"
           ? this.renderOverview(visibleTargets, up, down, pending)

@@ -3,12 +3,16 @@ set -euo pipefail
 
 workspace=$(cd "$(dirname "$0")/.." && pwd)
 test_data=$(mktemp -d "${TMPDIR:-/tmp}/upgrid-webui.XXXXXX")
+api_base_port="${UPGRID_WEBUI_TEST_API_BASE_PORT:-$((20000 + $$ % 10000))}"
+raft_base_port="${UPGRID_WEBUI_TEST_RAFT_BASE_PORT:-$((40000 + $$ % 10000))}"
 server_log="$test_data/server.log"
 setup_log="$test_data/setup.log"
 new_setup_log="$test_data/new-setup.log"
+warning_log="$test_data/warning.log"
 server_pid=""
 setup_pid=""
 new_setup_pid=""
+warning_pid=""
 
 cleanup() {
   if [[ -n "$server_pid" ]]; then
@@ -23,6 +27,10 @@ cleanup() {
     kill "$new_setup_pid" 2>/dev/null || true
     wait "$new_setup_pid" 2>/dev/null || true
   fi
+  if [[ -n "$warning_pid" ]]; then
+    kill "$warning_pid" 2>/dev/null || true
+    wait "$warning_pid" 2>/dev/null || true
+  fi
   rm -rf "$test_data"
 }
 trap cleanup EXIT
@@ -32,8 +40,8 @@ target_directory=$(cargo metadata --manifest-path "$workspace/Cargo.toml" \
   --no-deps --format-version 1 | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')
 "$target_directory/debug/upgrid" \
   --new-cluster \
-  --bind 127.0.0.1:18080 \
-  --raft-url up://127.0.0.1:18451 \
+  --bind "127.0.0.1:${api_base_port}" \
+  --raft-url "up://127.0.0.1:${raft_base_port}" \
   --data-dir "$test_data/data" \
   --username admin \
   --password test-password \
@@ -44,7 +52,7 @@ server_pid=$!
 ready=false
 for _ in $(seq 1 100); do
   if curl -fsS -u admin:test-password \
-    http://127.0.0.1:18080/api/v1/targets >/dev/null; then
+    "http://127.0.0.1:${api_base_port}/api/v1/targets" >/dev/null; then
     ready=true
     break
   fi
@@ -61,8 +69,8 @@ if [[ "$ready" != true ]]; then
 fi
 
 "$target_directory/debug/upgrid" \
-  --bind 127.0.0.1:18081 \
-  --raft-url up://127.0.0.1:18452 \
+  --bind "127.0.0.1:$((api_base_port + 1))" \
+  --raft-url "up://127.0.0.1:$((raft_base_port + 1))" \
   --data-dir "$test_data/joining-data" \
   --username admin \
   --password test-password \
@@ -71,7 +79,7 @@ setup_pid=$!
 
 ready=false
 for _ in $(seq 1 100); do
-  if curl -fsS -u admin:test-password http://127.0.0.1:18081/ >/dev/null; then
+  if curl -fsS -u admin:test-password "http://127.0.0.1:$((api_base_port + 1))/" >/dev/null; then
     ready=true
     break
   fi
@@ -88,8 +96,8 @@ if [[ "$ready" != true ]]; then
 fi
 
 "$target_directory/debug/upgrid" \
-  --bind 127.0.0.1:18082 \
-  --raft-url up://127.0.0.1:18453 \
+  --bind "127.0.0.1:$((api_base_port + 2))" \
+  --raft-url "up://127.0.0.1:$((raft_base_port + 2))" \
   --data-dir "$test_data/new-data" \
   --username admin \
   --password test-password \
@@ -98,7 +106,7 @@ new_setup_pid=$!
 
 ready=false
 for _ in $(seq 1 100); do
-  if curl -fsS -u admin:test-password http://127.0.0.1:18082/ >/dev/null; then
+  if curl -fsS -u admin:test-password "http://127.0.0.1:$((api_base_port + 2))/" >/dev/null; then
     ready=true
     break
   fi
@@ -114,9 +122,67 @@ if [[ "$ready" != true ]]; then
   exit 1
 fi
 
-UPGRID_UI_URL=http://127.0.0.1:18080 \
-  UPGRID_SETUP_URL=http://127.0.0.1:18081 \
-  UPGRID_NEW_SETUP_URL=http://127.0.0.1:18082 \
+"$target_directory/debug/upgrid" \
+  --new-cluster \
+  --bind "127.0.0.1:$((api_base_port + 3))" \
+  --raft-url "up://127.0.0.1:$((raft_base_port + 3))" \
+  --data-dir "$test_data/warning-data" \
+  --username admin \
+  --password test-password \
+  >"$warning_log" 2>&1 &
+warning_pid=$!
+ready=false
+for _ in $(seq 1 100); do
+  if curl -fsS -u admin:test-password "http://127.0.0.1:$((api_base_port + 3))/api/v1/setup" >/dev/null; then
+    ready=true
+    break
+  fi
+  if ! kill -0 "$warning_pid" 2>/dev/null; then
+    cat "$warning_log"
+    exit 1
+  fi
+  sleep 0.1
+done
+if [[ "$ready" != true ]]; then
+  echo "UpGrid warning seed did not become ready" >&2
+  cat "$warning_log"
+  exit 1
+fi
+kill "$warning_pid"
+wait "$warning_pid" 2>/dev/null || true
+warning_pid=""
+"$target_directory/debug/upgrid" \
+  --join not-a-valid-join-token \
+  --bind "127.0.0.1:$((api_base_port + 3))" \
+  --raft-url "up://127.0.0.1:$((raft_base_port + 3))" \
+  --data-dir "$test_data/warning-data" \
+  --username admin \
+  --password test-password \
+  >"$warning_log" 2>&1 &
+warning_pid=$!
+ready=false
+for _ in $(seq 1 100); do
+  if curl -fsS -u admin:test-password "http://127.0.0.1:$((api_base_port + 3))/api/v1/setup" >/dev/null; then
+    ready=true
+    break
+  fi
+  if ! kill -0 "$warning_pid" 2>/dev/null; then
+    cat "$warning_log"
+    exit 1
+  fi
+  sleep 0.1
+done
+if [[ "$ready" != true ]]; then
+  echo "UpGrid warning fixture did not become ready" >&2
+  cat "$warning_log"
+  exit 1
+fi
+
+UPGRID_UI_URL="http://127.0.0.1:${api_base_port}" \
+  UPGRID_SETUP_URL="http://127.0.0.1:$((api_base_port + 1))" \
+  UPGRID_NEW_SETUP_URL="http://127.0.0.1:$((api_base_port + 2))" \
+  UPGRID_WARNING_URL="http://127.0.0.1:$((api_base_port + 3))" \
+  UPGRID_EXPECTED_RAFT_URL="up://127.0.0.1:${raft_base_port}" \
   UPGRID_USERNAME=admin \
   UPGRID_PASSWORD=test-password \
   pnpm --dir "$workspace/frontend" test "$@"

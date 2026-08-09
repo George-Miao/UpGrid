@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { type Channel, type Setup, type TargetInput, request } from "./api.ts";
+import { type Channel, type Setup, request } from "./api.ts";
+import { channelInput, targetInput } from "./resource-input.ts";
 
 @customElement("upgrid-setup")
 export class UpgridSetup extends LitElement {
@@ -107,28 +108,14 @@ export class UpgridSetup extends LitElement {
   private async createChannel(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const fields = new FormData(event.currentTarget as HTMLFormElement);
-    const body = this.channelKind === "telegram"
-      ? { type: "telegram", name: fields.get("name"), bot_token: fields.get("bot_token"), chat_id: fields.get("chat_id") }
-      : { type: "webhook", name: fields.get("name"), url: fields.get("url"), headers: {} };
+    const body = channelInput(fields, this.channelKind);
     await this.createResource("/api/v1/channels", body);
   }
 
   private async createTarget(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const fields = new FormData(event.currentTarget as HTMLFormElement);
-    const input: TargetInput = {
-      name: String(fields.get("name")),
-      url: String(fields.get("url")),
-      method: "GET",
-      accepted_statuses: [{ start: 200, end: 299 }],
-      follow_redirects: true,
-      max_redirects: 5,
-      interval_seconds: Number(fields.get("interval")),
-      timeout_seconds: Number(fields.get("timeout")),
-      failure_threshold: Number(fields.get("failures")),
-      headers: {}, body: null, body_contains: null, skip_tls_verification: false,
-      notification_channel_ids: fields.getAll("channel_id").map(String),
-    };
+    const input = targetInput(fields, fields.getAll("channel_id").map(String));
     await this.createResource("/api/v1/targets", input);
   }
 
@@ -209,8 +196,8 @@ export class UpgridSetup extends LitElement {
       <div class="panel"><form class="choice" @submit=${this.createTarget}>
         <label>Name<input name="name" placeholder="Production API" required /></label>
         <label>URL<input name="url" type="url" placeholder="https://example.com/health" required /></label>
-        <div class="row"><label>Interval (seconds)<input name="interval" type="number" min="1" value="60" required /></label><label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label></div>
-        <label>Failures before Down<input name="failures" type="number" min="1" value="3" required /></label>
+        <div class="row"><label>Method<input name="method" value="GET" required /></label><label>Interval (seconds)<input name="interval" type="number" min="1" value="60" required /></label></div>
+        <div class="row"><label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label><label>Failures before Down<input name="failures" type="number" min="1" value="3" required /></label></div>
         ${this.channels.length ? html`<fieldset><legend>Notification channels</legend>${this.channels.map((channel) => html`<label><span><input name="channel_id" type="checkbox" value=${channel.id} /> ${channel.name}</span></label>`)}</fieldset>` : nothing}
         <div class="actions"><button class="secondary" type="button" @click=${this.next} ?disabled=${this.saving}>Skip</button><button type="submit" ?disabled=${this.saving}>Create and finish</button></div>
       </form></div>`;

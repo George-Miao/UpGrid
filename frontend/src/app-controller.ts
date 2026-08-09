@@ -9,20 +9,14 @@ import {
   request,
 } from "./api.ts";
 import { AppState } from "./app-state.ts";
+import { channelInput, targetInput } from "./resource-input.ts";
 
 export class AppController extends AppState {
   protected async createTarget(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const fields = new FormData(form);
-    const input: TargetInput = {
-      name: String(fields.get("name")), url: String(fields.get("url")),
-      method: String(fields.get("method")), accepted_statuses: [{ start: 200, end: 299 }],
-      follow_redirects: true, max_redirects: 5,
-      interval_seconds: Number(fields.get("interval")), timeout_seconds: Number(fields.get("timeout")),
-      failure_threshold: Number(fields.get("failures")), headers: {}, body: null,
-      body_contains: null, skip_tls_verification: false, notification_channel_ids: [],
-    };
+    const input = targetInput(fields);
     this.saving = true;
     try {
       await request<Target>("/api/v1/targets", { method: "POST", body: JSON.stringify(input) });
@@ -120,9 +114,7 @@ export class AppController extends AppState {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const fields = new FormData(form);
-    const body = this.channelKind === "telegram"
-      ? { type: "telegram", name: fields.get("name"), bot_token: fields.get("bot_token"), chat_id: fields.get("chat_id") }
-      : { type: "webhook", name: fields.get("name"), url: fields.get("url"), headers: {} };
+    const body = channelInput(fields, this.channelKind);
     this.saving = true;
     try {
       await request<Channel>("/api/v1/channels", { method: "POST", body: JSON.stringify(body) });
