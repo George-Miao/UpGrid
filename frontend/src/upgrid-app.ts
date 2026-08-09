@@ -66,8 +66,7 @@ export class UpgridApp extends AppController {
     button, input, select { font: inherit; }
     .shell { max-width: 1200px; margin: auto; padding: 28px 24px 72px; }
     .setup-shell { display: grid; min-height: 100vh; grid-template-rows: auto minmax(0, 1fr); padding-top: 20px; padding-bottom: 20px; }
-    .setup-shell header { margin-bottom: 18px; }
-    .setup-shell upgrid-setup { align-self: center; }
+    .setup-shell header { margin-bottom: 18px; } .setup-shell upgrid-setup { align-self: center; }
     header { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; margin-bottom: 34px; }
     .brand, .actions, .live, nav { display: flex; align-items: center; }
     .brand { gap: 13px; }
@@ -163,8 +162,12 @@ export class UpgridApp extends AppController {
     .success { background: transparent; color: var(--green); border-color: var(--green); }
     .success:hover { border-color: var(--button-text); }
     .dialog-close { position: absolute; top: 12px; right: 14px; }
-    .check { display: flex; align-items: center; gap: 8px; }
-    .check input { width: auto; }
+    .check { display: flex; align-items: center; gap: 8px; } .check input { width: auto; }
+    .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .switch input { width: 40px; height: 22px; flex: none; appearance: none; border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
+    .switch input::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
+    .switch input:checked { border-color: var(--button-border); background: var(--button-bg); }
+    .switch input:checked::after { background: var(--button-text); transform: translateX(18px); }
     .history { margin: 0 22px 22px; border-top: 1px solid var(--line); padding-top: 18px; }
     .history-head, .chart-legend, .chart-legend span, .chart-axis { display: flex; align-items: center; }
     .history-head { justify-content: space-between; margin-bottom: 12px; }
@@ -328,7 +331,7 @@ export class UpgridApp extends AppController {
           </div>
         </form>
       </dialog>
-      ${this.selected ? renderTargetDetail(this.selected, this.saving, this.detailDirty, {
+      ${this.selected ? renderTargetDetail(this.selected, this.saving, this.detailDirty, this.cluster?.members ?? [], {
         backdrop: (event) => this.dismissOnBackdrop(event),
         close: () => this.closeDetailDialog(),
         update: (event) => void this.updateTarget(event),
@@ -357,13 +360,10 @@ export class UpgridApp extends AppController {
         </form>
       </dialog>
       <dialog id="token-config-dialog" aria-labelledby="token-config-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><h2 id="token-config-title">Create Join Token</h2><p>Choose how long the token remains valid and how many Nodes it may admit.</p></div>
+        <div class="dialog-head"><h2 id="token-config-title">Create Join Token</h2><p>Choose how many days the token remains valid and whether it can be reused.</p></div>
         <form @submit=${this.createJoinToken}>
-          <div class="row">
-            <label>Expiration<input name="expiration" type="number" min="1" step="1" value="1" required /></label>
-            <label>Unit<select name="unit"><option value="1">Seconds</option><option value="60">Minutes</option><option value="3600">Hours</option><option value="86400" selected>Days</option></select></label>
-          </div>
-          <label>Usage<select name="usage" @change=${(event: Event) => (this.unlimitedUses = (event.target as HTMLSelectElement).value === "unlimited")}><option value="unlimited">Unlimited</option><option value="limited">Limited</option></select></label>
+          <label>Expiration (days)<input name="expiration_days" type="number" min="1" step="1" value="1" required /></label>
+          <label class="switch"><span>Unlimited uses</span><input type="checkbox" role="switch" .checked=${this.unlimitedUses} @change=${(event: Event) => (this.unlimitedUses = (event.target as HTMLInputElement).checked)} /></label>
           <label>Maximum uses<input name="max_uses" type="number" min="1" step="1" value="1" ?disabled=${this.unlimitedUses} required /></label>
           <div class="dialog-actions"><button class="button secondary" type="button" @click=${() => this.closeDialog("token-config-dialog")}>Cancel</button><button class="button" type="submit" ?disabled=${this.saving}>${this.saving ? "Creating…" : "Create token"}</button></div>
         </form>

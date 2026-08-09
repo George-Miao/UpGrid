@@ -3,7 +3,7 @@ import closeIcon from "@iconify-icons/lucide/x";
 import deleteIcon from "@iconify-icons/lucide/trash-2";
 import pauseIcon from "@iconify-icons/lucide/pause";
 import playIcon from "@iconify-icons/lucide/play";
-import { type Target } from "./api.ts";
+import { type ClusterMember, type Target } from "./api.ts";
 
 interface Actions {
   backdrop: (event: MouseEvent) => void;
@@ -19,6 +19,7 @@ export function renderTargetDetail(
   target: Target,
   saving: boolean,
   dirty: boolean,
+  members: ClusterMember[],
   actions: Actions,
 ) {
   const statuses = target.accepted_statuses
@@ -26,6 +27,7 @@ export function renderTargetDetail(
     .join(",");
   const history = target.history.slice(0, 30).reverse();
   const maxLatency = Math.max(1, ...history.map((item) => item.latency_ms));
+  const nodeNames = new Map(members.map((member) => [member.id, member.name]));
   const chartTime = (timestamp: number) => new Date(timestamp).toLocaleString(undefined, {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
   });
@@ -63,7 +65,8 @@ export function renderTargetDetail(
               ${history.map((item) => {
                 const result = item.succeeded ? "Passed" : "Failed";
                 const status = item.status_code === null ? "network error" : `HTTP ${item.status_code}`;
-                const label = `${result} at ${new Date(item.recorded_at_ms).toLocaleString()}: ${item.latency_ms} ms, ${status}`;
+                const executor = nodeNames.get(item.executor_node_id) ?? `Node ${item.executor_node_id.slice(0, 8)}`;
+                const label = `${result} at ${new Date(item.recorded_at_ms).toLocaleString()}: ${item.latency_ms} ms, ${status}. Executed by ${executor}`;
                 return html`<span class="history-bar ${item.succeeded ? "up" : "down"}" role="listitem" aria-label=${label} title=${label} style=${`height: ${Math.max(8, item.latency_ms / maxLatency * 100)}%`}></span>`;
               })}
             </div>

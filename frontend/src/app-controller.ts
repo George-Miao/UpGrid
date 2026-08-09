@@ -130,7 +130,7 @@ export class AppController extends AppState {
   }
 
   protected openTokenDialog(): void {
-    this.unlimitedUses = true;
+    this.unlimitedUses = false;
     this.showDialog("token-config-dialog");
   }
 
@@ -142,7 +142,7 @@ export class AppController extends AppState {
       const link = await request<JoinLink>("/api/v1/join-tokens", {
         method: "POST",
         body: JSON.stringify({
-          expires_in_seconds: Number(fields.get("expiration")) * Number(fields.get("unit")),
+          expires_in_seconds: Number(fields.get("expiration_days")) * 86_400,
           max_uses: this.unlimitedUses ? null : Number(fields.get("max_uses")),
         }),
       });

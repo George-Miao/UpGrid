@@ -57,7 +57,7 @@ export class AppState extends LitElement {
   @state() protected setupMode = false;
   @state() protected setup?: Setup;
   @state() protected warningDismissed = sessionStorage.getItem("upgrid-warning-dismissed") === "1";
-  @state() protected unlimitedUses = true;
+  @state() protected unlimitedUses = false;
   @state() protected theme = storedTheme();
   @state() protected detailDirty = false;
   private events?: EventSource;
