@@ -1,4 +1,5 @@
 use super::core::*;
+use super::version::*;
 
 #[cfg(test)]
 mod tests {
@@ -15,7 +16,8 @@ mod tests {
     use super::*;
     use crate::domain::{
         AlertKind, ApplicationState, AvailabilityTransition, Command, Evaluation, EvaluationId,
-        EvaluationPolicy, HttpEvaluationMetadata, HttpTarget, Target, TargetId,
+        EvaluationPolicy, HttpEvaluationMetadata, HttpTarget, NotificationChannelId, Target,
+        TargetId,
     };
     use crate::raft::TC;
 
@@ -313,6 +315,36 @@ mod tests {
         assert_eq!(migrated.transitions[&evaluation.id].evaluation, evaluation);
         assert!(migrated.default_notification_channels.is_empty());
         assert!(migrated.default_notifications_disabled.is_empty());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn default_channel_version_is_migrated_without_losing_defaults() {
+        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("raft-state.postcard");
+        let channel_id = NotificationChannelId(Uuid::now_v7());
+        let mut application = ApplicationState::default();
+        application.default_notification_channels.insert(channel_id);
+        let previous = DefaultChannelPersistedStateMachine {
+            state_machine: DefaultChannelStateMachineData {
+                last_applied_log: None,
+                last_membership: StoredMembership::default(),
+                application: application.into(),
+            },
+            current_snapshot: None,
+            snapshot_idx: 0,
+        };
+        let mut encoded = DEFAULT_CHANNEL_STATE_MAGIC.to_vec();
+        encoded.extend_from_slice(&postcard::to_stdvec(&previous).unwrap());
+        fs::write(&path, encoded).unwrap();
+
+        let migrated = StateMachine::open(&path).unwrap().application_state();
+        assert_eq!(
+            migrated.default_notification_channels,
+            BTreeSet::from([channel_id])
+        );
+        assert!(migrated.node_targets.is_empty());
         fs::remove_dir_all(directory).unwrap();
     }
 }

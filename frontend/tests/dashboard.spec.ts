@@ -358,6 +358,17 @@ test("keeps primary navigation visible on mobile", async ({ page }) => {
   await expect(page).toHaveURL(/\/alerts$/);
 });
 
+test("lists Cluster members as read-only Node Targets", async ({ page }) => {
+  await page.goto("/");
+
+  const node = page.locator(".target-wrap", { has: page.getByText("Node", { exact: true }) }).first();
+  await expect(node).toBeVisible();
+  await expect(node.getByText("Node", { exact: true })).toBeVisible();
+  await expect(node.getByText(/RPC · up:\/\//)).toBeVisible();
+  await expect(node.locator(".state")).toHaveClass(/up/, { timeout: 15_000 });
+  await expect(node.locator('input[type="checkbox"]')).toHaveCount(0);
+});
+
 test("copying a join command confirms success", async ({ page }) => {
   await page.goto("/cluster");
 

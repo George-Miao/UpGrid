@@ -33,6 +33,11 @@ enum Request {
     Status {
         reply: oneshot::Sender<Status>,
     },
+    ProbeNode {
+        node_id: Uuid,
+        url: String,
+        reply: oneshot::Sender<Result<(), String>>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -135,6 +140,20 @@ impl Handle {
             .map_err(|_| "cluster runtime stopped before responding".to_owned())
     }
 
+    pub async fn probe_node(&self, node_id: Uuid, url: String) -> Result<(), String> {
+        let (reply, response) = oneshot::channel();
+        self.sender
+            .send(Request::ProbeNode {
+                node_id,
+                url,
+                reply,
+            })
+            .map_err(|_| "cluster runtime stopped".to_owned())?;
+        response
+            .await
+            .map_err(|_| "cluster runtime stopped before responding".to_owned())?
+    }
+
     pub fn version(&self) -> u64 {
         self.version.load(Ordering::Relaxed)
     }
@@ -210,6 +229,13 @@ impl Receiver {
                         leader_node_id,
                         members,
                     });
+                }
+                Some(Request::ProbeNode {
+                    node_id,
+                    url,
+                    reply,
+                }) => {
+                    let _ = reply.send(node.probe_node(node_id, &url).await);
                 }
                 None => {}
             }

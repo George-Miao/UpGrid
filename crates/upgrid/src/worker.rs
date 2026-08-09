@@ -1,6 +1,7 @@
 //! Target assignment and probe execution.
 
 mod http;
+mod node;
 mod probe;
 mod schedule;
 
@@ -34,5 +35,6 @@ pub fn start(cluster: Handle, cipher: Cipher) {
             .expect("insecure HTTP client configuration should be valid"),
     };
     spawn(schedule::run(cluster.clone())).detach();
-    spawn(probe::run(cluster, clients, cipher)).detach();
+    spawn(probe::run(cluster.clone(), clients, cipher)).detach();
+    spawn(node::run(cluster)).detach();
 }

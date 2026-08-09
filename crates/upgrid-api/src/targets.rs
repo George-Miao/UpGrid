@@ -15,9 +15,15 @@ pub(super) async fn list_targets(
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
     Ok(Json(
         snapshot
-            .targets
+            .node_targets
             .values()
-            .map(|target| TargetView::from_state(&snapshot, target))
+            .map(TargetView::from_node)
+            .chain(
+                snapshot
+                    .targets
+                    .values()
+                    .map(|target| TargetView::from_state(&snapshot, target)),
+            )
             .collect(),
     ))
 }

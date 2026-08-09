@@ -117,6 +117,7 @@ export class UpgridApp extends AppController {
     .target { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px 17px 14px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
     .target-wrap, .target { transition: background-color 150ms ease; }
     .target-wrap:hover, .target-wrap:hover .target { background: var(--row-hover); }
+    .node-target { cursor: default; }
     .state { width: 10px; height: 10px; border-radius: 50%; color: var(--amber); background: var(--amber); box-shadow: 0 0 12px currentColor; transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease; }
     .state.up { color: var(--green); background: var(--green); }
     .state.down { color: var(--red); background: var(--red); }
@@ -447,8 +448,10 @@ export class UpgridApp extends AppController {
     const state = target.paused ? "paused" : target.availability === "down" ? "down" : target.consecutive_failures > 0 ? "suspicious" : target.availability;
     return html`
       <div class="target-wrap">
-        <input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} .checked=${this.selectedIds.has(target.id)} @change=${(event: Event) => this.toggleSelected(target.id, (event.target as HTMLInputElement).checked)} />
-        <button class="target" aria-label=${target.name} @click=${() => this.openTarget(target)}>
+        ${target.kind === "http"
+          ? html`<input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} .checked=${this.selectedIds.has(target.id)} @change=${(event: Event) => this.toggleSelected(target.id, (event.target as HTMLInputElement).checked)} />`
+          : html`<span class="badge">Node</span>`}
+        <button class=${`target ${target.kind === "node" ? "node-target" : ""}`} aria-label=${target.name} @click=${target.kind === "http" ? () => this.openTarget(target) : nothing}>
           <i class="state ${state}" aria-label=${state}></i>
           <div>
             <h3>${target.name}</h3>
@@ -460,7 +463,7 @@ export class UpgridApp extends AppController {
               : nothing}
             <div class="latency">
               <strong>${latest ? `${latest.latency_ms} ms` : "—"}</strong>
-              <span>${latest ? (latest.status_code ?? "network error") : "waiting"}</span>
+              <span>${latest ? (target.kind === "node" ? (latest.succeeded ? "reachable" : "unreachable") : (latest.status_code ?? "network error")) : "waiting"}</span>
             </div>
           </div>
         </button>

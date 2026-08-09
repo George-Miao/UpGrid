@@ -346,6 +346,32 @@ impl Node {
         self.raft.current_leader().await == Some(self.id.id)
     }
 
+    pub async fn probe_node(&self, node_id: uuid::Uuid, url: &str) -> Result<(), String> {
+        if node_id == self.id.id {
+            return Ok(());
+        }
+        let node = UpgridNode::new(url).map_err(|error| error.to_string())?;
+        let result = timeout(Duration::from_secs(2), async {
+            let client = self
+                .rpc
+                .client(&node)
+                .await
+                .map_err(|error| error.to_string())?;
+            client
+                .ping(Context::current())
+                .await
+                .map_err(|error| error.to_string())
+        })
+        .await;
+        match result {
+            Ok(result) => result,
+            Err(_) => {
+                self.rpc.invalidate(&node);
+                Err("Node RPC timed out".to_owned())
+            }
+        }
+    }
+
     pub fn voters(&self) -> BTreeSet<uuid::Uuid> {
         self.raft
             .metrics()

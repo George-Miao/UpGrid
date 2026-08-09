@@ -302,8 +302,8 @@
       </div>
     `}renderTarget(t){const e=t.latest_evaluation,s=t.history.slice(0,16).reverse(),i=Math.max(1,...s.map(r=>r.latency_ms)),n=t.paused?"paused":t.availability==="down"?"down":t.consecutive_failures>0?"suspicious":t.availability;return p`
       <div class="target-wrap">
-        <input class="select-target" type="checkbox" aria-label=${`Select ${t.name}`} .checked=${this.selectedIds.has(t.id)} @change=${r=>this.toggleSelected(t.id,r.target.checked)} />
-        <button class="target" aria-label=${t.name} @click=${()=>this.openTarget(t)}>
+        ${t.kind==="http"?p`<input class="select-target" type="checkbox" aria-label=${`Select ${t.name}`} .checked=${this.selectedIds.has(t.id)} @change=${r=>this.toggleSelected(t.id,r.target.checked)} />`:p`<span class="badge">Node</span>`}
+        <button class=${`target ${t.kind==="node"?"node-target":""}`} aria-label=${t.name} @click=${t.kind==="http"?()=>this.openTarget(t):f}>
           <i class="state ${n}" aria-label=${n}></i>
           <div>
             <h3>${t.name}</h3>
@@ -313,7 +313,7 @@
             ${s.length?p`<div class="mini-chart" aria-hidden="true">${s.map(r=>p`<i class="mini-bar ${r.succeeded?"up":"down"}" style=${`height: ${Math.max(12,r.latency_ms/i*100)}%`}></i>`)}</div>`:f}
             <div class="latency">
               <strong>${e?`${e.latency_ms} ms`:"—"}</strong>
-              <span>${e?e.status_code??"network error":"waiting"}</span>
+              <span>${e?t.kind==="node"?e.succeeded?"reachable":"unreachable":e.status_code??"network error":"waiting"}</span>
             </div>
           </div>
         </button>
@@ -420,6 +420,7 @@
     .target { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px 17px 14px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
     .target-wrap, .target { transition: background-color 150ms ease; }
     .target-wrap:hover, .target-wrap:hover .target { background: var(--row-hover); }
+    .node-target { cursor: default; }
     .state { width: 10px; height: 10px; border-radius: 50%; color: var(--amber); background: var(--amber); box-shadow: 0 0 12px currentColor; transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease; }
     .state.up { color: var(--green); background: var(--green); }
     .state.down { color: var(--red); background: var(--red); }

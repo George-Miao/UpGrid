@@ -10,6 +10,7 @@ export interface Evaluation {
 
 export interface Target {
   id: string;
+  kind: "http" | "node";
   name: string;
   url: string;
   method: string;

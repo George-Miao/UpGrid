@@ -119,6 +119,7 @@ pub(super) struct EvaluationView {
 #[derive(Debug, Serialize, ToSchema)]
 pub(super) struct TargetView {
     id: Uuid,
+    kind: String,
     name: String,
     url: String,
     method: String,
@@ -146,6 +147,7 @@ impl TargetView {
         let target = &state.target;
         Self {
             id: target.id.0,
+            kind: "http".to_owned(),
             name: target.name.clone(),
             url: target.http.url.to_string(),
             method: target.http.method.clone(),
@@ -187,6 +189,40 @@ impl TargetView {
                 .map(EvaluationView::from)
                 .collect(),
             paused: state.paused,
+        }
+    }
+
+    pub(super) fn from_node(state: &NodeTargetState) -> Self {
+        let target = &state.target;
+        Self {
+            id: target.node_id,
+            kind: "node".to_owned(),
+            name: target.name.clone(),
+            url: target.url.to_string(),
+            method: "RPC".to_owned(),
+            headers: BTreeMap::new(),
+            body: None,
+            accepted_statuses: Vec::new(),
+            follow_redirects: false,
+            max_redirects: 0,
+            body_contains: None,
+            skip_tls_verification: false,
+            interval_seconds: target.policy.interval_ms / 1_000,
+            timeout_seconds: target.policy.timeout_ms / 1_000,
+            failure_threshold: target.policy.failure_threshold,
+            notification_channel_ids: BTreeSet::new(),
+            use_default_channels: true,
+            availability: availability_name(state.availability).to_owned(),
+            consecutive_failures: state.consecutive_failures,
+            latest_evaluation: state.latest_evaluation.as_ref().map(EvaluationView::from),
+            history: state
+                .history
+                .values()
+                .rev()
+                .take(100)
+                .map(EvaluationView::from)
+                .collect(),
+            paused: false,
         }
     }
 }

@@ -184,7 +184,9 @@ impl ApplicationState {
                 }
                 Ok(CommandResult::TargetDefaultNotificationsSet(target_id))
             }
+            Command::SyncNodeTargets(targets) => self.sync_node_targets(targets),
             Command::RecordEvaluation(evaluation) => self.record_evaluation(evaluation),
+            Command::RecordNodeEvaluation(evaluation) => self.record_node_evaluation(evaluation),
             Command::MarkAlertDelivered {
                 alert_id,
                 delivered_at_ms,
@@ -266,6 +268,31 @@ impl ApplicationState {
         Ok(())
     }
 
+    fn sync_node_targets(
+        &mut self,
+        targets: Vec<NodeTarget>,
+    ) -> Result<CommandResult, DomainError> {
+        let mut ids = BTreeSet::new();
+        for target in &targets {
+            target.validate()?;
+            if !ids.insert(target.id()) {
+                return Err(DomainError::InvalidTarget(
+                    "Node Target list contains duplicate Nodes".to_owned(),
+                ));
+            }
+        }
+        self.node_targets.retain(|id, _| ids.contains(id));
+        for target in targets {
+            let id = target.id();
+            if let Some(state) = self.node_targets.get_mut(&id) {
+                state.target = target;
+            } else {
+                self.node_targets.insert(id, NodeTargetState::new(target));
+            }
+        }
+        Ok(CommandResult::NodeTargetsSynced)
+    }
+
     fn assign_evaluation(
         &mut self,
         assignment: EvaluationAssignment,
@@ -311,105 +338,6 @@ impl ApplicationState {
         Ok(CommandResult::Noop)
     }
 
-    fn record_evaluation(&mut self, evaluation: Evaluation) -> Result<CommandResult, DomainError> {
-        evaluation.validate()?;
-        self.assignments.remove(&evaluation.id);
-        let Some(target_state) = self.targets.get_mut(&evaluation.id.target_id) else {
-            return Ok(CommandResult::EvaluationDiscarded);
-        };
-        if target_state.paused {
-            return Ok(CommandResult::EvaluationDiscarded);
-        }
-        if target_state
-            .history
-            .contains_key(&evaluation.id.scheduled_at_ms)
-            || target_state
-                .latest_evaluation
-                .as_ref()
-                .is_some_and(|latest| latest.id.scheduled_at_ms >= evaluation.id.scheduled_at_ms)
-        {
-            return Ok(CommandResult::EvaluationDiscarded);
-        }
-
-        let previous_availability = target_state.availability;
-        if evaluation.succeeded {
-            target_state.consecutive_failures = 0;
-            target_state.availability = AvailabilityState::Up;
-        } else {
-            target_state.consecutive_failures = target_state.consecutive_failures.saturating_add(1);
-            if target_state.consecutive_failures >= target_state.target.policy.failure_threshold {
-                target_state.availability = AvailabilityState::Down;
-            }
-        }
-
-        let transition = match (previous_availability, target_state.availability) {
-            (AvailabilityState::Down, AvailabilityState::Up) => Some(AlertKind::Recovered),
-            (previous, AvailabilityState::Down) if previous != AvailabilityState::Down => {
-                Some(AlertKind::Down)
-            }
-            _ => None,
-        };
-
-        let mut channel_ids = target_state.target.notification_channels.clone();
-        if !self
-            .default_notifications_disabled
-            .contains(&evaluation.id.target_id)
-        {
-            channel_ids.extend(self.default_notification_channels.iter().copied());
-        }
-        let target_name = target_state.target.name.clone();
-        let target_url = target_state.target.http.url.clone();
-        target_state.latest_evaluation = Some(evaluation.clone());
-        target_state
-            .history
-            .insert(evaluation.id.scheduled_at_ms, evaluation.clone());
-        let cutoff = evaluation
-            .recorded_at_ms
-            .saturating_sub(self.history_retention_ms);
-        target_state
-            .history
-            .retain(|_, item| item.recorded_at_ms >= cutoff);
-        self.transitions
-            .retain(|_, item| item.evaluation.recorded_at_ms >= cutoff);
-        let availability = target_state.availability;
-
-        let mut alert_ids = Vec::new();
-        if let Some(kind) = transition {
-            self.transitions
-                .entry(evaluation.id)
-                .or_insert_with(|| AvailabilityTransition {
-                    kind,
-                    target_name: target_name.clone(),
-                    target_url: target_url.clone(),
-                    evaluation: evaluation.clone(),
-                });
-            for channel_id in channel_ids {
-                let id = AlertId {
-                    target_id: evaluation.id.target_id,
-                    channel_id,
-                    evaluation_scheduled_at_ms: evaluation.id.scheduled_at_ms,
-                    kind,
-                };
-                self.alerts.entry(id).or_insert_with(|| Alert {
-                    id,
-                    target_name: target_name.clone(),
-                    target_url: target_url.clone(),
-                    evaluation: evaluation.clone(),
-                    delivery: AlertDelivery::Pending {
-                        attempts: 0,
-                        next_attempt_at_ms: evaluation.recorded_at_ms,
-                    },
-                });
-                alert_ids.push(id);
-            }
-        }
-
-        Ok(CommandResult::EvaluationAccepted {
-            availability,
-            alerts: alert_ids,
-        })
-    }
-
     fn record_alert_failure(
         &mut self,
         alert_id: AlertId,
@@ -446,11 +374,13 @@ impl ApplicationState {
         Ok(CommandResult::AlertUpdated(alert_id))
     }
 }
+use std::collections::BTreeSet;
+
 use uuid::Uuid;
 
 use super::{
-    Alert, AlertDelivery, AlertId, AlertKind, ApplicationState, AvailabilityState,
-    AvailabilityTransition, Command, CommandResult, DEFAULT_OPERATION_RETENTION_MS, DomainError,
-    Evaluation, EvaluationAssignment, MAX_DIAGNOSTIC_BYTES, NotificationChannel,
-    ProcessedOperation, Secret, Target, TargetState,
+    AlertDelivery, AlertId, ApplicationState, Command, CommandResult,
+    DEFAULT_OPERATION_RETENTION_MS, DomainError, EvaluationAssignment, MAX_DIAGNOSTIC_BYTES,
+    NodeTarget, NodeTargetState, NotificationChannel, ProcessedOperation, Secret, Target,
+    TargetState,
 };

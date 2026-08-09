@@ -19,8 +19,9 @@ use upgrid_config::{
 };
 use upgrid_raft::domain::{
     AlertDelivery, AlertKind, ApplicationState, AvailabilityState, Command, ConfigValue,
-    DomainError, EvaluationPolicy, HttpTarget, NotificationChannel, NotificationChannelId,
-    NotificationChannelKind, Secret, SecretId, StatusRange, Target, TargetId, TargetState,
+    DomainError, EvaluationPolicy, HttpTarget, NodeTargetState, NotificationChannel,
+    NotificationChannelId, NotificationChannelKind, Secret, SecretId, StatusRange, Target,
+    TargetId, TargetState,
 };
 use upgrid_raft::{ClusterError, Handle, hash_join_token};
 use url::Url;

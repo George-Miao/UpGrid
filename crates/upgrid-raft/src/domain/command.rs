@@ -53,6 +53,8 @@ pub enum Command {
         target_id: TargetId,
         enabled: bool,
     },
+    SyncNodeTargets(Vec<NodeTarget>),
+    RecordNodeEvaluation(Evaluation),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -83,6 +85,11 @@ pub enum CommandResult {
     NodeNameSet(Uuid),
     NotificationChannelDefaultSet(NotificationChannelId),
     TargetDefaultNotificationsSet(TargetId),
+    NodeTargetsSynced,
+    NodeEvaluationAccepted {
+        availability: AvailabilityState,
+        alerts: Vec<AlertId>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -136,5 +143,5 @@ use uuid::Uuid;
 
 use super::{
     AlertId, AvailabilityState, Evaluation, EvaluationAssignment, EvaluationId, JoinTokenHash,
-    NotificationChannel, NotificationChannelId, Secret, SecretId, Target, TargetId,
+    NodeTarget, NotificationChannel, NotificationChannelId, Secret, SecretId, Target, TargetId,
 };

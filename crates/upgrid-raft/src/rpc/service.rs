@@ -46,6 +46,8 @@ impl std::error::Error for JoinError {}
 pub trait UpgridService {
     async fn deployment_key_fingerprint() -> [u8; 32];
 
+    async fn ping();
+
     async fn ask_to_join(remote: Identity, token: String) -> Result<(), JoinError>;
 
     async fn install_snapshot(
@@ -141,6 +143,8 @@ impl UpgridService for UpgridServer {
     async fn deployment_key_fingerprint(self, _: Context) -> [u8; 32] {
         self.deployment_key_fingerprint
     }
+
+    async fn ping(self, _: Context) {}
 
     async fn ask_to_join(
         self,
@@ -278,6 +282,8 @@ mod test {
         async fn deployment_key_fingerprint(self, _: Context) -> [u8; 32] {
             [0; 32]
         }
+
+        async fn ping(self, _: Context) {}
 
         async fn ask_to_join(
             self,

@@ -355,6 +355,55 @@ pub struct TargetState {
     pub paused: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeTarget {
+    pub node_id: Uuid,
+    pub name: String,
+    pub url: Url,
+    pub policy: EvaluationPolicy,
+}
+
+impl NodeTarget {
+    pub fn id(&self) -> TargetId {
+        TargetId(self.node_id)
+    }
+
+    pub(super) fn validate(&self) -> Result<(), DomainError> {
+        if self.name.trim().is_empty() {
+            return Err(DomainError::InvalidTarget(
+                "Node Target name must not be empty".to_owned(),
+            ));
+        }
+        if self.url.scheme() != "up" {
+            return Err(DomainError::InvalidTarget(
+                "Node Target URL must use up".to_owned(),
+            ));
+        }
+        self.policy.validate()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeTargetState {
+    pub target: NodeTarget,
+    pub availability: AvailabilityState,
+    pub consecutive_failures: u32,
+    pub latest_evaluation: Option<Evaluation>,
+    pub history: BTreeMap<u64, Evaluation>,
+}
+
+impl NodeTargetState {
+    pub(super) fn new(target: NodeTarget) -> Self {
+        Self {
+            target,
+            availability: AvailabilityState::Unknown,
+            consecutive_failures: 0,
+            latest_evaluation: None,
+            history: BTreeMap::new(),
+        }
+    }
+}
+
 impl TargetState {
     pub(super) fn new(target: Target) -> Self {
         Self {

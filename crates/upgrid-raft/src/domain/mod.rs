@@ -3,6 +3,7 @@
 mod alert;
 mod apply;
 mod command;
+mod evaluation;
 mod model;
 mod state;
 

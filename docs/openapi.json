@@ -1984,6 +1984,7 @@
         "type": "object",
         "required": [
           "id",
+          "kind",
           "name",
           "url",
           "method",
@@ -2064,6 +2065,9 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "kind": {
+            "type": "string"
           },
           "latest_evaluation": {
             "oneOf": [
