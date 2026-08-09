@@ -2,7 +2,7 @@
 
 ## Release Policy
 
-UpGrid will deliver an MVP first: the smallest production-usable path through cluster operation, target management, evaluation, and presentation. After the MVP, development proceeds through short, prioritized iterations. Post-MVP items are candidates rather than promised releases until selected for an iteration.
+UpGrid's runnable MVP is complete. Development now proceeds through short, prioritized agile iterations. Future work is tracked in [`TODO.md`](../TODO.md); an item has no promised release date until it is selected for an iteration.
 
 ## MVP — Delivered baseline
 
@@ -56,17 +56,15 @@ Every Node accepts Cluster API mutations and forwards them transparently to the 
 
 The receiving Node assigns each mutation an internal operation ID and preserves it across forwarding and leadership retries. The leader deduplicates repeated internal delivery; a separately submitted client request is a new operation and ambiguous non-idempotent requests are not automatically retried by clients.
 
-## MVP Reference Workload
+## MVP Acceptance Record
 
-The MVP must sustain a three-node cluster with 1,000 HTTP Targets evaluated once per minute, approximately 17 evaluations per second and 1.44 million raw history entries per day before pruning. At least 99% of evaluations must finish before their next scheduled interval, and loss of one Node must not stop the Cluster.
+The delivered MVP sustains a three-node cluster with 1,000 HTTP Targets evaluated once per minute, approximately 17 evaluations per second and 1.44 million raw history entries per day before pruning. Verification runs completed at least 99% of evaluations before the next interval, survived leader loss, and continued accepting and replicating writes.
 
-MVP ships only after the runnable slice and every gate in `docs/MVP-IMPLEMENTATION.md` pass. That checklist is the execution view of this specification and records partial hardening without presenting it as a release.
+The release gate also covers durable Raft recovery, authenticated single-use Join Links, encrypted replicated Secrets, linearizable reads, transparent write forwarding, leader-only alert delivery, generated OpenAPI, and browser-tested operator workflows.
 
-## Post-MVP Candidates
+## Delivered Agile Iteration
 
-### Agile Iteration 1 — Operator workflow
-
-Delivered after the runnable MVP:
+The first operator-workflow iteration delivered:
 
 - Lit/TypeScript WebUI built with pnpm and embedded as a reproducible binary artifact
 - Browser-tested Target creation, editing, history inspection, deletion, pause, and resume
@@ -75,16 +73,6 @@ Delivered after the runnable MVP:
 
 Pausing a Target preserves its configuration and history, cancels its outstanding assignment, discards late results, and suppresses new evaluations until it is resumed.
 
-### Candidate backlog
+## Next Iterations
 
-- Additional target types such as TCP-connect, DNS, ICMP, and TLS-certificate evaluation
-- Regex, JSONPath, response-header, latency-threshold, and scripted HTTP assertions
-- Custom HTTPS CA bundles and mutual-TLS Target credentials
-- Cron or calendar-based scheduling if usage demonstrates a need
-- Replicated user identities, API tokens, sessions, and role-based access control
-- Notification Channel editing and test delivery
-- Alert acknowledgement, manual delivery retry, and advanced history filters
-- Safe Node drain and membership removal workflows
-- Capabilities prioritized from real usage and operator feedback
-
-Candidate order and release dates are intentionally not committed yet.
+Select the smallest coherent set of items from [`TODO.md`](../TODO.md), validate it with operator feedback, and ship it as a tested increment. Candidate order and release dates remain intentionally uncommitted.
