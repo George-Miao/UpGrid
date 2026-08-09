@@ -6,6 +6,7 @@ api_base_port="${UPGRID_TEST_API_BASE_PORT:-19080}"
 raft_base_port="${UPGRID_TEST_RAFT_BASE_PORT:-19451}"
 settle_seconds="${UPGRID_TEST_SETTLE_SECONDS:-4}"
 node_count="${UPGRID_TEST_NODE_COUNT:-3}"
+admission_only="${UPGRID_TEST_ADMISSION_ONLY:-false}"
 rust_log="${UPGRID_TEST_RUST_LOG:-info}"
 test_root="$(mktemp -d "${TMPDIR:-/tmp}/upgrid-cluster.XXXXXX")"
 username="cluster-test"
@@ -44,7 +45,7 @@ wait_for_api() {
   local port="$1"
   local pid="$2"
   local attempts=0
-  until curl --fail --silent --user "${username}:${password}" \
+  until curl --fail --silent --max-time 6 --user "${username}:${password}" \
     "http://127.0.0.1:${port}/api/v1/targets" >/dev/null; do
     if ! kill -0 "$pid" 2>/dev/null; then
       echo "Node process for API port ${port} exited" >&2
@@ -59,7 +60,7 @@ wait_for_api() {
   done
 }
 
-start_node 1 --secret-key "$secret_key"
+start_node 1 --new-cluster --secret-key "$secret_key"
 wait_for_api "$api_base_port" "${pids[0]}"
 
 join_token="$(curl --fail --silent --user "${username}:${password}" \
@@ -108,6 +109,37 @@ if ! rg --quiet 'invalid, expired, or revoked' "${test_root}/node-${revoked_numb
   echo "Revoked Join Token failed without the expected rejection" >&2
   cat "${test_root}/node-${revoked_number}.log" >&2
   exit 1
+fi
+
+if (( node_count >= 3 )); then
+  kill "${pids[2]}"
+  wait "${pids[2]}" 2>/dev/null || true
+  start_node 3 --join "$join_link"
+  matching_restart_pid="${pids[${#pids[@]} - 1]}"
+  wait_for_api "$((api_base_port + 2))" "$matching_restart_pid"
+  setup_state="$(curl --fail --silent --user "${username}:${password}" \
+    "http://127.0.0.1:$((api_base_port + 2))/api/v1/setup")"
+  if [[ "$(printf '%s' "$setup_state" | jq --raw-output '.warning')" != "null" ]]; then
+    echo "Matching persisted Join Token unexpectedly produced a warning: ${setup_state}" >&2
+    exit 1
+  fi
+
+  kill "$matching_restart_pid"
+  wait "$matching_restart_pid" 2>/dev/null || true
+  start_node 3 --join "not-a-valid-join-token"
+  existing_restart_pid="${pids[${#pids[@]} - 1]}"
+  wait_for_api "$((api_base_port + 2))" "$existing_restart_pid"
+  setup_state="$(curl --fail --silent --user "${username}:${password}" \
+    "http://127.0.0.1:$((api_base_port + 2))/api/v1/setup")"
+  if [[ "$(printf '%s' "$setup_state" | jq --raw-output '.warning')" != *"invalid"* ]]; then
+    echo "Invalid persisted Join Token did not produce a WebUI warning: ${setup_state}" >&2
+    exit 1
+  fi
+fi
+
+if [[ "$admission_only" == true ]]; then
+  echo "Local ${node_count}-Node admission and restart behavior verified"
+  exit 0
 fi
 
 # Exercise multiple heartbeat/read-barrier rounds instead of validating only

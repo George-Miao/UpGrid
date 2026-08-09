@@ -7,13 +7,11 @@ use tracing_subscriber::Layer;
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use upgrid_config::{
-    Action, AppResult, Cipher, load_or_create_cipher, load_or_create_node_id,
-    load_or_create_node_name,
-};
+use upgrid_config::{Action, AppResult};
 use upgrid_raft::domain::{Command, DEFAULT_HISTORY_RETENTION_MS};
-use upgrid_raft::{Handle, Identity, Node, Req};
+use upgrid_raft::{Handle, Req};
 
+mod bootstrap;
 mod scheduler;
 mod worker;
 
@@ -54,46 +52,17 @@ async fn run() -> AppResult<()> {
         print!("{}", upgrid_api::openapi_json()?);
         return Ok(());
     };
-    let mut config = *config;
-    std::fs::create_dir_all(&config.data_dir)?;
-    let mut join = config.join.take();
-    if config.setup {
-        ensure_fresh_setup(&config.data_dir)?;
-        join = Some(upgrid_api::wait_for_join(&config)?);
-    }
-    let manual_cipher = config
-        .secret_key
-        .take()
-        .map(|key| Cipher::parse(&key))
-        .transpose()?;
-    let configured_cipher = match (join.as_ref(), manual_cipher) {
-        (Some(link), Some(manual)) if link.cipher().encoded() != manual.encoded() => {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "configured deployment key does not match the join link",
-            )
-            .into());
-        }
-        (Some(link), _) => Some(link.cipher().clone()),
-        (None, manual) => manual,
-    };
-    let cipher =
-        load_or_create_cipher(&config.data_dir, configured_cipher.as_ref(), join.is_some())?;
-    let node_id = load_or_create_node_id(&config.data_dir)?;
-    let node_name =
-        load_or_create_node_name(&config.data_dir, config.node_name.as_deref(), node_id)?;
-    let identity = Identity::with_id(node_id, config.raft_url.as_str())?;
-    let node = Node::open(identity, &config.data_dir, &cipher).await?;
-    let bootstrapping = !node.has_membership() && join.is_none();
-    if node.has_membership() {
-        tracing::debug!(%node_id, "resuming persisted Cluster membership");
-    } else {
-        if let Some(join) = join {
-            node.join(join.remote().clone(), join.token()).await?;
-        } else {
-            node.start_cluster().await?;
-        }
-    }
+    let ready = bootstrap::prepare(*config).await?;
+    let bootstrap::Ready {
+        config,
+        node,
+        cipher,
+        node_name,
+        oobe,
+        startup_warning,
+        bootstrapping,
+    } = ready;
+    let node_id = node.node_id();
     node.write(Req {
         operation_id: uuid::Uuid::now_v7(),
         submitted_at_ms: upgrid_config::now_ms(),
@@ -123,31 +92,17 @@ async fn run() -> AppResult<()> {
         );
     }
     let (cluster, receiver) = Handle::new(node_id);
-    upgrid_api::start(config, cluster.clone(), cipher.clone())?;
+    upgrid_api::start(
+        config,
+        cluster.clone(),
+        cipher.clone(),
+        oobe,
+        startup_warning,
+    )?;
     worker::start(cluster.clone(), cipher.clone());
     upgrid_notification::start(cluster, cipher);
     receiver.run(node).await;
     Err(std::io::Error::other("cluster request channel stopped").into())
-}
-
-fn ensure_fresh_setup(data_dir: &std::path::Path) -> AppResult<()> {
-    const CLUSTER_FILES: [&str; 4] = [
-        "deployment-key",
-        "raft-log.redb",
-        "raft-log.postcard",
-        "raft-state.postcard",
-    ];
-    if CLUSTER_FILES
-        .iter()
-        .any(|name| data_dir.join(name).exists())
-    {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::AlreadyExists,
-            "WebUI Cluster setup requires a fresh data directory",
-        )
-        .into());
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -169,15 +124,5 @@ mod logging_tests {
         let filter = log_filter(LevelFilter::DEBUG);
         assert!(!filter.would_enable("openraft::replication", &Level::ERROR));
         assert!(!filter.would_enable("openraft_rt_compio", &Level::ERROR));
-    }
-
-    #[test]
-    fn web_setup_rejects_existing_cluster_state() {
-        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", uuid::Uuid::now_v7()));
-        std::fs::create_dir_all(&directory).unwrap();
-        assert!(ensure_fresh_setup(&directory).is_ok());
-        std::fs::write(directory.join("deployment-key"), "existing").unwrap();
-        assert!(ensure_fresh_setup(&directory).is_err());
-        std::fs::remove_dir_all(directory).unwrap();
     }
 }

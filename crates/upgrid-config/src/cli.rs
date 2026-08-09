@@ -18,12 +18,12 @@ pub(super) struct Cli {
     pub(super) raft_url: Option<String>,
 
     /// Join with an up:// invitation.
-    #[arg(long, value_name = "JOIN_LINK", conflicts_with = "setup")]
+    #[arg(long, value_name = "JOIN_LINK", conflicts_with = "new_cluster")]
     pub(super) join: Option<String>,
 
-    /// Wait for a Join Link in the WebUI.
+    /// Create a new single-Node Cluster without opening OOBE.
     #[arg(long, action = ArgAction::SetTrue)]
-    pub(super) setup: bool,
+    pub(super) new_cluster: bool,
 
     /// Persistent Node data directory.
     #[arg(long, value_name = "PATH")]
@@ -69,8 +69,20 @@ mod tests {
     use super::Cli;
 
     #[test]
-    fn setup_and_direct_join_conflict() {
-        assert!(Cli::try_parse_from(["upgrid", "--setup", "--join", "up://node/token"]).is_err());
+    fn new_cluster_and_direct_join_conflict() {
+        assert!(
+            Cli::try_parse_from(["upgrid", "--new-cluster", "--join", "up://node/token"]).is_err()
+        );
+    }
+
+    #[test]
+    fn new_cluster_flag_is_accepted() {
+        assert!(Cli::try_parse_from(["upgrid", "--new-cluster"]).is_ok());
+    }
+
+    #[test]
+    fn setup_flag_is_removed() {
+        assert!(Cli::try_parse_from(["upgrid", "--setup"]).is_err());
     }
 
     #[test]

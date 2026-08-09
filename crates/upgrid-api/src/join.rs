@@ -112,8 +112,29 @@ pub(super) async fn revoke_join_token(
         (status = 401, body = ErrorBody),
     )
 )]
-pub(super) async fn get_setup() -> Json<SetupView> {
-    Json(SetupView { setup: false })
+pub(super) async fn get_setup(State(state): State<WebState>) -> Result<Json<SetupView>, ApiError> {
+    let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
+    Ok(Json(setup_view(
+        &state,
+        snapshot.notification_channels.len(),
+        snapshot.targets.len(),
+    )))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/setup/next",
+    responses(
+        (status = 200, body = SetupView),
+        (status = 401, body = ErrorBody),
+        (status = 503, body = ErrorBody),
+    )
+)]
+pub(super) async fn advance_setup(
+    State(state): State<WebState>,
+) -> Result<Json<SetupView>, ApiError> {
+    state.oobe.advance().map_err(ApiError::unavailable)?;
+    get_setup(State(state)).await
 }
 
 #[utoipa::path(
@@ -132,10 +153,42 @@ pub(super) async fn join_cluster(
 ) -> Result<(StatusCode, Json<JoinClusterView>), ApiError> {
     Err(ApiError {
         status: StatusCode::CONFLICT,
-        message: "this Node is already initialized; start a fresh Node with --setup to join a \
-                  Cluster"
-            .to_owned(),
+        message: "this Node already belongs to a Cluster".to_owned(),
     })
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/setup/new-cluster",
+    request_body = CreateClusterRequest,
+    responses(
+        (status = 202, body = JoinClusterView),
+        (status = 400, body = ErrorBody),
+        (status = 401, body = ErrorBody),
+        (status = 409, body = ErrorBody),
+    )
+)]
+pub(super) async fn create_cluster(
+    Json(_input): Json<CreateClusterRequest>,
+) -> Result<(StatusCode, Json<JoinClusterView>), ApiError> {
+    Err(ApiError {
+        status: StatusCode::CONFLICT,
+        message: "this Node already belongs to a Cluster".to_owned(),
+    })
+}
+
+fn setup_view(state: &WebState, channel_count: usize, target_count: usize) -> SetupView {
+    let phase = state.oobe.phase();
+    SetupView {
+        setup: phase != OobePhase::Complete,
+        phase: phase.to_string(),
+        path: phase.path().to_owned(),
+        cluster_ready: true,
+        node_name: state.node_name.clone(),
+        warning: state.startup_warning.clone(),
+        channel_count,
+        target_count,
+    }
 }
 
 fn encode_join_token_id(hash: &upgrid_raft::domain::JoinTokenHash) -> String {

@@ -4,7 +4,13 @@ use super::resources::*;
 use super::targets::*;
 use super::*;
 
-pub fn start(config: Config, cluster: Handle, cipher: Cipher) -> AppResult<()> {
+pub fn start(
+    config: Config,
+    cluster: Handle,
+    cipher: Cipher,
+    oobe: Oobe,
+    startup_warning: Option<String>,
+) -> AppResult<()> {
     let listener = std::net::TcpListener::bind(&config.bind)?;
     listener.set_nonblocking(true)?;
     let bind = config.bind.clone();
@@ -16,7 +22,14 @@ pub fn start(config: Config, cluster: Handle, cipher: Cipher) -> AppResult<()> {
                 .thread_name("upgrid-web-worker")
                 .build()
                 .expect("could not create web runtime");
-            if let Err(error) = runtime.block_on(serve(listener, config, cluster, cipher)) {
+            if let Err(error) = runtime.block_on(serve(
+                listener,
+                config,
+                cluster,
+                cipher,
+                oobe,
+                startup_warning,
+            )) {
                 tracing::error!(%error, "web API stopped");
             }
         })?;
@@ -29,6 +42,8 @@ async fn serve(
     config: Config,
     cluster: Handle,
     cipher: Cipher,
+    oobe: Oobe,
+    startup_warning: Option<String>,
 ) -> AppResult<()> {
     let tls_cert = config.tls_cert.clone();
     let tls_key = config.tls_key.clone();
@@ -38,6 +53,11 @@ async fn serve(
         raft_url: config.raft_url,
         username: config.username,
         password: config.password,
+        node_name: config
+            .node_name
+            .expect("orchestration resolves the Node name before starting the API"),
+        oobe,
+        startup_warning,
     };
     let (api, mut openapi) = api_routes().with_state(state.clone()).split_for_parts();
     configure_openapi(&mut openapi);
@@ -47,6 +67,9 @@ async fn serve(
         .route("/", get(index))
         .route("/alerts", get(index))
         .route("/cluster", get(index))
+        .route("/setup", get(index))
+        .route("/setup/channel", get(index))
+        .route("/setup/target", get(index))
         .route(
             "/openapi.json",
             get({
@@ -92,7 +115,10 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(revoke_join_token))
         .routes(routes!(list_alerts))
         .routes(routes!(get_cluster))
-        .routes(routes!(get_setup, join_cluster))
+        .routes(routes!(get_setup))
+        .routes(routes!(advance_setup))
+        .routes(routes!(join_cluster))
+        .routes(routes!(create_cluster))
         .routes(routes!(events))
 }
 

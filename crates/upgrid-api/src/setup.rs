@@ -9,20 +9,34 @@ use axum::{Json, Router};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use tokio::sync::Notify;
-use upgrid_config::{AppResult, Config, JoinLink};
+use upgrid_config::{AppResult, Config, JoinLink, store_node_name};
 
 use crate::assets::{favicon, index, webui_script};
-use crate::{ApiError, ErrorBody, JoinClusterRequest, JoinClusterView, SetupView};
+use crate::{
+    ApiError, CreateClusterRequest, ErrorBody, JoinClusterRequest, JoinClusterView, SetupView,
+};
 
 #[derive(Clone)]
 struct SetupState {
     username: String,
     password: String,
-    result: Arc<Mutex<Option<JoinLink>>>,
+    data_dir: std::path::PathBuf,
+    node_name: Arc<Mutex<String>>,
+    result: Arc<Mutex<Option<OobeChoice>>>,
     accepted: Arc<Notify>,
 }
 
-pub fn wait_for_join(config: &Config) -> AppResult<JoinLink> {
+pub enum OobeChoice {
+    NewCluster {
+        node_name: String,
+    },
+    Join {
+        node_name: String,
+        link: Box<JoinLink>,
+    },
+}
+
+pub fn wait_for_oobe(config: &Config, node_name: &str) -> AppResult<OobeChoice> {
     let listener = std::net::TcpListener::bind(&config.bind)?;
     listener.set_nonblocking(true)?;
     let result = Arc::new(Mutex::new(None));
@@ -30,14 +44,17 @@ pub fn wait_for_join(config: &Config) -> AppResult<JoinLink> {
     let state = SetupState {
         username: config.username.clone(),
         password: config.password.clone(),
+        data_dir: config.data_dir.clone(),
+        node_name: Arc::new(Mutex::new(node_name.to_owned())),
         result: result.clone(),
         accepted: accepted.clone(),
     };
     let protected = Router::new()
         .route("/", get(index))
-        .route("/cluster", get(index))
+        .route("/setup", get(index))
         .route("/api/v1/setup", get(setup_status))
         .route("/api/v1/cluster/join", post(join))
+        .route("/api/v1/setup/new-cluster", post(new_cluster))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
     let app = Router::new()
         .route("/assets/app.js", get(webui_script))
@@ -73,9 +90,7 @@ pub fn wait_for_join(config: &Config) -> AppResult<JoinLink> {
             .lock()
             .map_err(|_| std::io::Error::other("Cluster setup state was poisoned"))?
             .take()
-            .ok_or_else(|| {
-                std::io::Error::other("Cluster setup stopped without a Join Link").into()
-            })
+            .ok_or_else(|| std::io::Error::other("OOBE stopped without a Cluster choice").into())
     })
 }
 
@@ -83,25 +98,74 @@ async fn join(
     State(state): State<SetupState>,
     Json(input): Json<JoinClusterRequest>,
 ) -> Result<(StatusCode, Json<JoinClusterView>), ApiError> {
+    let node_name = persist_name(&state, &input.node_name)?;
     let link = JoinLink::parse(input.join_link.trim()).map_err(ApiError::bad_request)?;
-    let mut result = state
-        .result
-        .lock()
-        .map_err(|_| ApiError::unavailable("Cluster setup state was poisoned"))?;
-    if result.is_some() {
-        return Err(ApiError::bad_request("a Join Link was already accepted"));
-    }
-    *result = Some(link);
-    drop(result);
-    state.accepted.notify_one();
+    accept(
+        &state,
+        OobeChoice::Join {
+            node_name,
+            link: Box::new(link),
+        },
+    )?;
     Ok((
         StatusCode::ACCEPTED,
         Json(JoinClusterView { status: "joining" }),
     ))
 }
 
-async fn setup_status() -> Json<SetupView> {
-    Json(SetupView { setup: true })
+async fn new_cluster(
+    State(state): State<SetupState>,
+    Json(input): Json<CreateClusterRequest>,
+) -> Result<(StatusCode, Json<JoinClusterView>), ApiError> {
+    let node_name = persist_name(&state, &input.node_name)?;
+    accept(&state, OobeChoice::NewCluster { node_name })?;
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(JoinClusterView { status: "creating" }),
+    ))
+}
+
+async fn setup_status(State(state): State<SetupState>) -> Result<Json<SetupView>, ApiError> {
+    let node_name = state
+        .node_name
+        .lock()
+        .map_err(|_| ApiError::unavailable("OOBE Node name was poisoned"))?
+        .clone();
+    Ok(Json(SetupView {
+        setup: true,
+        phase: "cluster".to_owned(),
+        path: "/setup".to_owned(),
+        cluster_ready: false,
+        node_name,
+        warning: None,
+        channel_count: 0,
+        target_count: 0,
+    }))
+}
+
+fn persist_name(state: &SetupState, name: &str) -> Result<String, ApiError> {
+    let name = store_node_name(&state.data_dir, name).map_err(ApiError::bad_request)?;
+    *state
+        .node_name
+        .lock()
+        .map_err(|_| ApiError::unavailable("OOBE Node name was poisoned"))? = name.clone();
+    Ok(name)
+}
+
+fn accept(state: &SetupState, choice: OobeChoice) -> Result<(), ApiError> {
+    let mut result = state
+        .result
+        .lock()
+        .map_err(|_| ApiError::unavailable("OOBE state was poisoned"))?;
+    if result.is_some() {
+        return Err(ApiError::bad_request(
+            "a Cluster choice was already accepted",
+        ));
+    }
+    *result = Some(choice);
+    drop(result);
+    state.accepted.notify_one();
+    Ok(())
 }
 
 async fn require_auth(State(state): State<SetupState>, request: Request, next: Next) -> Response {

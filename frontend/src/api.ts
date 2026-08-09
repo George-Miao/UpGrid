@@ -79,6 +79,13 @@ export interface ClusterMember {
 
 export interface Setup {
   setup: boolean;
+  phase: "cluster" | "channel" | "target" | "complete";
+  path: string;
+  cluster_ready: boolean;
+  node_name: string;
+  warning: string | null;
+  channel_count: number;
+  target_count: number;
 }
 
 export interface Cluster {

@@ -36,6 +36,19 @@ pub struct Node {
 }
 
 impl Node {
+    pub fn data_membership_urls(data_dir: &Path) -> Result<BTreeSet<String>> {
+        let state_path = data_dir.join("raft-state.postcard");
+        let state_machine =
+            StateMachine::open(&state_path).context(StateMachineOpenSnafu { path: state_path })?;
+        Ok(state_machine
+            .state_machine
+            .borrow()
+            .last_membership
+            .nodes()
+            .map(|(_, node)| node.to_string())
+            .collect())
+    }
+
     pub fn node_id(&self) -> uuid::Uuid {
         self.id.id
     }

@@ -171,6 +171,7 @@ test("configures notification resources and creates a join command", async ({ pa
 
   await page.getByRole("link", { name: "Cluster" }).click();
   await expect(page.getByRole("button", { name: "Add node" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Join cluster" })).toHaveCount(0);
   await page.getByRole("button", { name: "Create token" }).click();
   const config = page.getByRole("dialog", { name: "Create Join Token" });
   await expect(config.getByLabel("Expiration")).toHaveValue("1");
@@ -222,6 +223,19 @@ test("shows the local Raft topology and leader", async ({ page }) => {
   await expect(cluster.locator(".resource code")).toHaveText("up://127.0.0.1:18451");
   await expect(cluster.getByText("Leader")).toBeVisible();
   await expect(cluster.getByText("This node")).toBeVisible();
+});
+
+test("dismisses a startup compatibility warning", async ({ page }) => {
+  await page.route("**/api/v1/setup", async (route) => {
+    const response = await route.fetch();
+    const setup = await response.json();
+    await route.fulfill({ response, json: { ...setup, warning: "Configured Join Token was ignored." } });
+  });
+  await page.goto("/");
+  const warning = page.getByRole("status");
+  await expect(warning).toContainText("Configured Join Token was ignored.");
+  await warning.getByRole("button", { name: "Dismiss" }).click();
+  await expect(warning).toHaveCount(0);
 });
 
 test("filters and bulk-pauses selected targets", async ({ page }) => {
@@ -321,6 +335,30 @@ test("target hover highlights the checkbox and content as one row", async ({ pag
   expect(backgrounds.row).not.toBe("rgba(0, 0, 0, 0)");
 });
 
+test("creates a Cluster and optional resources through OOBE", async ({ page }) => {
+  await page.goto(process.env.UPGRID_NEW_SETUP_URL ?? "http://127.0.0.1:18082");
+  await expect(page).toHaveURL(/\/setup$/);
+  const setup = page.getByRole("region", { name: "UpGrid setup" });
+  await setup.getByRole("textbox", { name: "Node name" }).first().fill("playwright-primary");
+  page.once("dialog", (dialog) => dialog.accept());
+  await setup.getByRole("button", { name: "Create new Cluster" }).click();
+
+  await expect(page).toHaveURL(/\/setup\/channel$/, { timeout: 20_000 });
+  await page.getByLabel("Name").fill("OOBE webhook");
+  await page.getByLabel("Webhook URL").fill("https://example.com/hook");
+  await page.getByRole("button", { name: "Create and continue" }).click();
+
+  await expect(page).toHaveURL(/\/setup\/target$/);
+  await page.getByLabel("Name").fill("OOBE target");
+  await page.getByLabel("URL").fill("https://example.com/health");
+  await page.getByLabel("OOBE webhook").check();
+  await page.getByRole("button", { name: "Create and finish" }).click();
+
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+  await expect(page.getByText("OOBE target")).toBeVisible();
+});
+
 test("joins a fresh node to the Cluster from its WebUI", async ({ page, request }) => {
   const invitation = await request.post("/api/v1/join-tokens", {
     data: { expires_in_seconds: 600 },
@@ -329,12 +367,27 @@ test("joins a fresh node to the Cluster from its WebUI", async ({ page, request 
   const token = await invitation.json();
 
   await page.goto(process.env.UPGRID_SETUP_URL ?? "http://127.0.0.1:18081");
-  await expect(page).toHaveURL(/\/cluster$/);
-  await expect(page.getByRole("heading", { name: "Cluster" })).toBeVisible();
+  await expect(page).toHaveURL(/\/setup$/);
+  await expect(page.getByRole("heading", { name: "Choose your Cluster" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Create token" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Join cluster" }).click();
-  const join = page.getByRole("dialog", { name: "Join Cluster" });
-  await join.getByLabel("Join Token").fill(token.url);
-  await join.getByRole("button", { name: "Join cluster" }).click();
-  await expect(page.getByRole("region", { name: "Cluster topology" }).locator(".resource")).toHaveCount(2, { timeout: 20_000 });
+  const setup = page.getByRole("region", { name: "UpGrid setup" });
+  await setup.getByRole("textbox", { name: "Node name" }).last().fill("playwright-worker");
+  await setup.getByLabel("Join Token").fill(token.url);
+  await setup.getByRole("button", { name: "Join Cluster" }).click();
+  await expect(page).toHaveURL(/\/setup\/channel$/, { timeout: 20_000 });
+  await expect(page.getByRole("heading", { name: "Add a notification channel" })).toBeVisible();
+  await expect(page.getByText(/already configured/)).toBeVisible();
+  await page.goto(`${process.env.UPGRID_SETUP_URL ?? "http://127.0.0.1:18081"}/setup`);
+  await expect(page).toHaveURL(/\/setup\/channel$/);
+  await page.getByRole("button", { name: "Skip" }).click();
+  await expect(page).toHaveURL(/\/setup\/target$/);
+  await expect(page.getByRole("heading", { name: "Monitor your first Target" })).toBeVisible();
+  await expect(page.getByText(/already configured/)).toBeVisible();
+  await page.getByRole("button", { name: "Skip" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+  await page.getByRole("link", { name: "Cluster" }).click();
+  await expect(page.getByRole("region", { name: "Cluster topology" }).locator(".resource")).toHaveCount(2);
+  await expect(page.getByText("playwright-worker")).toBeVisible();
 });

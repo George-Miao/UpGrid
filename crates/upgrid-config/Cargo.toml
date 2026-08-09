@@ -13,3 +13,6 @@ ring.workspace = true
 serde.workspace = true
 url.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+figment = { workspace = true, features = ["test"] }

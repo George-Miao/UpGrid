@@ -1,82 +1,17 @@
-import { LitElement, css, html, nothing } from "lit";
-import { customElement, state } from "lit/decorators.js";
-import darkIcon from "@iconify-icons/lucide/moon";
-import systemIcon from "@iconify-icons/lucide/palette";
+import { css, html, nothing } from "lit";
+import { customElement } from "lit/decorators.js";
 import pauseIcon from "@iconify-icons/lucide/pause";
 import playIcon from "@iconify-icons/lucide/play";
-import brightIcon from "@iconify-icons/lucide/sun";
-import deleteIcon from "@iconify-icons/lucide/trash-2";
 import closeIcon from "@iconify-icons/lucide/x";
 import "iconify-icon";
-import {
-  type Alert,
-  type Channel,
-  type Cluster,
-  type JoinLink,
-  type JoinToken,
-  type Secret,
-  type Setup,
-  type Target,
-  type TargetInput,
-  request,
-} from "./api.ts";
-
-const themes = ["system", "dark", "bright"] as const;
-type Theme = (typeof themes)[number];
-const themeIcons = { system: systemIcon, dark: darkIcon, bright: brightIcon };
-
-const sectionPaths = {
-  overview: "/",
-  alerts: "/alerts",
-  cluster: "/cluster",
-} as const;
-
-type Section = keyof typeof sectionPaths;
-
-function sectionFromPath(): Section {
-  return (Object.entries(sectionPaths).find(([, path]) => path === window.location.pathname)?.[0]
-    ?? "overview") as Section;
-}
-
-function storedTheme(): Theme {
-  const theme = localStorage.getItem("upgrid-theme");
-  return themes.includes(theme as Theme) ? (theme as Theme) : "system";
-}
+import "./setup-flow.ts";
+import { type Target } from "./api.ts";
+import { AppController } from "./app-controller.ts";
+import { type Section, sectionPaths, themeIcons } from "./app-state.ts";
+import { renderTargetDetail } from "./target-detail-view.ts";
 
 @customElement("upgrid-app")
-export class UpgridApp extends LitElement {
-  @state() private targets: Target[] = [];
-  @state() private channels: Channel[] = [];
-  @state() private alerts: Alert[] = [];
-  @state() private secrets: Secret[] = [];
-  @state() private cluster?: Cluster;
-  @state() private joinTokens: JoinToken[] = [];
-  @state() private error = "";
-  @state() private live = false;
-  @state() private saving = false;
-  @state() private selected?: Target;
-  @state() private channelKind: "webhook" | "telegram" = "webhook";
-  @state() private joinCommand = "";
-  @state() private search = "";
-  @state() private statusFilter = "all";
-  @state() private sort = "name";
-  @state() private selectedIds = new Set<string>();
-  @state() private activeSection: Section = sectionFromPath();
-  @state() private copied = false;
-  @state() private setupMode = false;
-  @state() private joining = false;
-  @state() private unlimitedUses = true;
-  @state() private theme = storedTheme();
-  @state() private detailDirty = false;
-  private events?: EventSource;
-  private detailInitialState = "";
-  private readonly systemTheme = matchMedia("(prefers-color-scheme: light)");
-  private readonly systemThemeChanged = () => {
-    if (this.theme === "system") this.applyTheme();
-  };
-  private readonly routeChanged = () => {
-    this.activeSection = sectionFromPath();
-  };
+export class UpgridApp extends AppController {
 
   static styles = css`
     :host {
@@ -306,486 +241,11 @@ export class UpgridApp extends LitElement {
     }
   `;
 
-  connectedCallback(): void {
-    super.connectedCallback();
-    this.applyTheme();
-    this.systemTheme.addEventListener("change", this.systemThemeChanged);
-    window.addEventListener("popstate", this.routeChanged);
-    void this.start();
-  }
-
-  disconnectedCallback(): void {
-    this.systemTheme.removeEventListener("change", this.systemThemeChanged);
-    window.removeEventListener("popstate", this.routeChanged);
-    this.events?.close();
-    super.disconnectedCallback();
-  }
-
-  private async start(): Promise<void> {
-    try {
-      const setup = await request<Setup>("/api/v1/setup");
-      this.setupMode = setup.setup;
-      if (this.setupMode) {
-        this.activeSection = "cluster";
-        window.history.replaceState(null, "", sectionPaths.cluster);
-        this.live = true;
-        return;
-      }
-      await this.refresh();
-      this.connectEvents();
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    }
-  }
-
-  private connectEvents(): void {
-    this.events?.close();
-    this.events = new EventSource("/api/v1/events");
-    this.events.addEventListener("state", () => void this.refresh());
-    this.events.onopen = () => (this.live = true);
-    this.events.onerror = () => (this.live = false);
-  }
-
-  private applyTheme(): void {
-    const resolved = this.theme === "system"
-      ? (this.systemTheme.matches ? "bright" : "dark")
-      : this.theme;
-    this.dataset.theme = resolved;
-    document
-      .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-      ?.setAttribute("content", resolved === "bright" ? "#f4f8f6" : "#0b1110");
-  }
-
-  private cycleTheme(): void {
-    this.theme = themes[(themes.indexOf(this.theme) + 1) % themes.length];
-    localStorage.setItem("upgrid-theme", this.theme);
-    this.applyTheme();
-  }
-
-  private async refresh(): Promise<void> {
-    try {
-      [
-        this.targets,
-        this.channels,
-        this.alerts,
-        this.secrets,
-        this.cluster,
-        this.joinTokens,
-      ] = await Promise.all([
-        request<Target[]>("/api/v1/targets"),
-        request<Channel[]>("/api/v1/channels"),
-        request<Alert[]>("/api/v1/alerts"),
-        request<Secret[]>("/api/v1/secrets"),
-        request<Cluster>("/api/v1/cluster"),
-        request<JoinToken[]>("/api/v1/join-tokens"),
-      ]);
-      this.error = "";
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    }
-  }
-
-  private openTargetDialog(): void {
-    this.renderRoot.querySelector<HTMLDialogElement>("#target-dialog")?.showModal();
-  }
-
-  private closeTargetDialog(): void {
-    this.renderRoot.querySelector<HTMLDialogElement>("#target-dialog")?.close();
-  }
-
-  private openTarget(target: Target): void {
-    this.detailDirty = false;
-    this.selected = target;
-    void this.updateComplete.then(() => {
-      const dialog = this.renderRoot.querySelector<HTMLDialogElement>("#detail-dialog");
-      const form = dialog?.querySelector<HTMLFormElement>("form");
-      if (form) this.detailInitialState = this.detailFormState(form);
-      dialog?.showModal();
-    });
-  }
-
-  private closeDetailDialog(): void {
-    this.renderRoot.querySelector<HTMLDialogElement>("#detail-dialog")?.close();
-    this.detailDirty = false;
-    this.detailInitialState = "";
-    this.selected = undefined;
-  }
-
-  private showDialog(id: string): void {
-    this.renderRoot.querySelector<HTMLDialogElement>(`#${id}`)?.showModal();
-  }
-
-  private dismissOnBackdrop(event: MouseEvent): void {
-    const dialog = event.currentTarget as HTMLDialogElement;
-    if (event.target !== dialog) return;
-    dialog.close();
-    if (dialog.id === "detail-dialog") {
-      this.detailDirty = false;
-      this.detailInitialState = "";
-      this.selected = undefined;
-    }
-  }
-
-  private navigate(event: MouseEvent, section: Section): void {
-    event.preventDefault();
-    this.activeSection = section;
-    window.history.pushState(null, "", sectionPaths[section]);
-    void this.updateComplete.then(() =>
-      this.renderRoot
-        .querySelector<HTMLElement>(`#${section}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" }),
-    );
-  }
-
-  private closeDialog(id: string): void {
-    this.renderRoot.querySelector<HTMLDialogElement>(`#${id}`)?.close();
-  }
-
-  private toggleMaxRedirects(event: Event): void {
-    const followRedirects = event.currentTarget as HTMLInputElement;
-    const maxRedirects = followRedirects.form?.elements.namedItem(
-      "max_redirects",
-    ) as HTMLInputElement | null;
-    if (maxRedirects) maxRedirects.disabled = !followRedirects.checked;
-    if (followRedirects.form) this.compareDetailForm(followRedirects.form);
-  }
-
-  private detailFormState(form: HTMLFormElement): string {
-    return JSON.stringify([...new FormData(form).entries()]);
-  }
-
-  private compareDetailForm(form: HTMLFormElement): void {
-    this.detailDirty = this.detailFormState(form) !== this.detailInitialState;
-  }
-
-  private updateDetailDirty(event: Event): void {
-    this.compareDetailForm(event.currentTarget as HTMLFormElement);
-  }
-
-  private async createTarget(event: SubmitEvent): Promise<void> {
-    event.preventDefault();
-    const form = event.currentTarget as HTMLFormElement;
-    const fields = new FormData(form);
-    const input: TargetInput = {
-      name: String(fields.get("name")),
-      url: String(fields.get("url")),
-      method: String(fields.get("method")),
-      accepted_statuses: [{ start: 200, end: 299 }],
-      follow_redirects: true,
-      max_redirects: 5,
-      interval_seconds: Number(fields.get("interval")),
-      timeout_seconds: Number(fields.get("timeout")),
-      failure_threshold: Number(fields.get("failures")),
-      headers: {},
-      body: null,
-      body_contains: null,
-      skip_tls_verification: false,
-      notification_channel_ids: [],
-    };
-    this.saving = true;
-    try {
-      await request<Target>("/api/v1/targets", {
-        method: "POST",
-        body: JSON.stringify(input),
-      });
-      form.reset();
-      this.closeTargetDialog();
-      await this.refresh();
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    } finally {
-      this.saving = false;
-    }
-  }
-
-  private async updateTarget(event: SubmitEvent): Promise<void> {
-    event.preventDefault();
-    if (!this.selected) return;
-    const form = event.currentTarget as HTMLFormElement;
-    const fields = new FormData(form);
-    const statuses = String(fields.get("statuses"))
-      .split(",")
-      .map((part) => {
-        const [start, end] = part.trim().split("-").map(Number);
-        return { start, end: end || start };
-      });
-    const followRedirects = fields.get("follow_redirects") === "on";
-    const input: TargetInput = {
-      name: String(fields.get("name")),
-      url: String(fields.get("url")),
-      method: String(fields.get("method")),
-      accepted_statuses: statuses,
-      follow_redirects: followRedirects,
-      max_redirects: followRedirects ? Number(fields.get("max_redirects")) : 0,
-      interval_seconds: Number(fields.get("interval")),
-      timeout_seconds: Number(fields.get("timeout")),
-      failure_threshold: Number(fields.get("failures")),
-      headers: Object.fromEntries(
-        Object.entries(this.selected.headers).map(([name, value]) => [
-          name,
-          value.kind === "literal" ? value.value : { secret_id: value.secret_id },
-        ]),
-      ),
-      body:
-        this.selected.body?.kind === "literal"
-          ? this.selected.body.value
-          : this.selected.body
-            ? { secret_id: this.selected.body.secret_id }
-            : null,
-      body_contains: String(fields.get("body_contains")) || null,
-      skip_tls_verification: fields.get("skip_tls_verification") === "on",
-      notification_channel_ids: this.selected.notification_channel_ids,
-    };
-    this.saving = true;
-    try {
-      await request<Target>(`/api/v1/targets/${this.selected.id}`, {
-        method: "PUT",
-        body: JSON.stringify(input),
-      });
-      this.closeDetailDialog();
-      await this.refresh();
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    } finally {
-      this.saving = false;
-    }
-  }
-
-  private async deleteTarget(): Promise<void> {
-    if (!this.selected || !window.confirm("Delete this target and its history?")) return;
-    this.saving = true;
-    try {
-      await request<void>(`/api/v1/targets/${this.selected.id}`, { method: "DELETE" });
-      this.closeDetailDialog();
-      await this.refresh();
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    } finally {
-      this.saving = false;
-    }
-  }
-
-  private async setPaused(paused: boolean): Promise<void> {
-    if (!this.selected) return;
-    this.saving = true;
-    try {
-      await request<Target>(`/api/v1/targets/${this.selected.id}/${paused ? "pause" : "resume"}`, {
-        method: "POST",
-      });
-      this.closeDetailDialog();
-      await this.refresh();
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    } finally {
-      this.saving = false;
-    }
-  }
-
-  private async createSecret(event: SubmitEvent): Promise<void> {
-    event.preventDefault();
-    const form = event.currentTarget as HTMLFormElement;
-    const fields = new FormData(form);
-    this.saving = true;
-    try {
-      await request<Secret>("/api/v1/secrets", {
-        method: "POST",
-        body: JSON.stringify({ name: fields.get("name"), value: fields.get("value") }),
-      });
-      form.reset();
-      this.closeDialog("secret-dialog");
-      await this.refresh();
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    } finally {
-      this.saving = false;
-    }
-  }
-
-  private async createChannel(event: SubmitEvent): Promise<void> {
-    event.preventDefault();
-    const form = event.currentTarget as HTMLFormElement;
-    const fields = new FormData(form);
-    const body = this.channelKind === "telegram"
-      ? {
-          type: "telegram",
-          name: fields.get("name"),
-          bot_token: fields.get("bot_token"),
-          chat_id: fields.get("chat_id"),
-        }
-      : {
-          type: "webhook",
-          name: fields.get("name"),
-          url: fields.get("url"),
-          headers: {},
-        };
-    this.saving = true;
-    try {
-      await request<Channel>("/api/v1/channels", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      form.reset();
-      this.channelKind = "webhook";
-      this.closeDialog("channel-dialog");
-      await this.refresh();
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    } finally {
-      this.saving = false;
-    }
-  }
-
-  private openTokenDialog(): void {
-    this.unlimitedUses = true;
-    this.showDialog("token-config-dialog");
-  }
-
-  private async createJoinToken(event: SubmitEvent): Promise<void> {
-    event.preventDefault();
-    const form = event.currentTarget as HTMLFormElement;
-    const fields = new FormData(form);
-    const expiresInSeconds = Number(fields.get("expiration")) * Number(fields.get("unit"));
-    const maxUses = this.unlimitedUses ? null : Number(fields.get("max_uses"));
-    this.saving = true;
-    try {
-      const link = await request<JoinLink>("/api/v1/join-tokens", {
-        method: "POST",
-        body: JSON.stringify({ expires_in_seconds: expiresInSeconds, max_uses: maxUses }),
-      });
-      this.joinCommand = `upgrid --join '${link.url}'`;
-      this.copied = false;
-      await this.refresh();
-      this.closeDialog("token-config-dialog");
-      this.showDialog("join-dialog");
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    } finally {
-      this.saving = false;
-    }
-  }
-
-  private async joinCluster(event: SubmitEvent): Promise<void> {
-    event.preventDefault();
-    const form = event.currentTarget as HTMLFormElement;
-    const joinLink = String(new FormData(form).get("join_link")).trim();
-    this.joining = true;
-    try {
-      await request<{ status: string }>("/api/v1/cluster/join", {
-        method: "POST",
-        body: JSON.stringify({ join_link: joinLink }),
-      });
-      this.closeDialog("join-cluster-dialog");
-      for (let attempt = 0; attempt < 120; attempt += 1) {
-        await new Promise((resolve) => window.setTimeout(resolve, 250));
-        try {
-          await request<Cluster>("/api/v1/cluster");
-          window.location.replace(sectionPaths.cluster);
-          return;
-        } catch {
-          // The setup listener is replaced by the Cluster API during provisioning.
-        }
-      }
-      throw new Error("Cluster join did not finish within 30 seconds");
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-      this.joining = false;
-    }
-  }
-
-  private async revokeJoinToken(token: JoinToken): Promise<void> {
-    if (!window.confirm("Revoke this Join Token? Nodes using it will no longer be admitted.")) return;
-    this.saving = true;
-    try {
-      await request<void>(`/api/v1/join-tokens/${token.id}`, { method: "DELETE" });
-      await this.refresh();
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    } finally {
-      this.saving = false;
-    }
-  }
-
-  private async copyJoinCommand(): Promise<void> {
-    let copied = false;
-    try {
-      await navigator.clipboard.writeText(this.joinCommand);
-      copied = true;
-    } catch {
-      const field = document.createElement("textarea");
-      field.value = this.joinCommand;
-      field.style.position = "fixed";
-      field.style.opacity = "0";
-      document.body.append(field);
-      field.select();
-      copied = document.execCommand("copy");
-      field.remove();
-    }
-    if (!copied) {
-      this.error = "Could not copy the Join command";
-      return;
-    }
-    this.copied = true;
-    window.setTimeout(() => (this.copied = false), 2_000);
-  }
-
-  private toggleSelected(id: string, checked: boolean): void {
-    const next = new Set(this.selectedIds);
-    checked ? next.add(id) : next.delete(id);
-    this.selectedIds = next;
-  }
-
-  private async bulkPause(paused: boolean): Promise<void> {
-    this.saving = true;
-    try {
-      await Promise.all(
-        [...this.selectedIds].map((id) =>
-          request<Target>(`/api/v1/targets/${id}/${paused ? "pause" : "resume"}`, {
-            method: "POST",
-          }),
-        ),
-      );
-      this.selectedIds = new Set();
-      await this.refresh();
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    } finally {
-      this.saving = false;
-    }
-  }
-
-  private async bulkDelete(): Promise<void> {
-    if (!window.confirm(`Delete ${this.selectedIds.size} selected Targets and their history?`)) return;
-    this.saving = true;
-    try {
-      await Promise.all(
-        [...this.selectedIds].map((id) =>
-          request<void>(`/api/v1/targets/${id}`, { method: "DELETE" }),
-        ),
-      );
-      this.selectedIds = new Set();
-      await this.refresh();
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    } finally {
-      this.saving = false;
-    }
-  }
-
-  private async deleteResource(kind: "channels" | "secrets", id: string, name: string): Promise<void> {
-    if (!window.confirm(`Delete ${name}?`)) return;
-    try {
-      await request<void>(`/api/v1/${kind}/${id}`, { method: "DELETE" });
-      await this.refresh();
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    }
-  }
-
   protected render() {
     const up = this.targets.filter((target) => target.availability === "up").length;
     const down = this.targets.filter((target) => target.availability === "down").length;
     const pending = this.alerts.filter((alert) => alert.delivery === "pending").length;
-    const sections: Section[] = this.setupMode ? ["cluster"] : ["overview", "alerts", "cluster"];
+    const sections: Section[] = ["overview", "alerts", "cluster"];
     const visibleTargets = this.targets
       .filter((target) =>
         `${target.name} ${target.url}`.toLowerCase().includes(this.search.toLowerCase()),
@@ -802,6 +262,21 @@ export class UpgridApp extends LitElement {
           ? left.availability.localeCompare(right.availability) || left.name.localeCompare(right.name)
           : left.name.localeCompare(right.name),
       );
+    if (this.setupMode && this.setup) {
+      return html`
+        <main class="shell">
+          <header>
+            <div class="brand">
+              <img src="/favicon.svg" alt="" />
+              <div><div class="brand-line"><strong>UpGrid</strong><div class="live"><i class="dot ${this.live ? "on" : ""}"></i>${this.live ? "ready" : "connecting"}</div></div><span>Distributed service monitoring</span></div>
+            </div>
+            <div></div>
+            <div class="actions"><button class="button secondary icon-button" aria-label=${`Theme: ${this.theme[0].toUpperCase()}${this.theme.slice(1)}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button></div>
+          </header>
+          ${this.error ? html`<div class="notice" role="alert">${this.error}</div>` : nothing}
+          <upgrid-setup .setup=${this.setup} @setup-changed=${this.setupChanged}></upgrid-setup>
+        </main>`;
+    }
     return html`
       <main class="shell">
         <header>
@@ -822,6 +297,9 @@ export class UpgridApp extends LitElement {
           </div>
         </header>
         ${this.error ? html`<div class="notice" role="alert">${this.error}</div>` : nothing}
+        ${this.setup?.warning && !this.warningDismissed
+          ? html`<div class="notice" role="status">${this.setup.warning}<button class="button secondary" style="float: right; margin: -6px" @click=${() => (this.warningDismissed = true)}>Dismiss</button></div>`
+          : nothing}
         ${this.activeSection === "overview"
           ? this.renderOverview(visibleTargets, up, down, pending)
           : this.activeSection === "alerts"
@@ -847,7 +325,15 @@ export class UpgridApp extends LitElement {
           </div>
         </form>
       </dialog>
-      ${this.selected ? this.renderDetail(this.selected) : nothing}
+      ${this.selected ? renderTargetDetail(this.selected, this.saving, this.detailDirty, {
+        backdrop: (event) => this.dismissOnBackdrop(event),
+        close: () => this.closeDetailDialog(),
+        update: (event) => void this.updateTarget(event),
+        changed: (event) => this.updateDetailDirty(event),
+        redirects: (event) => this.toggleMaxRedirects(event),
+        delete: () => void this.deleteTarget(),
+        pause: (paused) => void this.setPaused(paused),
+      }) : nothing}
       <dialog id="secret-dialog" aria-labelledby="secret-title" @click=${this.dismissOnBackdrop}>
         <div class="dialog-head"><h2 id="secret-title">Add secret</h2><p>The plaintext is encrypted before replication and never returned.</p></div>
         <form @submit=${this.createSecret}>
@@ -883,13 +369,6 @@ export class UpgridApp extends LitElement {
         <div class="dialog-head"><h2 id="join-title">Join Token Created</h2><p>This command contains Cluster credentials. Revoke the token when no longer needed.</p></div>
         <div class="join-command">${this.joinCommand}</div>
         <div class="dialog-actions" style="padding: 0 22px 22px"><button class="button secondary" @click=${() => this.closeDialog("join-dialog")}>Close</button><button class="button" @click=${this.copyJoinCommand}>${this.copied ? "Copied" : "Copy command"}</button></div>
-      </dialog>
-      <dialog id="join-cluster-dialog" aria-labelledby="join-cluster-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><h2 id="join-cluster-title">Join Cluster</h2><p>Paste an <code>up://</code> Join Token issued by the destination Cluster.</p></div>
-        <form @submit=${this.joinCluster}>
-          <label>Join Token<input name="join_link" type="url" pattern="up://.*" placeholder="up://node.example/token" autocomplete="off" required /></label>
-          <div class="dialog-actions"><button class="button secondary" type="button" @click=${() => this.closeDialog("join-cluster-dialog")}>Cancel</button><button class="button" type="submit" ?disabled=${this.joining}>${this.joining ? "Joining…" : "Join cluster"}</button></div>
-        </form>
       </dialog>
     `;
   }
@@ -957,8 +436,7 @@ export class UpgridApp extends LitElement {
       <section class="heading" id="cluster">
         <div><span class="eyebrow">Raft membership</span><h1>Cluster</h1></div>
         <div class="actions">
-          ${this.setupMode ? nothing : html`<button class="button secondary" @click=${this.openTokenDialog}>Create token</button>`}
-          <button class="button" @click=${() => this.showDialog("join-cluster-dialog")}>Join cluster</button>
+          <button class="button" @click=${this.openTokenDialog}>Create token</button>
         </div>
       </section>
       <section class="panel" aria-label="Cluster topology">
@@ -966,11 +444,9 @@ export class UpgridApp extends LitElement {
         ${this.cluster?.members.map((member) => html`<div class="resource"><div><strong>${member.name}</strong><code>${member.raft_url}</code></div><div class="actions">${member.local ? html`<span class="badge">This node</span>` : nothing}${member.leader ? html`<span class="badge">Leader</span>` : nothing}</div></div>`)}
         ${this.cluster?.members.length
           ? nothing
-          : html`<div class="empty">${this.setupMode
-            ? (this.joining ? "Joining the Cluster…" : "This fresh Node is ready to join a Cluster.")
-            : "Cluster topology unavailable."}</div>`}
+          : html`<div class="empty">Cluster topology unavailable.</div>`}
       </section>
-      ${this.setupMode ? nothing : html`<section class="panel" aria-label="Join tokens" style="margin-top: 18px">
+      <section class="panel" aria-label="Join tokens" style="margin-top: 18px">
         <div class="panel-head"><h2>Join Tokens</h2><span class="meta">${this.joinTokens.length} stored</span></div>
         ${this.joinTokens.length
           ? this.joinTokens.map((token) => html`
@@ -980,7 +456,7 @@ export class UpgridApp extends LitElement {
               </div>
             `)
           : html`<div class="empty">No Join Tokens.</div>`}
-      </section>`}
+      </section>
     `;
   }
 
@@ -1011,78 +487,6 @@ export class UpgridApp extends LitElement {
     `;
   }
 
-  private renderDetail(target: Target) {
-    const statuses = target.accepted_statuses
-      .map((range) => (range.start === range.end ? range.start : `${range.start}-${range.end}`))
-      .join(",");
-    const history = target.history.slice(0, 30).reverse();
-    const maxLatency = Math.max(1, ...history.map((item) => item.latency_ms));
-    const chartTime = (timestamp: number) => new Date(timestamp).toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    const chartLatency = (latency: number) => latency >= 1_000
-      ? `${(latency / 1_000).toFixed(latency >= 10_000 ? 0 : 1)} s`
-      : `${Math.round(latency)} ms`;
-    return html`
-      <dialog id="detail-dialog" aria-labelledby="target-detail-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head">
-          <h2 id="target-detail-title">Target details</h2>
-          <button class="button secondary icon-button dialog-close" type="button" aria-label="Close target details" title="Close" @click=${this.closeDetailDialog}><iconify-icon .icon=${closeIcon} aria-hidden="true"></iconify-icon></button>
-        </div>
-        <form @submit=${this.updateTarget} @input=${this.updateDetailDirty}>
-          <label>Name<input name="name" .value=${target.name} required /></label>
-          <label>URL<input name="url" type="url" .value=${target.url} required /></label>
-          <div class="row">
-            <label>Method<input name="method" .value=${target.method} required /></label>
-            <label>Expected statuses<input name="statuses" .value=${statuses} required /></label>
-          </div>
-          <div class="row">
-            <label>Interval (seconds)<input name="interval" type="number" min="1" .value=${String(target.interval_seconds)} required /></label>
-            <label>Timeout (seconds)<input name="timeout" type="number" min="1" .value=${String(target.timeout_seconds)} required /></label>
-          </div>
-          <div class="row">
-            <label>Failures before Down<input name="failures" type="number" min="1" .value=${String(target.failure_threshold)} required /></label>
-            <label>Maximum redirects<input name="max_redirects" type="number" min="0" .value=${String(target.max_redirects)} ?disabled=${!target.follow_redirects} required /></label>
-          </div>
-          <label>Body must contain<input name="body_contains" .value=${target.body_contains ?? ""} /></label>
-          <div class="row">
-            <label class="check"><input name="follow_redirects" type="checkbox" .checked=${target.follow_redirects} @change=${this.toggleMaxRedirects} />Follow redirects</label>
-            <label class="check"><input name="skip_tls_verification" type="checkbox" .checked=${target.skip_tls_verification} />Skip TLS verification</label>
-          </div>
-          <div class="dialog-actions">
-            <div class="danger-actions">
-              <button class="button danger icon-button" type="button" aria-label="Delete target" title="Delete target" @click=${this.deleteTarget}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
-              <button class=${`button ${target.paused ? "success" : "warning"} icon-button`} type="button" aria-label=${target.paused ? "Resume evaluations" : "Pause evaluations"} title=${target.paused ? "Resume evaluations" : "Pause evaluations"} @click=${() => this.setPaused(!target.paused)}><iconify-icon .icon=${target.paused ? playIcon : pauseIcon} aria-hidden="true"></iconify-icon></button>
-            </div>
-            <button class="button" type="submit" aria-busy=${this.saving ? "true" : "false"} ?disabled=${this.saving || !this.detailDirty}>Save changes</button>
-          </div>
-        </form>
-        <section class="history">
-          <div class="history-head"><h3>Evaluation history</h3>${history.length ? html`<span class="meta">Latest ${history.length}</span>` : nothing}</div>
-          ${history.length
-            ? html`
-                <div class="chart-plot">
-                  <div class="chart-scale" aria-hidden="true"><span>${chartLatency(maxLatency)}</span><span>${chartLatency(maxLatency / 2)}</span><span>0 ms</span></div>
-                  <div class="history-chart" role="list" aria-label=${`Recent evaluation latency, 0 to ${chartLatency(maxLatency)}`}>
-                    ${history.map((item) => {
-                      const result = item.succeeded ? "Passed" : "Failed";
-                      const status = item.status_code === null ? "network error" : `HTTP ${item.status_code}`;
-                      const label = `${result} at ${new Date(item.recorded_at_ms).toLocaleString()}: ${item.latency_ms} ms, ${status}`;
-                      return html`<span class="history-bar ${item.succeeded ? "up" : "down"}" role="listitem" aria-label=${label} title=${label} style=${`height: ${Math.max(8, item.latency_ms / maxLatency * 100)}%`}></span>`;
-                    })}
-                  </div>
-                </div>
-                <div class="chart-axis"><span>${chartTime(history[0].recorded_at_ms)}</span><span>${chartTime(history.at(-1)!.recorded_at_ms)}</span></div>
-                <div class="chart-legend"><span><i class="up"></i>Passed</span><span><i class="down"></i>Failed</span><span>Height = latency</span></div>
-              `
-            : html`<p class="meta">No evaluations recorded yet.</p>`}
-        </section>
-      </dialog>
-    `;
-  }
 }
 
 declare global {

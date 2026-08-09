@@ -58,7 +58,9 @@ Do not expose Basic authentication over an untrusted plaintext connection. Restr
 
 An authenticated operator creates an expiring invitation from the Cluster page's **Create token** action or `POST /api/v1/join-tokens`. Tokens default to one day and unlimited uses; set `expires_in_seconds` to any positive duration and `max_uses` to a positive integer to bound admissions. The response is an opaque bearer URL used directly as `upgrid --join 'up://…'`. Revoke it from the Cluster page or with `DELETE /api/v1/join-tokens/{id}`.
 
-For browser onboarding, start a new Node against a fresh data directory with `upgrid --setup` and its intended `--bind`, `--raft-url`, and optional `--node-name`. Open its Cluster page, choose **Join cluster**, and paste the invitation. The setup listener validates the link before initializing the deployment key, mutual-TLS transport, and Raft membership. Direct `--join` remains available for automation. Without `--node-name`, UpGrid generates and persists a friendly two-word name.
+With a fresh data directory and no lifecycle option, UpGrid opens an authenticated browser OOBE at `/setup`. Review the generated friendly Node name, then create a new Cluster or paste a Join Token. Notification Channel and Target steps follow after membership and may be skipped. The pre-membership listener exposes no replicated resource endpoints.
+
+For unattended provisioning, use `--new-cluster` or `UPGRID_NEW_CLUSTER=true` for the first Node, and `--join 'up://…'` or `UPGRID_JOIN` for subsequent Nodes. These choices are mutually exclusive. Existing durable membership always wins on restart: `--new-cluster` and matching Join Tokens are harmlessly ignored; a Join Token pointing outside the stored membership is ignored and reported as a dismissible WebUI warning.
 
 Join Links transport long-lived deployment material. Keep them confidential, never place them in logs or tickets, and revoke reusable tokens as soon as provisioning is complete. Normal restarts use the persisted data directory and need no invitation.
 

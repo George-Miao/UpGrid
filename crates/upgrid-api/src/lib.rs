@@ -14,7 +14,9 @@ use axum::{Json, Router};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use serde::{Deserialize, Serialize};
-use upgrid_config::{AppResult, Cipher, Config, JoinLink, generate_join_token, now_ms};
+use upgrid_config::{
+    AppResult, Cipher, Config, JoinLink, Oobe, OobePhase, generate_join_token, now_ms,
+};
 use upgrid_raft::domain::{
     AlertDelivery, AlertKind, AvailabilityState, Command, ConfigValue, DomainError,
     EvaluationPolicy, HttpTarget, NotificationChannel, NotificationChannelId,
@@ -41,7 +43,7 @@ mod targets;
 mod api_tests;
 
 pub use server::{openapi_json, start};
-pub use setup::wait_for_join;
+pub use setup::{OobeChoice, wait_for_oobe};
 
 #[derive(Clone)]
 struct WebState {
@@ -50,6 +52,9 @@ struct WebState {
     raft_url: String,
     username: String,
     password: String,
+    node_name: String,
+    oobe: Oobe,
+    startup_warning: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -394,11 +399,24 @@ struct JoinTokenView {
 #[derive(Debug, Deserialize, ToSchema)]
 struct JoinClusterRequest {
     join_link: String,
+    node_name: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+struct CreateClusterRequest {
+    node_name: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 struct SetupView {
     setup: bool,
+    phase: String,
+    path: String,
+    cluster_ready: bool,
+    node_name: String,
+    warning: Option<String>,
+    channel_count: usize,
+    target_count: usize,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

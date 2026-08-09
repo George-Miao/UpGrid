@@ -30,9 +30,7 @@ pub fn load_or_create_node_name(
 ) -> AppResult<String> {
     let path = data_dir.join("node-name");
     if let Some(configured) = configured {
-        let name = validate(configured)?;
-        durable::replace(&path, name.as_bytes())?;
-        return Ok(name);
+        return store_node_name(data_dir, configured);
     }
     match fs::read_to_string(&path) {
         Ok(name) => validate(&name),
@@ -43,6 +41,12 @@ pub fn load_or_create_node_name(
         }
         Err(error) => Err(error.into()),
     }
+}
+
+pub fn store_node_name(data_dir: &Path, name: &str) -> AppResult<String> {
+    let name = validate(name)?;
+    durable::replace(&data_dir.join("node-name"), name.as_bytes())?;
+    Ok(name)
 }
 
 fn validate(name: &str) -> AppResult<String> {

@@ -680,6 +680,100 @@
         }
       }
     },
+    "/api/v1/setup/new-cluster": {
+      "post": {
+        "operationId": "create_cluster",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClusterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinClusterView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/setup/next": {
+      "post": {
+        "operationId": "advance_setup",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/targets": {
       "get": {
         "operationId": "list_targets",
@@ -1280,6 +1374,17 @@
           }
         ]
       },
+      "CreateClusterRequest": {
+        "type": "object",
+        "required": [
+          "node_name"
+        ],
+        "properties": {
+          "node_name": {
+            "type": "string"
+          }
+        }
+      },
       "CreateJoinTokenRequest": {
         "type": "object",
         "properties": {
@@ -1389,10 +1494,14 @@
       "JoinClusterRequest": {
         "type": "object",
         "required": [
-          "join_link"
+          "join_link",
+          "node_name"
         ],
         "properties": {
           "join_link": {
+            "type": "string"
+          },
+          "node_name": {
             "type": "string"
           }
         }
@@ -1611,11 +1720,43 @@
       "SetupView": {
         "type": "object",
         "required": [
-          "setup"
+          "setup",
+          "phase",
+          "path",
+          "cluster_ready",
+          "node_name",
+          "channel_count",
+          "target_count"
         ],
         "properties": {
+          "channel_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cluster_ready": {
+            "type": "boolean"
+          },
+          "node_name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string"
+          },
           "setup": {
             "type": "boolean"
+          },
+          "target_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "warning": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

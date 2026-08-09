@@ -24,6 +24,7 @@ cargo build --manifest-path "$workspace/Cargo.toml"
 target_directory=$(cargo metadata --manifest-path "$workspace/Cargo.toml" \
   --no-deps --format-version 1 | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')
 "$target_directory/debug/upgrid" \
+  --new-cluster \
   --bind 127.0.0.1:18443 \
   --raft-url up://127.0.0.1:18454 \
   --data-dir "$test_data/data" \

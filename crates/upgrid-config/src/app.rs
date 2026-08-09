@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::cli::Cli;
-use crate::{Cipher, JoinLink, durable};
+use crate::{Cipher, durable};
 
 pub type AppResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -19,8 +19,8 @@ pub type AppResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 pub struct Config {
     pub bind: String,
     pub raft_url: String,
-    pub join: Option<JoinLink>,
-    pub setup: bool,
+    pub join: Option<String>,
+    pub new_cluster: bool,
     pub data_dir: PathBuf,
     pub node_name: Option<String>,
     pub username: String,
@@ -36,7 +36,7 @@ struct RawConfig {
     bind: String,
     raft_url: String,
     join: Option<String>,
-    setup: bool,
+    new_cluster: bool,
     data_dir: PathBuf,
     node_name: Option<String>,
     username: String,
@@ -53,7 +53,7 @@ impl Default for RawConfig {
             bind: "127.0.0.1:8080".to_owned(),
             raft_url: "up://127.0.0.1:11451".to_owned(),
             join: None,
-            setup: false,
+            new_cluster: false,
             data_dir: PathBuf::from("upgrid-data"),
             node_name: None,
             username: "admin".to_owned(),
@@ -128,8 +128,8 @@ fn load_with(cli: Cli, environment: bool) -> AppResult<Config> {
     override_value!(history_retention_hours);
     override_value!(tls_cert);
     override_value!(tls_key);
-    if cli.setup {
-        figment = figment.merge(("setup", true));
+    if cli.new_cluster {
+        figment = figment.merge(("new_cluster", true));
     }
     RawConfig::try_into(figment.extract()?)
 }
@@ -138,10 +138,10 @@ impl TryFrom<RawConfig> for Config {
     type Error = Box<dyn std::error::Error + Send + Sync>;
 
     fn try_from(raw: RawConfig) -> Result<Self, Self::Error> {
-        if raw.setup && raw.join.is_some() {
+        if raw.new_cluster && raw.join.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "setup and join cannot be configured together",
+                "new_cluster and join cannot be configured together",
             )
             .into());
         }
@@ -159,8 +159,8 @@ impl TryFrom<RawConfig> for Config {
         Ok(Self {
             bind: raw.bind,
             raft_url: raw.raft_url,
-            join: raw.join.map(|value| JoinLink::parse(&value)).transpose()?,
-            setup: raw.setup,
+            join: raw.join,
+            new_cluster: raw.new_cluster,
             data_dir: raw.data_dir,
             node_name: raw.node_name,
             username: raw.username,
@@ -312,5 +312,17 @@ mod tests {
         assert_eq!(config.bind, "127.0.0.1:9001");
         assert_eq!(config.username, "from-file");
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn environment_can_select_a_new_cluster() {
+        figment::Jail::expect_with(|jail| {
+            jail.set_env("UPGRID_NEW_CLUSTER", "true");
+            let raw: RawConfig = Figment::from(Serialized::defaults(RawConfig::default()))
+                .merge(Env::prefixed("UPGRID_"))
+                .extract()?;
+            assert!(raw.new_cluster);
+            Ok(())
+        });
     }
 }
