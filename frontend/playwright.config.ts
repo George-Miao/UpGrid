@@ -11,6 +11,7 @@ export default defineConfig({
       username: process.env.UPGRID_USERNAME ?? "admin",
       password: process.env.UPGRID_PASSWORD ?? "test-password",
     },
+    permissions: ["clipboard-read", "clipboard-write"],
     trace: "retain-on-failure",
   },
   projects: [

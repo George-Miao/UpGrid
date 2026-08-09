@@ -108,3 +108,47 @@ test("filters and bulk-pauses selected targets", async ({ page }) => {
   await page.getByRole("button", { name: "Pause selected" }).click();
   await expect(page.getByRole("button", { name: "Search alpha" })).toContainText("Paused");
 });
+
+test("navigation tabs activate and scroll to their section", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("link", { name: "Cluster" }).click();
+  await expect(page.getByRole("link", { name: "Cluster" })).toHaveClass(/active/);
+  await expect(page.getByRole("region", { name: "Cluster topology" })).toBeInViewport();
+});
+
+test("copying a join command confirms success", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Add node" }).first().click();
+  const join = page.getByRole("dialog", { name: "Join a node" });
+  await join.getByRole("button", { name: "Copy command" }).click();
+  await expect(join.getByRole("button", { name: "Copied" })).toBeVisible();
+});
+
+test("clicking a modal backdrop closes it", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add target" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add target" });
+  await expect(dialog).toBeVisible();
+  await page.mouse.click(4, 4);
+  await expect(dialog).not.toBeVisible();
+});
+
+test("target hover highlights the checkbox and content as one row", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Add target" }).click();
+  const addTarget = page.getByRole("dialog", { name: "Add target" });
+  await addTarget.getByLabel("Name").fill("Hover target");
+  await addTarget.getByLabel("URL").fill("https://example.com");
+  await addTarget.getByRole("button", { name: "Create target" }).click();
+  const target = page.getByRole("button", { name: "Hover target" });
+  await target.hover();
+  const backgrounds = await target.evaluate((element) => ({
+    button: getComputedStyle(element).backgroundColor,
+    row: getComputedStyle(element.parentElement!).backgroundColor,
+  }));
+  expect(backgrounds.row).toBe(backgrounds.button);
+  expect(backgrounds.row).not.toBe("rgba(0, 0, 0, 0)");
+});

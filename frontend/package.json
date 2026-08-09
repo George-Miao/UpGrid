@@ -4,6 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@11.18.0",
   "scripts": {
+    "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "playwright test",
     "test:ui": "playwright test --ui"

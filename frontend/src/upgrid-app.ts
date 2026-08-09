@@ -28,6 +28,8 @@ export class UpgridApp extends LitElement {
   @state() private statusFilter = "all";
   @state() private sort = "name";
   @state() private selectedIds = new Set<string>();
+  @state() private activeSection = "overview";
+  @state() private copied = false;
   private events?: EventSource;
 
   static styles = css`
@@ -90,7 +92,7 @@ export class UpgridApp extends LitElement {
     .target-wrap:last-child { border-bottom: 0; }
     .select-target { width: 15px; height: 15px; accent-color: var(--green); }
     .target { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px 17px 14px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
-    .target:hover { background: #17201c; }
+    .target-wrap:hover, .target-wrap:hover .target { background: #17201c; }
     .state { width: 10px; height: 10px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px currentColor; }
     .state.up { color: var(--green); background: var(--green); }
     .state.down { color: var(--red); background: var(--red); }
@@ -189,6 +191,21 @@ export class UpgridApp extends LitElement {
 
   private showDialog(id: string): void {
     this.renderRoot.querySelector<HTMLDialogElement>(`#${id}`)?.showModal();
+  }
+
+  private dismissOnBackdrop(event: MouseEvent): void {
+    const dialog = event.currentTarget as HTMLDialogElement;
+    if (event.target !== dialog) return;
+    dialog.close();
+    if (dialog.id === "detail-dialog") this.selected = undefined;
+  }
+
+  private navigate(event: MouseEvent, section: string): void {
+    event.preventDefault();
+    this.activeSection = section;
+    this.renderRoot
+      .querySelector<HTMLElement>(`#${section}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   private closeDialog(id: string): void {
@@ -375,12 +392,36 @@ export class UpgridApp extends LitElement {
         body: JSON.stringify({ expires_in_seconds: 600 }),
       });
       this.joinCommand = `upgrid --join '${link.url}'`;
+      this.copied = false;
       this.showDialog("join-dialog");
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
     } finally {
       this.saving = false;
     }
+  }
+
+  private async copyJoinCommand(): Promise<void> {
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(this.joinCommand);
+      copied = true;
+    } catch {
+      const field = document.createElement("textarea");
+      field.value = this.joinCommand;
+      field.style.position = "fixed";
+      field.style.opacity = "0";
+      document.body.append(field);
+      field.select();
+      copied = document.execCommand("copy");
+      field.remove();
+    }
+    if (!copied) {
+      this.error = "Could not copy the Join command";
+      return;
+    }
+    this.copied = true;
+    window.setTimeout(() => (this.copied = false), 2_000);
   }
 
   private toggleSelected(id: string, checked: boolean): void {
@@ -464,10 +505,9 @@ export class UpgridApp extends LitElement {
             <div><strong>UpGrid</strong><span>Distributed service monitoring</span></div>
           </div>
           <nav aria-label="Primary">
-            <a class="active" href="#overview">Overview</a>
-            <a href="#targets">Targets</a>
-            <a href="#alerts">Alerts</a>
-            <a href="#cluster">Cluster</a>
+            ${["overview", "targets", "alerts", "cluster"].map(
+              (section) => html`<a class=${this.activeSection === section ? "active" : ""} href=${`#${section}`} @click=${(event: MouseEvent) => this.navigate(event, section)}>${section[0].toUpperCase()}${section.slice(1)}</a>`,
+            )}
           </nav>
           <div class="actions">
             <button class="button secondary" @click=${this.createJoinLink} ?disabled=${this.saving}>Add node</button>
@@ -523,7 +563,7 @@ export class UpgridApp extends LitElement {
           </section>
         </section>
       </main>
-      <dialog id="target-dialog" aria-labelledby="add-target-title">
+      <dialog id="target-dialog" aria-labelledby="add-target-title" @click=${this.dismissOnBackdrop}>
         <div class="dialog-head"><h2 id="add-target-title">Add target</h2><p>Start monitoring an HTTP or HTTPS endpoint.</p></div>
         <form @submit=${this.createTarget}>
           <label>Name<input name="name" placeholder="Production API" required /></label>
@@ -543,7 +583,7 @@ export class UpgridApp extends LitElement {
         </form>
       </dialog>
       ${this.selected ? this.renderDetail(this.selected) : nothing}
-      <dialog id="secret-dialog" aria-labelledby="secret-title">
+      <dialog id="secret-dialog" aria-labelledby="secret-title" @click=${this.dismissOnBackdrop}>
         <div class="dialog-head"><h2 id="secret-title">Add secret</h2><p>The plaintext is encrypted before replication and never returned.</p></div>
         <form @submit=${this.createSecret}>
           <label>Name<input name="name" placeholder="Webhook token" required /></label>
@@ -551,7 +591,7 @@ export class UpgridApp extends LitElement {
           <div class="dialog-actions"><button class="button secondary" type="button" @click=${() => this.closeDialog("secret-dialog")}>Cancel</button><button class="button" type="submit" ?disabled=${this.saving}>Create secret</button></div>
         </form>
       </dialog>
-      <dialog id="channel-dialog" aria-labelledby="channel-title">
+      <dialog id="channel-dialog" aria-labelledby="channel-title" @click=${this.dismissOnBackdrop}>
         <div class="dialog-head"><h2 id="channel-title">Add channel</h2><p>Send transitions through Telegram or a generic webhook.</p></div>
         <form @submit=${this.createChannel}>
           <label>Type<select name="type" @change=${(event: Event) => (this.channelKind = (event.target as HTMLSelectElement).value as "webhook" | "telegram")}><option value="webhook">Webhook</option><option value="telegram">Telegram</option></select></label>
@@ -562,10 +602,10 @@ export class UpgridApp extends LitElement {
           <div class="dialog-actions"><button class="button secondary" type="button" @click=${() => this.closeDialog("channel-dialog")}>Cancel</button><button class="button" type="submit" ?disabled=${this.saving}>Create channel</button></div>
         </form>
       </dialog>
-      <dialog id="join-dialog" aria-labelledby="join-title">
+      <dialog id="join-dialog" aria-labelledby="join-title" @click=${this.dismissOnBackdrop}>
         <div class="dialog-head"><h2 id="join-title">Join a node</h2><p>This command contains Cluster credentials. Keep it private.</p></div>
         <div class="join-command">${this.joinCommand}</div>
-        <div class="dialog-actions" style="padding: 0 22px 22px"><button class="button secondary" @click=${() => this.closeDialog("join-dialog")}>Close</button><button class="button" @click=${() => navigator.clipboard.writeText(this.joinCommand)}>Copy command</button></div>
+        <div class="dialog-actions" style="padding: 0 22px 22px"><button class="button secondary" @click=${() => this.closeDialog("join-dialog")}>Close</button><button class="button" @click=${this.copyJoinCommand}>${this.copied ? "Copied" : "Copy command"}</button></div>
       </dialog>
     `;
   }
@@ -595,7 +635,7 @@ export class UpgridApp extends LitElement {
       .map((range) => (range.start === range.end ? range.start : `${range.start}-${range.end}`))
       .join(",");
     return html`
-      <dialog id="detail-dialog" aria-labelledby="target-detail-title">
+      <dialog id="detail-dialog" aria-labelledby="target-detail-title" @click=${this.dismissOnBackdrop}>
         <div class="dialog-head"><h2 id="target-detail-title">Target details</h2><p>${target.id}</p></div>
         <form @submit=${this.updateTarget}>
           <label>Name<input name="name" .value=${target.name} required /></label>

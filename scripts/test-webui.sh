@@ -50,4 +50,4 @@ fi
 UPGRID_UI_URL=http://127.0.0.1:18080 \
   UPGRID_USERNAME=admin \
   UPGRID_PASSWORD=test-password \
-  pnpm --dir "$workspace/frontend" test
+  pnpm --dir "$workspace/frontend" test "$@"

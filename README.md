@@ -67,6 +67,14 @@ The browser test starts an isolated Node and exercises the embedded UI in Chromi
 
 The Lit/TypeScript source is in `frontend/src/`. Run `scripts/update-webui.sh` after changing it; Vite rebuilds the checked-in `frontend/dist/` files embedded by the Rust binary. CI rebuilds the same artifact and rejects stale generated output. Install Chromium once with `pnpm --dir frontend exec playwright install chromium` before running browser tests locally.
 
+With an UpGrid Node running on port 8080, start the Vite development server with hot reload:
+
+```sh
+pnpm --dir frontend dev
+```
+
+Set `UPGRID_API_URL`, `UPGRID_USERNAME`, and `UPGRID_PASSWORD` when the API uses a different address or credentials; Vite proxies `/api` to that Node.
+
 Run `scripts/update-openapi.sh` after changing API routes or schemas. CI compares the generated contract with `docs/openapi.json`. A running reference deployment can exercise the 1,000-Target SLO with `scripts/verify-reference-workload.sh`.
 
 ## Release Direction
