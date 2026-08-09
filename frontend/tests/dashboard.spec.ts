@@ -333,6 +333,32 @@ test("target hover highlights the checkbox and content as one row", async ({ pag
   expect(backgrounds.row).not.toBe("rgba(0, 0, 0, 0)");
 });
 
+test("keeps the first-run Cluster choice compact", async ({ page }) => {
+  await page.setViewportSize({ width: 735, height: 560 });
+  await page.goto(process.env.UPGRID_NEW_SETUP_URL ?? "http://127.0.0.1:18082");
+  const setup = page.getByRole("region", { name: "UpGrid setup" });
+  await expect(setup.getByRole("textbox", { name: "Node name" })).toHaveCount(1);
+
+  const choices = setup.locator(".cluster-choice");
+  await expect(choices).toHaveCount(2);
+  const [create, join] = await Promise.all([
+    choices.nth(0).boundingBox(),
+    choices.nth(1).boundingBox(),
+  ]);
+  expect(create).not.toBeNull();
+  expect(join).not.toBeNull();
+  expect(Math.abs(create!.y - join!.y)).toBeLessThan(2);
+  expect(Math.max(create!.y + create!.height, join!.y + join!.height)).toBeLessThanOrEqual(560);
+});
+
+test("keeps dashboard routes inside OOBE before Cluster setup", async ({ page }) => {
+  const setupUrl = process.env.UPGRID_NEW_SETUP_URL ?? "http://127.0.0.1:18082";
+  await page.goto(`${setupUrl}/cluster`);
+  await expect(page).toHaveURL(/\/setup$/);
+  await expect(page.getByRole("heading", { name: "Choose your Cluster" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
+});
+
 test("creates a Cluster and optional resources through OOBE", async ({ page }) => {
   await page.goto(process.env.UPGRID_NEW_SETUP_URL ?? "http://127.0.0.1:18082");
   await expect(page).toHaveURL(/\/setup$/);

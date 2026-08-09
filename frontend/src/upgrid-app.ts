@@ -65,6 +65,8 @@ export class UpgridApp extends AppController {
     * { box-sizing: border-box; }
     button, input, select { font: inherit; }
     .shell { max-width: 1200px; margin: auto; padding: 28px 24px 72px; }
+    .setup-shell { padding-top: 20px; }
+    .setup-shell header { margin-bottom: 18px; }
     header { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; margin-bottom: 34px; }
     .brand, .actions, .live, nav { display: flex; align-items: center; }
     .brand { gap: 13px; }
@@ -264,7 +266,7 @@ export class UpgridApp extends AppController {
       );
     if (this.setupMode && this.setup) {
       return html`
-        <main class="shell">
+        <main class="shell setup-shell">
           <header>
             <div class="brand">
               <img src="/favicon.svg" alt="" />
