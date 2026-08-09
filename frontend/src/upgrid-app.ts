@@ -12,7 +12,6 @@ import { renderTargetDetail } from "./target-detail-view.ts";
 
 @customElement("upgrid-app")
 export class UpgridApp extends AppController {
-
   static styles = css`
     :host {
       color-scheme: dark;
@@ -115,7 +114,7 @@ export class UpgridApp extends AppController {
     .target { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px 17px 14px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
     .target-wrap, .target { transition: background-color 150ms ease; }
     .target-wrap:hover, .target-wrap:hover .target { background: var(--row-hover); }
-    .state { width: 10px; height: 10px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px currentColor; transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease; }
+    .state { width: 10px; height: 10px; border-radius: 50%; color: var(--amber); background: var(--amber); box-shadow: 0 0 12px currentColor; transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease; }
     .state.up { color: var(--green); background: var(--green); }
     .state.down { color: var(--red); background: var(--red); }
     .state.paused { color: var(--muted); background: var(--muted); box-shadow: none; }
@@ -468,11 +467,12 @@ export class UpgridApp extends AppController {
     const latest = target.latest_evaluation;
     const history = target.history.slice(0, 16).reverse();
     const maxLatency = Math.max(1, ...history.map((item) => item.latency_ms));
+    const state = target.paused ? "paused" : target.availability === "down" ? "down" : target.consecutive_failures > 0 ? "suspicious" : target.availability;
     return html`
       <div class="target-wrap">
         <input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} .checked=${this.selectedIds.has(target.id)} @change=${(event: Event) => this.toggleSelected(target.id, (event.target as HTMLInputElement).checked)} />
         <button class="target" aria-label=${target.name} @click=${() => this.openTarget(target)}>
-          <i class="state ${target.paused ? "paused" : target.availability}" aria-label=${target.paused ? "paused" : target.availability}></i>
+          <i class="state ${state}" aria-label=${state}></i>
           <div>
             <h3>${target.name}</h3>
             <div class="meta">${target.paused ? "Paused · " : ""}${target.method} · ${target.url} · every ${target.interval_seconds}s</div>

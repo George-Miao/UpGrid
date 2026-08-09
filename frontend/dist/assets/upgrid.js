@@ -261,17 +261,17 @@
             `):h`<div class="empty">No Join Tokens.</div>`}
       </section>
       </div>
-    `}renderTarget(t){const e=t.latest_evaluation,s=t.history.slice(0,16).reverse(),n=Math.max(1,...s.map(i=>i.latency_ms));return h`
+    `}renderTarget(t){const e=t.latest_evaluation,s=t.history.slice(0,16).reverse(),n=Math.max(1,...s.map(r=>r.latency_ms)),i=t.paused?"paused":t.availability==="down"?"down":t.consecutive_failures>0?"suspicious":t.availability;return h`
       <div class="target-wrap">
-        <input class="select-target" type="checkbox" aria-label=${`Select ${t.name}`} .checked=${this.selectedIds.has(t.id)} @change=${i=>this.toggleSelected(t.id,i.target.checked)} />
+        <input class="select-target" type="checkbox" aria-label=${`Select ${t.name}`} .checked=${this.selectedIds.has(t.id)} @change=${r=>this.toggleSelected(t.id,r.target.checked)} />
         <button class="target" aria-label=${t.name} @click=${()=>this.openTarget(t)}>
-          <i class="state ${t.paused?"paused":t.availability}" aria-label=${t.paused?"paused":t.availability}></i>
+          <i class="state ${i}" aria-label=${i}></i>
           <div>
             <h3>${t.name}</h3>
             <div class="meta">${t.paused?"Paused · ":""}${t.method} · ${t.url} · every ${t.interval_seconds}s</div>
           </div>
           <div class="target-side">
-            ${s.length?h`<div class="mini-chart" aria-hidden="true">${s.map(i=>h`<i class="mini-bar ${i.succeeded?"up":"down"}" style=${`height: ${Math.max(12,i.latency_ms/n*100)}%`}></i>`)}</div>`:f}
+            ${s.length?h`<div class="mini-chart" aria-hidden="true">${s.map(r=>h`<i class="mini-bar ${r.succeeded?"up":"down"}" style=${`height: ${Math.max(12,r.latency_ms/n*100)}%`}></i>`)}</div>`:f}
             <div class="latency">
               <strong>${e?`${e.latency_ms} ms`:"—"}</strong>
               <span>${e?e.status_code??"network error":"waiting"}</span>
@@ -381,7 +381,7 @@
     .target { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px 17px 14px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
     .target-wrap, .target { transition: background-color 150ms ease; }
     .target-wrap:hover, .target-wrap:hover .target { background: var(--row-hover); }
-    .state { width: 10px; height: 10px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px currentColor; transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease; }
+    .state { width: 10px; height: 10px; border-radius: 50%; color: var(--amber); background: var(--amber); box-shadow: 0 0 12px currentColor; transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease; }
     .state.up { color: var(--green); background: var(--green); }
     .state.down { color: var(--red); background: var(--red); }
     .state.paused { color: var(--muted); background: var(--muted); box-shadow: none; }
