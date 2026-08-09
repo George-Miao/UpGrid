@@ -67,21 +67,36 @@ pub(crate) fn test_accepts(channel: &TestChannel, status: StatusCode, body: &[u8
     }
 }
 
-fn alert_text(alert: &Alert) -> String {
-    format!(
-        "UpGrid: {} is {}\n{}\n{}",
-        alert.target_name,
-        match alert.id.kind {
-            AlertKind::Down => "DOWN",
-            AlertKind::Recovered => "UP again",
-        },
-        alert.target_url,
-        alert
-            .evaluation
-            .diagnostic
-            .as_deref()
-            .unwrap_or("evaluation succeeded"),
-    )
+pub(crate) fn alert_text(alert: &Alert) -> String {
+    let status = alert.evaluation.http.status_code;
+    match alert.id.kind {
+        AlertKind::Down => {
+            let detail = status.map_or_else(
+                || {
+                    alert
+                        .evaluation
+                        .diagnostic
+                        .clone()
+                        .unwrap_or_else(|| "Request failed".to_owned())
+                },
+                |status| format!("Request failed with status code {status}"),
+            );
+            format!("[{}] [🔴 Down] {detail}", alert.target_name)
+        }
+        AlertKind::Recovered => {
+            let detail = status.map_or_else(
+                || "Request succeeded".to_owned(),
+                |status| {
+                    let reason = StatusCode::from_u16(status)
+                        .ok()
+                        .and_then(|status| status.canonical_reason())
+                        .unwrap_or("Unknown Status");
+                    format!("{status} - {reason}")
+                },
+            );
+            format!("[{}] [✅ Up] {detail}", alert.target_name)
+        }
+    }
 }
 
 fn resolve_value(
