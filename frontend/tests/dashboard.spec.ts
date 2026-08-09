@@ -158,6 +158,7 @@ test("configures notification resources and creates a join command", async ({ pa
   await page.getByRole("button", { name: "Create secret" }).click();
   await expect(page.getByText("Webhook token")).toBeVisible();
 
+  await page.getByRole("link", { name: "Alerts" }).click();
   await page.getByRole("button", { name: "Add channel" }).click();
   const channel = page.getByRole("dialog", { name: "Add channel" });
   await channel.getByLabel("Name").fill("Operations webhook");
@@ -168,6 +169,7 @@ test("configures notification resources and creates a join command", async ({ pa
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete channel Operations webhook" }).click();
   await expect(page.getByText("Operations webhook")).not.toBeVisible();
+  await page.getByRole("link", { name: "Overview" }).click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete secret Webhook token" }).click();
   await expect(page.getByText("Webhook token")).not.toBeVisible();
@@ -288,12 +290,30 @@ test("filters and bulk-pauses selected targets", async ({ page }) => {
 test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
   await page.goto("/");
 
+  const summary = page.getByRole("region", { name: "Target summary" });
+  const secrets = page.getByRole("region", { name: "Secrets" });
+  const targets = page.getByRole("region", { name: "Targets" });
+  const [summaryBox, secretsBox, targetsBox] = await Promise.all([
+    summary.boundingBox(), secrets.boundingBox(), targets.boundingBox(),
+  ]);
+  expect(summaryBox).not.toBeNull();
+  expect(secretsBox).not.toBeNull();
+  expect(targetsBox).not.toBeNull();
+  expect(summaryBox!.x).toBeLessThan(secretsBox!.x);
+  expect(Math.abs(summaryBox!.y - secretsBox!.y)).toBeLessThan(2);
+  expect(targetsBox!.y).toBeGreaterThanOrEqual(Math.max(
+    summaryBox!.y + summaryBox!.height,
+    secretsBox!.y + secretsBox!.height,
+  ));
+  await expect(page.getByRole("region", { name: "Notification channels" })).toHaveCount(0);
+
   await expect(page.getByRole("link", { name: "Targets" })).toHaveCount(0);
   await page.getByRole("link", { name: "Alerts" }).click();
   await expect(page).toHaveURL(/\/alerts$/);
   await expect(page.getByRole("link", { name: "Alerts" })).toHaveClass(/active/);
   await expect(page.getByRole("heading", { name: "Alerts" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Targets" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Notification channels" })).toBeVisible();
 
   await page.getByRole("link", { name: "Cluster" }).click();
   await expect(page).toHaveURL(/\/cluster$/);

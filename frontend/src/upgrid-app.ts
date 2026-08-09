@@ -94,13 +94,13 @@ export class UpgridApp extends AppController {
     .button[aria-busy="true"] { cursor: wait; }
     .icon-button { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; }
     iconify-icon { display: inline-block; width: 18px; height: 18px; font-size: 18px; }
-    .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+    .overview-top { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 18px; margin-bottom: 18px; }
+    .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .metric, .panel { border: 1px solid var(--line); background: var(--panel-surface); box-shadow: 0 16px 48px var(--panel-shadow); transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
     .metric { border-radius: 14px; padding: 17px 18px; }
     .metric span { display: block; color: var(--muted); font-size: 11px; letter-spacing: .11em; text-transform: uppercase; }
     .metric strong { display: block; margin-top: 5px; font-size: 29px; font-weight: 560; }
     .panel { border-radius: 16px; overflow: hidden; }
-    .resources { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
     .resource { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 20px; border-bottom: 1px solid var(--divider); }
     .resource:last-child { border-bottom: 0; }
     .resource strong { display: block; font-size: 13px; }
@@ -236,8 +236,7 @@ export class UpgridApp extends AppController {
       .shell { padding: 20px 14px 60px; }
       header { grid-template-columns: minmax(0, 1fr) auto; }
       nav { display: none; }
-      .summary { grid-template-columns: 1fr 1fr; }
-      .resources { grid-template-columns: 1fr; }
+      .overview-top { grid-template-columns: 1fr; }
       .toolbar { grid-template-columns: 1fr 1fr; }
       .toolbar input { grid-column: 1 / -1; }
       .heading { align-items: flex-start; gap: 16px; }
@@ -385,11 +384,17 @@ export class UpgridApp extends AppController {
         <div><span class="eyebrow">Cluster status</span><h1>Overview</h1></div>
         <button class="button" @click=${this.openTargetDialog}>Add target</button>
       </section>
-      <section class="summary" aria-label="Target summary">
-        <div class="metric"><span>Targets</span><strong>${this.targets.length}</strong></div>
-        <div class="metric"><span>Up</span><strong>${up}</strong></div>
-        <div class="metric"><span>Down</span><strong>${down}</strong></div>
-        <div class="metric"><span>Pending alerts</span><strong>${pending}</strong></div>
+      <section class="overview-top">
+        <section class="summary" aria-label="Target summary">
+          <div class="metric"><span>Targets</span><strong>${this.targets.length}</strong></div>
+          <div class="metric"><span>Pending alerts</span><strong>${pending}</strong></div>
+          <div class="metric"><span>Up</span><strong>${up}</strong></div>
+          <div class="metric"><span>Down</span><strong>${down}</strong></div>
+        </section>
+        <section class="panel" aria-label="Secrets">
+          <div class="panel-head"><h2>Secrets</h2><button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div>
+          ${this.secrets.length ? this.secrets.map((secret) => html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id}</code></div><div class="actions"><span class="badge">write-only</span><button class="button danger" aria-label=${`Delete secret ${secret.name}`} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}>Delete</button></div></div>`) : html`<div class="empty">No reusable Secrets.</div>`}
+        </section>
       </section>
       <section class="panel" aria-label="Targets">
         <div class="panel-head"><h2>Targets</h2><span class="meta">${this.targets.length} configured</span></div>
@@ -402,20 +407,6 @@ export class UpgridApp extends AppController {
         ${visibleTargets.length
           ? visibleTargets.map((target) => this.renderTarget(target))
           : html`<div class="empty">${this.targets.length ? "No Targets match these filters." : "No targets yet. Add the first one to begin monitoring."}</div>`}
-      </section>
-      <section class="resources" aria-label="Notification configuration">
-        <section class="panel">
-          <div class="panel-head"><h2>Notification channels</h2><button class="button secondary" @click=${() => this.showDialog("channel-dialog")}>Add channel</button></div>
-          ${this.channels.length
-            ? this.channels.map((channel) => html`<div class="resource"><div><strong>${channel.name}</strong><code>${channel.destination}</code></div><div class="actions"><span class="badge">${channel.kind}</span><button class="button danger" aria-label=${`Delete channel ${channel.name}`} @click=${() => this.deleteResource("channels", channel.id, channel.name)}>Delete</button></div></div>`)
-            : html`<div class="empty">No notification channels.</div>`}
-        </section>
-        <section class="panel">
-          <div class="panel-head"><h2>Secrets</h2><button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div>
-          ${this.secrets.length
-            ? this.secrets.map((secret) => html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id}</code></div><div class="actions"><span class="badge">write-only</span><button class="button danger" aria-label=${`Delete secret ${secret.name}`} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}>Delete</button></div></div>`)
-            : html`<div class="empty">No reusable Secrets.</div>`}
-        </section>
       </section>
     `;
   }
@@ -430,6 +421,10 @@ export class UpgridApp extends AppController {
         ${this.alerts.length
           ? this.alerts.map((alert) => html`<div class="resource"><div><strong>${alert.target_name}</strong><code>${new Date(alert.scheduled_at_ms).toLocaleString()}</code></div><span class="badge">${alert.kind} · ${alert.delivery}</span></div>`)
           : html`<div class="empty">No availability transitions.</div>`}
+      </section>
+      <section class="panel" aria-label="Notification channels" style="margin-top: 18px">
+        <div class="panel-head"><h2>Notification channels</h2><button class="button secondary" @click=${() => this.showDialog("channel-dialog")}>Add channel</button></div>
+        ${this.channels.length ? this.channels.map((channel) => html`<div class="resource"><div><strong>${channel.name}</strong><code>${channel.destination}</code></div><div class="actions"><span class="badge">${channel.kind}</span><button class="button danger" aria-label=${`Delete channel ${channel.name}`} @click=${() => this.deleteResource("channels", channel.id, channel.name)}>Delete</button></div></div>`) : html`<div class="empty">No notification channels.</div>`}
       </section>
     `;
   }
