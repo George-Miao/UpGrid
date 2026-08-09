@@ -1,8 +1,8 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import darkIcon from "@iconify-icons/lucide/moon";
+import systemIcon from "@iconify-icons/lucide/palette";
 import brightIcon from "@iconify-icons/lucide/sun";
-import systemIcon from "@iconify-icons/lucide/monitor";
 import "iconify-icon";
 import {
   type Alert,
