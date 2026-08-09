@@ -22,6 +22,16 @@ test("shows an icon theme control and live status in the brand", async ({ page }
   await expect(app.locator(".actions .live")).toHaveCount(0);
 });
 
+test("centers the tab bar in the viewport", async ({ page }) => {
+  await page.goto("/");
+
+  const nav = await page.getByRole("navigation", { name: "Primary" }).boundingBox();
+  const viewport = page.viewportSize();
+  expect(nav).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(Math.abs(nav!.x + nav!.width / 2 - viewport!.width / 2)).toBeLessThan(2);
+});
+
 test("cycles and remembers an explicit theme", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/");

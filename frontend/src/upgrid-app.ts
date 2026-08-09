@@ -130,9 +130,12 @@ export class UpgridApp extends LitElement {
     * { box-sizing: border-box; }
     button, input, select { font: inherit; }
     .shell { max-width: 1200px; margin: auto; padding: 28px 24px 72px; }
-    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 34px; }
+    header { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; margin-bottom: 34px; }
     .brand, .actions, .live, nav { display: flex; align-items: center; }
     .brand { gap: 13px; }
+    header > .brand { justify-self: start; }
+    header > nav { justify-self: center; }
+    header > .actions { justify-self: end; }
     .brand-line { display: flex; align-items: center; gap: 12px; }
     .brand img { width: 42px; height: 42px; filter: drop-shadow(0 0 18px var(--brand-shadow)); }
     .brand strong { display: block; font-size: 19px; letter-spacing: .02em; }
@@ -290,6 +293,7 @@ export class UpgridApp extends LitElement {
     }
     @media (max-width: 720px) {
       .shell { padding: 20px 14px 60px; }
+      header { grid-template-columns: minmax(0, 1fr) auto; }
       nav { display: none; }
       .summary { grid-template-columns: 1fr 1fr; }
       .resources { grid-template-columns: 1fr; }
