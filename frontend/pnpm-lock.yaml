@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@iconify-icons/lucide':
+        specifier: ^1.2.135
+        version: 1.2.135
+      iconify-icon:
+        specifier: ^3.0.2
+        version: 3.0.2
       lit:
         specifier: ^3.3.1
         version: 3.3.3
@@ -182,6 +188,12 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@iconify-icons/lucide@1.2.135':
+    resolution: {integrity: sha512-t2Dya1a+PInBmHScbbGyseze7rrGHRW/dYF4GTR6f51N08sCg6KrtE4zmplnZE1ul2NyC+sxKpXRCv48hEgaQw==}
+
+  '@iconify/types@2.0.0':
+    resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
 
   '@lit-labs/ssr-dom-shim@1.6.0':
     resolution: {integrity: sha512-VHb0ALPMTlgKjM6yIxxoQNnpKyUKLD04VzeQdsiXkMqkvYlAHxq9glGLmgbb889/1GsohSOAjvQYoiBppXFqrQ==}
@@ -372,6 +384,9 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
 
+  iconify-icon@3.0.2:
+    resolution: {integrity: sha512-DYPAumiUeUeT/GHT8x2wrAVKn1FqZJqFH0Y5pBefapWRreV1BBvqBVMb0020YQ2njmbR59r/IathL2d2OrDrxA==}
+
   lit-element@4.2.2:
     resolution: {integrity: sha512-aFKhNToWxoyhkNDmWZwEva2SlQia+jfG0fjIWV//YeTaWrVnOxD89dPKfigCUspXFmjzOEUQpOkejH5Ly6sG0w==}
 
@@ -548,6 +563,12 @@ snapshots:
   '@esbuild/win32-x64@0.28.1':
     optional: true
 
+  '@iconify-icons/lucide@1.2.135':
+    dependencies:
+      '@iconify/types': 2.0.0
+
+  '@iconify/types@2.0.0': {}
+
   '@lit-labs/ssr-dom-shim@1.6.0': {}
 
   '@lit/reactive-element@2.1.2':
@@ -682,6 +703,10 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  iconify-icon@3.0.2:
+    dependencies:
+      '@iconify/types': 2.0.0
 
   lit-element@4.2.2:
     dependencies:

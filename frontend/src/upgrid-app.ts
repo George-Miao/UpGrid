@@ -1,5 +1,9 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import darkIcon from "@iconify-icons/lucide/moon";
+import brightIcon from "@iconify-icons/lucide/sun";
+import systemIcon from "@iconify-icons/lucide/monitor";
+import "iconify-icon";
 import {
   type Alert,
   type Channel,
@@ -10,6 +14,15 @@ import {
   type TargetInput,
   request,
 } from "./api.ts";
+
+const themes = ["system", "dark", "bright"] as const;
+type Theme = (typeof themes)[number];
+const themeIcons = { system: systemIcon, dark: darkIcon, bright: brightIcon };
+
+function storedTheme(): Theme {
+  const theme = localStorage.getItem("upgrid-theme");
+  return themes.includes(theme as Theme) ? (theme as Theme) : "system";
+}
 
 @customElement("upgrid-app")
 export class UpgridApp extends LitElement {
@@ -30,7 +43,12 @@ export class UpgridApp extends LitElement {
   @state() private selectedIds = new Set<string>();
   @state() private activeSection = "overview";
   @state() private copied = false;
+  @state() private theme = storedTheme();
   private events?: EventSource;
+  private readonly systemTheme = matchMedia("(prefers-color-scheme: light)");
+  private readonly systemThemeChanged = () => {
+    if (this.theme === "system") this.applyTheme();
+  };
 
   static styles = css`
     :host {
@@ -44,13 +62,39 @@ export class UpgridApp extends LitElement {
       --green: #58e29c;
       --red: #ff7575;
       --amber: #f2c264;
-      display: block;
-      min-height: 100vh;
-      background:
+      --page-background:
         radial-gradient(circle at 12% -5%, #18392d 0, transparent 30%),
         linear-gradient(145deg, #090d0c 0%, #0c1210 55%, #09100d 100%);
+      --brand-shadow: #40d89035;
+      --nav-bg: #0d1210aa;
+      --active-bg: #202b27;
+      --button-border: #3e765a;
+      --button-bg: #1c4a35;
+      --button-text: #e8fff2;
+      --button-hover-border: #62b988;
+      --panel-surface: #111715dc;
+      --panel-shadow: #0002;
+      --divider: #202925;
+      --badge-border: #3c554a;
+      --badge-text: #a7c3b7;
+      --row-hover: #17201c;
+      --notice-border: #7b3937;
+      --notice-bg: #391b1a;
+      --notice-text: #ffb3af;
+      --bulk-bg: #16221d;
+      --dialog-shadow: #000b;
+      --backdrop: #040706cc;
+      --input-bg: #0c110f;
+      --focus: #4b936c;
+      --danger-text: #ff9b97;
+      --danger-border: #633b39;
+      --join-bg: #0b110e;
+      display: block;
+      min-height: 100vh;
+      background: var(--page-background);
       color: var(--text);
       font: 14px/1.5 Inter, ui-sans-serif, system-ui, sans-serif;
+      transition: background 220ms ease, color 180ms ease;
     }
     * { box-sizing: border-box; }
     button, input, select { font: inherit; }
@@ -58,12 +102,13 @@ export class UpgridApp extends LitElement {
     header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 34px; }
     .brand, .actions, .live, nav { display: flex; align-items: center; }
     .brand { gap: 13px; }
-    .brand img { width: 42px; height: 42px; filter: drop-shadow(0 0 18px #40d89035); }
+    .brand-line { display: flex; align-items: center; gap: 12px; }
+    .brand img { width: 42px; height: 42px; filter: drop-shadow(0 0 18px var(--brand-shadow)); }
     .brand strong { display: block; font-size: 19px; letter-spacing: .02em; }
     .brand span, .live, .eyebrow, .meta { color: var(--muted); font-size: 12px; }
-    nav { gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 11px; background: #0d1210aa; }
-    nav a { color: var(--muted); padding: 7px 11px; text-decoration: none; border-radius: 7px; }
-    nav a.active { color: var(--text); background: #202b27; }
+    nav { gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--nav-bg); }
+    nav a { color: var(--muted); padding: 7px 11px; text-decoration: none; border-radius: 7px; transition: background-color 160ms ease, color 160ms ease; }
+    nav a.active { color: var(--text); background: var(--active-bg); }
     .actions { gap: 12px; }
     .live { gap: 7px; }
     .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
@@ -71,28 +116,32 @@ export class UpgridApp extends LitElement {
     .heading { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; }
     .heading h1 { margin: 2px 0 0; font-size: clamp(27px, 4vw, 38px); line-height: 1.1; letter-spacing: -.035em; }
     .eyebrow { text-transform: uppercase; letter-spacing: .16em; }
-    .button { border: 1px solid #3e765a; border-radius: 9px; background: #1c4a35; color: #e8fff2; padding: 9px 13px; cursor: pointer; }
-    .button:hover { border-color: #62b988; }
+    .button { border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease; }
+    .button:hover { border-color: var(--button-hover-border); }
+    .button:active { transform: translateY(1px); }
     .button:disabled { cursor: wait; opacity: .65; }
+    .icon-button { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; }
+    iconify-icon { display: inline-block; width: 18px; height: 18px; font-size: 18px; }
     .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
-    .metric, .panel { border: 1px solid var(--line); background: #111715dc; box-shadow: 0 16px 48px #0002; }
+    .metric, .panel { border: 1px solid var(--line); background: var(--panel-surface); box-shadow: 0 16px 48px var(--panel-shadow); transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
     .metric { border-radius: 14px; padding: 17px 18px; }
     .metric span { display: block; color: var(--muted); font-size: 11px; letter-spacing: .11em; text-transform: uppercase; }
     .metric strong { display: block; margin-top: 5px; font-size: 29px; font-weight: 560; }
     .panel { border-radius: 16px; overflow: hidden; }
     .resources { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
-    .resource { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 20px; border-bottom: 1px solid #202925; }
+    .resource { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 20px; border-bottom: 1px solid var(--divider); }
     .resource:last-child { border-bottom: 0; }
     .resource strong { display: block; font-size: 13px; }
     .resource code { color: var(--muted); font-size: 11px; }
-    .badge { border: 1px solid #3c554a; border-radius: 999px; color: #a7c3b7; padding: 2px 7px; font-size: 10px; text-transform: uppercase; }
+    .badge { border: 1px solid var(--badge-border); border-radius: 999px; color: var(--badge-text); padding: 2px 7px; font-size: 10px; text-transform: uppercase; }
     .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 17px 20px; border-bottom: 1px solid var(--line); }
     .panel-head h2 { margin: 0; font-size: 14px; }
-    .target-wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; border-bottom: 1px solid #202925; padding-left: 20px; }
+    .target-wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; border-bottom: 1px solid var(--divider); padding-left: 20px; }
     .target-wrap:last-child { border-bottom: 0; }
     .select-target { width: 15px; height: 15px; accent-color: var(--green); }
     .target { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px 17px 14px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
-    .target-wrap:hover, .target-wrap:hover .target { background: #17201c; }
+    .target-wrap, .target { transition: background-color 150ms ease; }
+    .target-wrap:hover, .target-wrap:hover .target { background: var(--row-hover); }
     .state { width: 10px; height: 10px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px currentColor; }
     .state.up { color: var(--green); background: var(--green); }
     .state.down { color: var(--red); background: var(--red); }
@@ -102,33 +151,75 @@ export class UpgridApp extends LitElement {
     .latency strong { display: block; font-weight: 500; }
     .latency span { color: var(--muted); font-size: 11px; }
     .empty { padding: 54px 20px; color: var(--muted); text-align: center; }
-    .notice { margin: 0 0 16px; border: 1px solid #7b3937; border-radius: 10px; background: #391b1a; color: #ffb3af; padding: 10px 12px; }
+    .notice { margin: 0 0 16px; border: 1px solid var(--notice-border); border-radius: 10px; background: var(--notice-bg); color: var(--notice-text); padding: 10px 12px; }
     .toolbar { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
     .toolbar input, .toolbar select { padding: 7px 9px; }
-    .bulk { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--line); background: #16221d; }
-    dialog { width: min(580px, calc(100% - 28px)); border: 1px solid var(--line); border-radius: 17px; background: var(--panel); color: var(--text); padding: 0; box-shadow: 0 28px 90px #000b; }
-    dialog::backdrop { background: #040706cc; backdrop-filter: blur(5px); }
+    .bulk { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--line); background: var(--bulk-bg); }
+    dialog { width: min(580px, calc(100% - 28px)); border: 1px solid var(--line); border-radius: 17px; background: var(--panel); color: var(--text); padding: 0; box-shadow: 0 28px 90px var(--dialog-shadow); }
+    dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(5px); }
     .dialog-head { padding: 20px 22px 15px; border-bottom: 1px solid var(--line); }
     .dialog-head h2 { margin: 0; font-size: 18px; }
     .dialog-head p { margin: 4px 0 0; color: var(--muted); }
     form { display: grid; gap: 13px; padding: 20px 22px 22px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
     label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; letter-spacing: .03em; }
-    input, select { width: 100%; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: #0c110f; color: var(--text); padding: 9px 10px; }
-    input:focus, select:focus { border-color: #4b936c; }
+    input, select { width: 100%; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease; }
+    input:focus, select:focus { border-color: var(--focus); }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
     .secondary { background: transparent; color: var(--muted); border-color: var(--line); }
-    .danger { margin-right: auto; background: transparent; color: #ff9b97; border-color: #633b39; }
+    .danger { margin-right: auto; background: transparent; color: var(--danger-text); border-color: var(--danger-border); }
     .check { display: flex; align-items: center; gap: 8px; }
     .check input { width: auto; }
     .history { margin: 0 22px 22px; border-top: 1px solid var(--line); padding-top: 18px; }
     .history h3 { margin: 0 0 10px; font-size: 14px; }
     .history-time { display: inline-flex; align-items: center; gap: 7px; }
     .history-time .state { width: 7px; height: 7px; box-shadow: none; }
-    .join-command { margin: 20px 22px; border: 1px solid var(--line); border-radius: 10px; background: #0b110e; color: var(--green); padding: 13px; overflow-wrap: anywhere; font: 12px/1.6 ui-monospace, SFMono-Regular, monospace; }
+    .join-command { margin: 20px 22px; border: 1px solid var(--line); border-radius: 10px; background: var(--join-bg); color: var(--green); padding: 13px; overflow-wrap: anywhere; font: 12px/1.6 ui-monospace, SFMono-Regular, monospace; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { padding: 7px 5px; border-bottom: 1px solid #202925; text-align: left; }
+    th, td { padding: 7px 5px; border-bottom: 1px solid var(--divider); text-align: left; }
     th { color: var(--muted); font-weight: 500; }
+    :host([data-theme="bright"]) {
+        color-scheme: light;
+        --bg: #f4f8f6;
+        --panel: #ffffff;
+        --panel-2: #eef5f1;
+        --line: #d3dfd9;
+        --muted: #5d6e66;
+        --text: #16211c;
+        --green: #087a49;
+        --red: #c53434;
+        --amber: #9a6700;
+        --page-background:
+          radial-gradient(circle at 12% -5%, #d9f2e4 0, transparent 32%),
+          linear-gradient(145deg, #fbfdfc 0%, #f3f8f5 55%, #edf5f1 100%);
+        --brand-shadow: #159e5240;
+        --nav-bg: #ffffffcc;
+        --active-bg: #e4efe9;
+        --button-border: #16764b;
+        --button-bg: #087a49;
+        --button-text: #ffffff;
+        --button-hover-border: #075f3a;
+        --panel-surface: #ffffffeb;
+        --panel-shadow: #2745381a;
+        --divider: #e3ebe7;
+        --badge-border: #a6beb2;
+        --badge-text: #426356;
+        --row-hover: #e9f4ee;
+        --notice-border: #e2aaa6;
+        --notice-bg: #fff0ef;
+        --notice-text: #9f2922;
+        --bulk-bg: #e8f4ed;
+        --dialog-shadow: #233b3050;
+        --backdrop: #17251f66;
+        --input-bg: #ffffff;
+        --focus: #168655;
+        --danger-text: #b42318;
+        --danger-border: #dda29d;
+        --join-bg: #eef8f2;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      :host, nav a, .button, .metric, .panel, .target-wrap, .target, input, select { transition-duration: 0s; }
+    }
     @media (max-width: 720px) {
       .shell { padding: 20px 14px 60px; }
       nav { display: none; }
@@ -144,6 +235,8 @@ export class UpgridApp extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.applyTheme();
+    this.systemTheme.addEventListener("change", this.systemThemeChanged);
     void this.refresh();
     this.events = new EventSource("/api/v1/events");
     this.events.addEventListener("state", () => void this.refresh());
@@ -152,8 +245,25 @@ export class UpgridApp extends LitElement {
   }
 
   disconnectedCallback(): void {
+    this.systemTheme.removeEventListener("change", this.systemThemeChanged);
     this.events?.close();
     super.disconnectedCallback();
+  }
+
+  private applyTheme(): void {
+    const resolved = this.theme === "system"
+      ? (this.systemTheme.matches ? "bright" : "dark")
+      : this.theme;
+    this.dataset.theme = resolved;
+    document
+      .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+      ?.setAttribute("content", resolved === "bright" ? "#f4f8f6" : "#0b1110");
+  }
+
+  private cycleTheme(): void {
+    this.theme = themes[(themes.indexOf(this.theme) + 1) % themes.length];
+    localStorage.setItem("upgrid-theme", this.theme);
+    this.applyTheme();
   }
 
   private async refresh(): Promise<void> {
@@ -506,7 +616,10 @@ export class UpgridApp extends LitElement {
         <header>
           <div class="brand">
             <img src="/favicon.svg" alt="" />
-            <div><strong>UpGrid</strong><span>Distributed service monitoring</span></div>
+            <div>
+              <div class="brand-line"><strong>UpGrid</strong><div class="live"><i class="dot ${this.live ? "on" : ""}"></i>${this.live ? "live" : "connecting"}</div></div>
+              <span>Distributed service monitoring</span>
+            </div>
           </div>
           <nav aria-label="Primary">
             ${["overview", "alerts", "cluster"].map(
@@ -514,8 +627,8 @@ export class UpgridApp extends LitElement {
             )}
           </nav>
           <div class="actions">
+            <button class="button secondary icon-button" aria-label=${`Theme: ${this.theme[0].toUpperCase()}${this.theme.slice(1)}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button>
             <button class="button secondary" @click=${this.createJoinLink} ?disabled=${this.saving}>Add node</button>
-            <div class="live"><i class="dot ${this.live ? "on" : ""}"></i>${this.live ? "live" : "connecting"}</div>
           </div>
         </header>
         ${this.error ? html`<div class="notice" role="alert">${this.error}</div>` : nothing}

@@ -1,5 +1,53 @@
 import { expect, test } from "@playwright/test";
 
+test("follows the system color scheme", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/");
+  const app = page.locator("upgrid-app");
+  await expect(page.getByRole("button", { name: "Theme: System" })).toBeVisible();
+  await expect(app).toHaveCSS("color-scheme", "light");
+  await expect(app).toHaveCSS("color", "rgb(22, 33, 28)");
+
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(app).toHaveCSS("color-scheme", "dark");
+  await expect(app).toHaveCSS("color", "rgb(237, 247, 242)");
+});
+
+test("shows an icon theme control and live status in the brand", async ({ page }) => {
+  await page.goto("/");
+  const app = page.locator("upgrid-app");
+  const theme = page.getByRole("button", { name: "Theme: System" });
+  await expect(theme.locator("iconify-icon")).toBeVisible();
+  await expect(app.locator(".brand .live")).toBeVisible();
+  await expect(app.locator(".actions .live")).toHaveCount(0);
+});
+
+test("cycles and remembers an explicit theme", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/");
+  const app = page.locator("upgrid-app");
+  await page.getByRole("button", { name: "Theme: System" }).click();
+  await expect(page.getByRole("button", { name: "Theme: Dark" })).toBeVisible();
+  await expect(app).toHaveCSS("color-scheme", "dark");
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Theme: Dark" })).toBeVisible();
+  await expect(app).toHaveCSS("color-scheme", "dark");
+
+  await page.getByRole("button", { name: "Theme: Dark" }).click();
+  await expect(page.getByRole("button", { name: "Theme: Bright" })).toBeVisible();
+  await expect(app).toHaveCSS("color-scheme", "light");
+
+  await page.getByRole("button", { name: "Theme: Bright" }).click();
+  await expect(page.getByRole("button", { name: "Theme: System" })).toBeVisible();
+});
+
+test("fills the viewport without browser-default padding", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("body")).toHaveCSS("margin", "0px");
+  await expect(page.locator("upgrid-app")).toHaveCSS("min-height", "720px");
+});
+
 test("creates a target from the embedded dashboard", async ({ page }) => {
   await page.goto("/");
 
@@ -153,6 +201,9 @@ test("target hover highlights the checkbox and content as one row", async ({ pag
   await addTarget.getByRole("button", { name: "Create target" }).click();
   const target = page.getByRole("button", { name: "Hover target" });
   await target.hover();
+  await expect
+    .poll(() => target.evaluate((element) => getComputedStyle(element).backgroundColor))
+    .not.toBe("rgba(0, 0, 0, 0)");
   const backgrounds = await target.evaluate((element) => ({
     button: getComputedStyle(element).backgroundColor,
     row: getComputedStyle(element.parentElement!).backgroundColor,
