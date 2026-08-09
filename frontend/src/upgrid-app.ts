@@ -50,6 +50,7 @@ export class UpgridApp extends LitElement {
   @state() private theme = storedTheme();
   @state() private detailDirty = false;
   private events?: EventSource;
+  private detailInitialState = "";
   private readonly systemTheme = matchMedia("(prefers-color-scheme: light)");
   private readonly systemThemeChanged = () => {
     if (this.theme === "system") this.applyTheme();
@@ -326,14 +327,18 @@ export class UpgridApp extends LitElement {
   private openTarget(target: Target): void {
     this.detailDirty = false;
     this.selected = target;
-    void this.updateComplete.then(() =>
-      this.renderRoot.querySelector<HTMLDialogElement>("#detail-dialog")?.showModal(),
-    );
+    void this.updateComplete.then(() => {
+      const dialog = this.renderRoot.querySelector<HTMLDialogElement>("#detail-dialog");
+      const form = dialog?.querySelector<HTMLFormElement>("form");
+      if (form) this.detailInitialState = this.detailFormState(form);
+      dialog?.showModal();
+    });
   }
 
   private closeDetailDialog(): void {
     this.renderRoot.querySelector<HTMLDialogElement>("#detail-dialog")?.close();
     this.detailDirty = false;
+    this.detailInitialState = "";
     this.selected = undefined;
   }
 
@@ -347,6 +352,7 @@ export class UpgridApp extends LitElement {
     dialog.close();
     if (dialog.id === "detail-dialog") {
       this.detailDirty = false;
+      this.detailInitialState = "";
       this.selected = undefined;
     }
   }
@@ -371,10 +377,19 @@ export class UpgridApp extends LitElement {
       "max_redirects",
     ) as HTMLInputElement | null;
     if (maxRedirects) maxRedirects.disabled = !followRedirects.checked;
+    if (followRedirects.form) this.compareDetailForm(followRedirects.form);
   }
 
-  private markDetailDirty(): void {
-    this.detailDirty = true;
+  private detailFormState(form: HTMLFormElement): string {
+    return JSON.stringify([...new FormData(form).entries()]);
+  }
+
+  private compareDetailForm(form: HTMLFormElement): void {
+    this.detailDirty = this.detailFormState(form) !== this.detailInitialState;
+  }
+
+  private updateDetailDirty(event: Event): void {
+    this.compareDetailForm(event.currentTarget as HTMLFormElement);
   }
 
   private async createTarget(event: SubmitEvent): Promise<void> {
@@ -854,7 +869,7 @@ export class UpgridApp extends LitElement {
           <h2 id="target-detail-title">Target details</h2>
           <button class="button secondary icon-button dialog-close" type="button" aria-label="Close target details" title="Close" @click=${this.closeDetailDialog}><iconify-icon .icon=${closeIcon} aria-hidden="true"></iconify-icon></button>
         </div>
-        <form @submit=${this.updateTarget} @input=${this.markDetailDirty}>
+        <form @submit=${this.updateTarget} @input=${this.updateDetailDirty}>
           <label>Name<input name="name" .value=${target.name} required /></label>
           <label>URL<input name="url" type="url" .value=${target.url} required /></label>
           <div class="row">
