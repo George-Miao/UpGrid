@@ -2,22 +2,23 @@
 
 ## Project Structure & Module Organization
 
-UpGrid is a Rust 2024 binary crate with a Lit/TypeScript WebUI. `src/main.rs` wires configuration, Raft, workers, and Axum. Consensus and persistence live in `src/raft.rs`, `src/node.rs`, `src/storage.rs`, and `src/state_machine.rs`; inter-Node RPC belongs under `src/network/`. The replicated model is in `src/domain.rs`. UI source and browser tests live under `frontend/src/` and `frontend/tests/`; Vite's checked-in `frontend/dist/` output is embedded by `src/web.rs`. Design decisions live under `docs/adr/`.
+UpGrid is a Rust 2024 workspace with a Lit/TypeScript WebUI. Crates live under `crates/`: `upgrid` orchestrates the process, `upgrid-config` owns configuration and secrets, `upgrid-transport` owns QUIC and generic typed RPC streams, `upgrid-raft` owns consensus, persistence, and the replicated model, `upgrid-api` serves HTTP/OpenAPI, and `upgrid-notification` delivers alerts. Channel implementations belong in `crates/upgrid-notification/src/channel/`. UI source and browser tests live in `frontend/src/` and `frontend/tests/`; checked-in `frontend/dist/` assets are embedded by `upgrid-api`. Design decisions live under `docs/adr/`.
 
 ## Build, Test, and Development Commands
 
 - `nix develop` enters the pinned nightly Rust, Node 22, and pnpm development shell.
-- `cargo build` compiles the debug binary and locked dependencies.
-- `cargo run` starts the current binary; set `RUST_LOG=debug` to increase tracing output.
+- `cargo build --workspace` compiles all crates and locked dependencies.
+- `cargo run -p upgrid` starts one Node; set `RUST_LOG=debug` for detailed tracing.
 - `scripts/update-webui.sh` installs locked frontend dependencies and rebuilds `frontend/dist/`.
 - `scripts/test-webui.sh` runs Playwright in Chromium against an isolated real Node.
 - `cargo fmt --all -- --check` verifies formatting; run `cargo fmt --all` to apply it.
-- `cargo clippy --all-targets --all-features -- -D warnings` runs lint checks.
-- `cargo test --no-run` compiles all tests without starting network fixtures.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` runs lint checks.
+- `cargo test --workspace --no-run` compiles tests without starting network fixtures.
+- `scripts/check-rust-source-size.sh` rejects Rust files over 500 lines.
 
 ## Coding Style & Naming Conventions
 
-Use standard `rustfmt` output (four-space indentation and trailing commas). Name Rust modules and functions with `snake_case`, types with `UpperCamelCase`, and constants with `SCREAMING_SNAKE_CASE`. TypeScript uses two spaces, strict types, `camelCase` members, and `kebab-case` custom-element names. Prefer typed API boundaries, existing `snafu` contexts, and `tracing` over ad hoc strings or printing.
+Use standard `rustfmt` output (four-space indentation and trailing commas). Name Rust modules and functions with `snake_case`, types with `UpperCamelCase`, and constants with `SCREAMING_SNAKE_CASE`. Start considering a module split near 200 lines; 500 lines is a hard maximum. Compose source with ordinary `mod` declarations—never `include!`. TypeScript uses two spaces, strict types, `camelCase` members, and `kebab-case` custom-element names. Prefer typed boundaries, `snafu` contexts, and `tracing`.
 
 ## Testing Guidelines
 
