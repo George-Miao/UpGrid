@@ -123,6 +123,8 @@ export class UpgridApp extends LitElement {
     .check input { width: auto; }
     .history { margin: 0 22px 22px; border-top: 1px solid var(--line); padding-top: 18px; }
     .history h3 { margin: 0 0 10px; font-size: 14px; }
+    .history-time { display: inline-flex; align-items: center; gap: 7px; }
+    .history-time .state { width: 7px; height: 7px; box-shadow: none; }
     .join-command { margin: 20px 22px; border: 1px solid var(--line); border-radius: 10px; background: #0b110e; color: var(--green); padding: 13px; overflow-wrap: anywhere; font: 12px/1.6 ui-monospace, SFMono-Regular, monospace; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th, td { padding: 7px 5px; border-bottom: 1px solid #202925; text-align: left; }
@@ -696,7 +698,7 @@ export class UpgridApp extends LitElement {
         <section class="history">
           <h3>Evaluation history</h3>
           ${target.history.length
-            ? html`<table><thead><tr><th>Time</th><th>Result</th><th>Status</th><th>Latency</th></tr></thead><tbody>${target.history.map((item) => html`<tr><td>${new Date(item.recorded_at_ms).toLocaleString()}</td><td>${item.succeeded ? "Up" : "Failed"}</td><td>${item.status_code ?? "—"}</td><td>${item.latency_ms} ms</td></tr>`)}</tbody></table>`
+            ? html`<table><thead><tr><th>Time</th><th>Status</th><th>Latency</th></tr></thead><tbody>${target.history.map((item) => html`<tr><td><span class="history-time"><i class="state ${item.succeeded ? "up" : "down"}" role="img" aria-label=${item.succeeded ? "Up" : "Failed"}></i>${new Date(item.recorded_at_ms).toLocaleString()}</span></td><td>${item.status_code ?? "—"}</td><td>${item.latency_ms} ms</td></tr>`)}</tbody></table>`
             : html`<p class="meta">No evaluations recorded yet.</p>`}
         </section>
       </dialog>
