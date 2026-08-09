@@ -48,6 +48,25 @@ test("fills the viewport without browser-default padding", async ({ page }) => {
   await expect(page.locator("upgrid-app")).toHaveCSS("min-height", "720px");
 });
 
+test("disables maximum redirects when redirects are not followed", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add target" }).click();
+  const addTarget = page.getByRole("dialog", { name: "Add target" });
+  await addTarget.getByLabel("Name").fill("Redirect settings");
+  await addTarget.getByLabel("URL").fill("https://example.com");
+  await addTarget.getByRole("button", { name: "Create target" }).click();
+
+  await page.getByRole("button", { name: "Redirect settings" }).click();
+  const details = page.getByRole("dialog", { name: "Target details" });
+  const followRedirects = details.getByLabel("Follow redirects");
+  const maxRedirects = details.getByLabel("Maximum redirects");
+  await expect(maxRedirects).toBeEnabled();
+  await followRedirects.uncheck();
+  await expect(maxRedirects).toBeDisabled();
+  await followRedirects.check();
+  await expect(maxRedirects).toBeEnabled();
+});
+
 test("creates a target from the embedded dashboard", async ({ page }) => {
   await page.goto("/");
 

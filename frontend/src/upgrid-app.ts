@@ -165,6 +165,7 @@ export class UpgridApp extends LitElement {
     label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; letter-spacing: .03em; }
     input, select { width: 100%; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease; }
     input:focus, select:focus { border-color: var(--focus); }
+    input:disabled { cursor: not-allowed; opacity: .5; }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
     .secondary { background: transparent; color: var(--muted); border-color: var(--line); }
     .danger { margin-right: auto; background: transparent; color: var(--danger-text); border-color: var(--danger-border); }
@@ -326,6 +327,14 @@ export class UpgridApp extends LitElement {
     this.renderRoot.querySelector<HTMLDialogElement>(`#${id}`)?.close();
   }
 
+  private toggleMaxRedirects(event: Event): void {
+    const followRedirects = event.currentTarget as HTMLInputElement;
+    const maxRedirects = followRedirects.form?.elements.namedItem(
+      "max_redirects",
+    ) as HTMLInputElement | null;
+    if (maxRedirects) maxRedirects.disabled = !followRedirects.checked;
+  }
+
   private async createTarget(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
@@ -373,13 +382,14 @@ export class UpgridApp extends LitElement {
         const [start, end] = part.trim().split("-").map(Number);
         return { start, end: end || start };
       });
+    const followRedirects = fields.get("follow_redirects") === "on";
     const input: TargetInput = {
       name: String(fields.get("name")),
       url: String(fields.get("url")),
       method: String(fields.get("method")),
       accepted_statuses: statuses,
-      follow_redirects: fields.get("follow_redirects") === "on",
-      max_redirects: Number(fields.get("max_redirects")),
+      follow_redirects: followRedirects,
+      max_redirects: followRedirects ? Number(fields.get("max_redirects")) : 0,
       interval_seconds: Number(fields.get("interval")),
       timeout_seconds: Number(fields.get("timeout")),
       failure_threshold: Number(fields.get("failures")),
@@ -794,11 +804,11 @@ export class UpgridApp extends LitElement {
           </div>
           <div class="row">
             <label>Failures before Down<input name="failures" type="number" min="1" .value=${String(target.failure_threshold)} required /></label>
-            <label>Maximum redirects<input name="max_redirects" type="number" min="0" .value=${String(target.max_redirects)} required /></label>
+            <label>Maximum redirects<input name="max_redirects" type="number" min="0" .value=${String(target.max_redirects)} ?disabled=${!target.follow_redirects} required /></label>
           </div>
           <label>Body must contain<input name="body_contains" .value=${target.body_contains ?? ""} /></label>
           <div class="row">
-            <label class="check"><input name="follow_redirects" type="checkbox" .checked=${target.follow_redirects} />Follow redirects</label>
+            <label class="check"><input name="follow_redirects" type="checkbox" .checked=${target.follow_redirects} @change=${this.toggleMaxRedirects} />Follow redirects</label>
             <label class="check"><input name="skip_tls_verification" type="checkbox" .checked=${target.skip_tls_verification} />Skip TLS verification</label>
           </div>
           <div class="dialog-actions">
