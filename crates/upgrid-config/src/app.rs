@@ -11,7 +11,13 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::cli::Cli;
-use crate::{Cipher, durable};
+use crate::{Cipher, JoinLink, durable};
+
+#[derive(Clone)]
+pub enum JoinIntent {
+    Valid(Box<JoinLink>),
+    Invalid,
+}
 
 pub type AppResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -19,7 +25,7 @@ pub type AppResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 pub struct Config {
     pub bind: String,
     pub raft_url: String,
-    pub join: Option<String>,
+    pub join: Option<JoinIntent>,
     pub new_cluster: bool,
     pub data_dir: PathBuf,
     pub node_name: Option<String>,
@@ -159,7 +165,10 @@ impl TryFrom<RawConfig> for Config {
         Ok(Self {
             bind: raw.bind,
             raft_url: raw.raft_url,
-            join: raw.join,
+            join: raw.join.map(|value| match JoinLink::parse(&value) {
+                Ok(link) => JoinIntent::Valid(Box::new(link)),
+                Err(_) => JoinIntent::Invalid,
+            }),
             new_cluster: raw.new_cluster,
             data_dir: raw.data_dir,
             node_name: raw.node_name,

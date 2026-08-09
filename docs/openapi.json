@@ -1717,6 +1717,15 @@
           }
         }
       },
+      "SetupPhase": {
+        "type": "string",
+        "enum": [
+          "cluster",
+          "channel",
+          "target",
+          "complete"
+        ]
+      },
       "SetupView": {
         "type": "object",
         "required": [
@@ -1743,7 +1752,7 @@
             "type": "string"
           },
           "phase": {
-            "type": "string"
+            "$ref": "#/components/schemas/SetupPhase"
           },
           "setup": {
             "type": "boolean"

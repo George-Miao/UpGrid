@@ -17,6 +17,9 @@ enum Request {
     Read {
         reply: oneshot::Sender<Result<ApplicationState, String>>,
     },
+    LocalRead {
+        reply: oneshot::Sender<ApplicationState>,
+    },
     Write {
         request: Box<Req>,
         reply: oneshot::Sender<Result<CommandResult, ClusterError>>,
@@ -75,6 +78,16 @@ impl Handle {
         response
             .await
             .map_err(|_| "cluster runtime stopped before responding".to_owned())?
+    }
+
+    pub async fn local_read(&self) -> Result<ApplicationState, String> {
+        let (reply, response) = oneshot::channel();
+        self.sender
+            .send(Request::LocalRead { reply })
+            .map_err(|_| "cluster runtime stopped".to_owned())?;
+        response
+            .await
+            .map_err(|_| "cluster runtime stopped before responding".to_owned())
     }
 
     pub async fn apply(&self, command: Command) -> Result<CommandResult, ClusterError> {
@@ -173,6 +186,9 @@ impl Receiver {
             match request {
                 Some(Request::Read { reply }) => {
                     let _ = reply.send(node.read().await);
+                }
+                Some(Request::LocalRead { reply }) => {
+                    let _ = reply.send(node.local_application_state());
                 }
                 Some(Request::Write { request, reply }) => {
                     let result = match node.write(*request).await {

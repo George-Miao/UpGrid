@@ -408,9 +408,29 @@ struct CreateClusterRequest {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+enum SetupPhase {
+    Cluster,
+    Channel,
+    Target,
+    Complete,
+}
+
+impl From<OobePhase> for SetupPhase {
+    fn from(phase: OobePhase) -> Self {
+        match phase {
+            OobePhase::Cluster => Self::Cluster,
+            OobePhase::Channel => Self::Channel,
+            OobePhase::Target => Self::Target,
+            OobePhase::Complete => Self::Complete,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
 struct SetupView {
     setup: bool,
-    phase: String,
+    phase: SetupPhase,
     path: String,
     cluster_ready: bool,
     node_name: String,

@@ -1,5 +1,5 @@
 use upgrid_config::{
-    AppResult, Cipher, Config, JoinLink, Oobe, OobePhase, load_or_create_cipher,
+    AppResult, Cipher, Config, JoinIntent, Oobe, OobePhase, load_or_create_cipher,
     load_or_create_node_id, load_or_create_node_name,
 };
 use upgrid_raft::{Identity, Node, UpgridNode};
@@ -50,10 +50,17 @@ pub async fn prepare(mut config: Config) -> AppResult<Ready> {
 
     let explicit = config.join.is_some() || config.new_cluster;
     let choice = match config.join.take() {
-        Some(link) => upgrid_api::OobeChoice::Join {
+        Some(JoinIntent::Valid(link)) => upgrid_api::OobeChoice::Join {
             node_name: node_name.clone(),
-            link: Box::new(JoinLink::parse(&link)?),
+            link,
         },
+        Some(JoinIntent::Invalid) => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "configured Join Token is invalid",
+            )
+            .into());
+        }
         None if config.new_cluster => upgrid_api::OobeChoice::NewCluster {
             node_name: node_name.clone(),
         },
@@ -112,9 +119,9 @@ pub async fn prepare(mut config: Config) -> AppResult<Ready> {
 
 fn ignored_join_warning(
     persisted_members: &std::collections::BTreeSet<String>,
-    configured: &str,
+    configured: &JoinIntent,
 ) -> Option<String> {
-    let Ok(link) = JoinLink::parse(configured) else {
+    let JoinIntent::Valid(link) = configured else {
         return Some(
             "Configured Join Token is invalid and was ignored because this Node already belongs \
              to a Cluster."

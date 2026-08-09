@@ -113,7 +113,11 @@ pub(super) async fn revoke_join_token(
     )
 )]
 pub(super) async fn get_setup(State(state): State<WebState>) -> Result<Json<SetupView>, ApiError> {
-    let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
+    let snapshot = state
+        .cluster
+        .local_read()
+        .await
+        .map_err(ApiError::unavailable)?;
     Ok(Json(setup_view(
         &state,
         snapshot.notification_channels.len(),
@@ -181,7 +185,7 @@ fn setup_view(state: &WebState, channel_count: usize, target_count: usize) -> Se
     let phase = state.oobe.phase();
     SetupView {
         setup: phase != OobePhase::Complete,
-        phase: phase.to_string(),
+        phase: phase.into(),
         path: phase.path().to_owned(),
         cluster_ready: true,
         node_name: state.node_name.clone(),

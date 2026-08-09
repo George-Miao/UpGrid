@@ -133,7 +133,7 @@ async fn setup_status(State(state): State<SetupState>) -> Result<Json<SetupView>
         .clone();
     Ok(Json(SetupView {
         setup: true,
-        phase: "cluster".to_owned(),
+        phase: crate::SetupPhase::Cluster,
         path: "/setup".to_owned(),
         cluster_ready: false,
         node_name,
