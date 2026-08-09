@@ -1,8 +1,9 @@
+use std::path::PathBuf;
+
 use ::rustls::server::VerifierBuilderError;
 use compio_quic::crypto::rustls;
 use openraft::error::{ClientWriteError, Fatal, InitializeError, RaftError};
 use snafu::Snafu;
-use std::path::PathBuf;
 use tarpc::client::RpcError;
 use url::Url;
 

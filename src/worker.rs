@@ -1,32 +1,26 @@
-use std::{
-    cell::RefCell,
-    collections::{BTreeMap, BTreeSet},
-    rc::Rc,
-    sync::Arc,
-    time::{Duration, Instant, SystemTime},
-};
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet};
+use std::rc::Rc;
+use std::sync::Arc;
+use std::time::{Duration, Instant, SystemTime};
 
 use axum::http::{Method, StatusCode, header};
-use compio::{
-    runtime::spawn,
-    time::{sleep, timeout},
-};
+use compio::runtime::spawn;
+use compio::time::{sleep, timeout};
 use cyper::Client;
 use serde_json::json;
 use url::Url;
 
-use crate::{
-    app::now_ms,
-    cluster::Handle,
-    domain::{
-        Alert, AlertDelivery, AlertId, AlertKind, Command, ConfigValue, Evaluation,
-        EvaluationAssignment, EvaluationId, HttpEvaluationMetadata, HttpTarget,
-        MAX_DIAGNOSTIC_BYTES, MAX_RESPONSE_BYTES, NotificationChannelKind, Target,
-    },
-    scheduler::{select_executor, slot_at_or_before_ms},
-    secret::Cipher,
-    utils::SkipServerVerification,
+use crate::app::now_ms;
+use crate::cluster::Handle;
+use crate::domain::{
+    Alert, AlertDelivery, AlertId, AlertKind, Command, ConfigValue, Evaluation,
+    EvaluationAssignment, EvaluationId, HttpEvaluationMetadata, HttpTarget, MAX_DIAGNOSTIC_BYTES,
+    MAX_RESPONSE_BYTES, NotificationChannelKind, Target,
 };
+use crate::scheduler::{select_executor, slot_at_or_before_ms};
+use crate::secret::Cipher;
+use crate::utils::SkipServerVerification;
 
 const ASSIGNMENT_GRACE_MS: u64 = 1_000;
 const ASSIGNMENT_BATCH_SIZE: usize = 128;
@@ -730,12 +724,13 @@ fn truncate_diagnostic(value: String) -> String {
 
 #[cfg(test)]
 mod tests {
+    use uuid::Uuid;
+
     use super::*;
     use crate::domain::{
         AlertDelivery, AlertId, ApplicationState, EvaluationId, EvaluationPolicy,
         HttpEvaluationMetadata, HttpTarget, NotificationChannelId, TargetId,
     };
-    use uuid::Uuid;
 
     fn alert(recorded_at_ms: u64) -> Alert {
         let target_id = TargetId(Uuid::from_u128(1));

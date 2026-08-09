@@ -16,11 +16,14 @@
 
 use std::fmt;
 
-use http::{HeaderMap, Uri, header::HeaderValue, uri::Scheme};
+use http::header::HeaderValue;
+use http::uri::Scheme;
+use http::{HeaderMap, Uri};
 use hyper_util::client::proxy::matcher;
 use url::Url;
 
-use crate::{into_url::IntoUrl, sync::shared::Shared};
+use crate::into_url::IntoUrl;
+use crate::sync::shared::Shared;
 
 /// Configuration of a proxy that a `Client` should pass requests to.
 ///

@@ -1,8 +1,6 @@
-use std::{
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use compio::tls::TlsConnector;
 use futures_util::TryFutureExt;
@@ -10,12 +8,10 @@ use hyper::Uri;
 use send_wrapper::SendWrapper;
 use tower_service::Service;
 
-use crate::{
-    HttpStream, WrappedHttpStream,
-    proxy::{self, Intercepted},
-    resolve::SharedResolver,
-    sync::shared::Shared,
-};
+use crate::proxy::{self, Intercepted};
+use crate::resolve::SharedResolver;
+use crate::sync::shared::Shared;
+use crate::{HttpStream, WrappedHttpStream};
 
 /// An HTTP connector service.
 ///
@@ -146,7 +142,8 @@ mod socks {
     use tower_service::Service;
 
     use super::HttpsConnector;
-    use crate::{Error, HttpStream, WrappedHttpStream, proxy::Intercepted};
+    use crate::proxy::Intercepted;
+    use crate::{Error, HttpStream, WrappedHttpStream};
 
     pub(super) async fn connect(
         connector: HttpsConnector,

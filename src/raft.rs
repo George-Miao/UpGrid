@@ -1,9 +1,7 @@
 use std::fmt::{Display, Formatter};
 
-use openraft::{
-    alias::{NodeIdOf, NodeOf},
-    declare_raft_types,
-};
+use openraft::alias::{NodeIdOf, NodeOf};
+use openraft::declare_raft_types;
 use openraft_rt_compio::CompioRuntime;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
@@ -11,12 +9,10 @@ use snafu::ResultExt;
 use url::Url;
 use uuid::Uuid;
 
+use crate::domain::{Command, CommandResult, DomainError};
+use crate::network::UpgridNode;
 #[cfg(test)]
 use crate::{UrlParseSnafu, utils::uuid_v7_now};
-use crate::{
-    domain::{Command, CommandResult, DomainError},
-    network::UpgridNode,
-};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Req {

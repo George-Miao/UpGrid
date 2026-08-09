@@ -1,19 +1,15 @@
 use std::collections::BTreeSet;
-use std::sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
-};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use tokio::sync::{mpsc, oneshot, watch};
 use uuid::Uuid;
 
-use crate::{
-    app::now_ms,
-    domain::{ApplicationState, Command, CommandResult, DomainError},
-    node::Node,
-    raft::Req,
-};
+use crate::app::now_ms;
+use crate::domain::{ApplicationState, Command, CommandResult, DomainError};
+use crate::node::Node;
+use crate::raft::Req;
 
 enum Request {
     Read {

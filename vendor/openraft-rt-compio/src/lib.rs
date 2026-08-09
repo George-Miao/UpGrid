@@ -1,19 +1,14 @@
 use std::any::Any;
-use std::fmt::Debug;
-use std::fmt::Display;
-use std::fmt::Error;
-use std::fmt::Formatter;
+use std::fmt::{Debug, Display, Error, Formatter};
 use std::future::Future;
 use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll;
+use std::task::{Context, Poll};
 
 pub use compio;
 pub use futures;
 use futures::FutureExt;
 pub use openraft;
-use openraft::AsyncRuntime;
-use openraft::OptionalSend;
+use openraft::{AsyncRuntime, OptionalSend};
 pub use rand;
 use rand::rngs::ThreadRng;
 
@@ -102,18 +97,18 @@ impl<F: Future> Future for CompioTimeout<F> {
 }
 
 impl AsyncRuntime for CompioRuntime {
+    type Instant = std::time::Instant;
     type JoinError = CompioJoinError;
     type JoinHandle<T: OptionalSend + 'static> = CompioJoinHandle<T>;
-    type Sleep = BoxedFuture<()>;
-    type Instant = std::time::Instant;
-    type TimeoutError = Elapsed;
-    type Timeout<R, T: Future<Output = R> + OptionalSend> = CompioTimeout<T>;
-    type ThreadLocalRng = ThreadRng;
     type Mpsc = mpsc::CompioMpsc;
     type MpscUnbounded = mpsc_unbounded::TokioMpscUnbounded;
-    type Watch = watch::TokioWatch;
-    type Oneshot = oneshot::FuturesOneshot;
     type Mutex<T: OptionalSend + 'static> = mutex::TokioMutex<T>;
+    type Oneshot = oneshot::FuturesOneshot;
+    type Sleep = BoxedFuture<()>;
+    type ThreadLocalRng = ThreadRng;
+    type Timeout<R, T: Future<Output = R> + OptionalSend> = CompioTimeout<T>;
+    type TimeoutError = Elapsed;
+    type Watch = watch::TokioWatch;
 
     fn spawn<T>(fut: T) -> Self::JoinHandle<T::Output>
     where

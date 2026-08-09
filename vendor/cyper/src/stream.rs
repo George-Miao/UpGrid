@@ -1,23 +1,21 @@
-use std::{
-    io,
-    net::SocketAddr,
-    pin::Pin,
-    task::{Context, Poll, ready},
-};
+use std::io;
+use std::net::SocketAddr;
+use std::pin::Pin;
+use std::task::{Context, Poll, ready};
 
-use compio::{
-    BufResult,
-    buf::{IoBuf, IoBufMut, IoBufMutExt, IoVectoredBuf},
-    io::{AsyncRead, AsyncWrite, util::Splittable},
-    net::TcpStream,
-    tls::TlsConnector,
-};
+use compio::BufResult;
+use compio::buf::{IoBuf, IoBufMut, IoBufMutExt, IoVectoredBuf};
+use compio::io::util::Splittable;
+use compio::io::{AsyncRead, AsyncWrite};
+use compio::net::TcpStream;
+use compio::tls::TlsConnector;
 use cyper_core::HyperStream;
 use futures_util::StreamExt;
 use hyper::Uri;
 use hyper_util::client::legacy::connect::{Connected, Connection};
 
-use crate::{Error, Result, resolve::SharedResolver};
+use crate::resolve::SharedResolver;
+use crate::{Error, Result};
 
 /// A HTTP stream wrapper, based on compio, and exposes [`hyper::rt`]
 /// interfaces.

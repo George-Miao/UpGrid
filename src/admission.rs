@@ -1,14 +1,17 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::Engine as _;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{network::UpgridNode, secret::Cipher};
+use crate::network::UpgridNode;
+use crate::secret::Cipher;
 
 const VERSION: u8 = 1;
 
-/// A short-lived bearer invitation containing everything a new Node needs to join.
+/// A short-lived bearer invitation containing everything a new Node needs to
+/// join.
 #[derive(Clone)]
 pub struct JoinLink {
     url: Url,

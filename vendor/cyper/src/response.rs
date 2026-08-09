@@ -4,7 +4,8 @@ use compio::bytes::Bytes;
 #[cfg(feature = "cookies")]
 use cookie_store::RawCookie;
 use encoding_rs::{Encoding, UTF_8};
-use http::{HeaderMap, StatusCode, Version, header::CONTENT_TYPE};
+use http::header::CONTENT_TYPE;
+use http::{HeaderMap, StatusCode, Version};
 use http_body_util::BodyExt;
 use hyper::body::{Body, Incoming};
 use mime::Mime;

@@ -1,16 +1,15 @@
-use std::{
-    fmt::Debug,
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::fmt::Debug;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use async_stream::try_stream;
-use compio::{BufResult, bytes::Bytes, fs::File, io::AsyncReadAt};
+use compio::BufResult;
+use compio::bytes::Bytes;
+use compio::fs::File;
+use compio::io::AsyncReadAt;
 use futures_util::{Stream, StreamExt};
-use hyper::{
-    HeaderMap,
-    body::{Frame, Incoming, SizeHint},
-};
+use hyper::HeaderMap;
+use hyper::body::{Frame, Incoming, SizeHint};
 use send_wrapper::SendWrapper;
 
 enum BodyInner {

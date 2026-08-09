@@ -2,39 +2,34 @@ mod controller;
 mod rpc;
 mod transport;
 
-use std::{
-    fmt::{Display, Formatter},
-    time::{Duration, Instant},
-};
+use std::fmt::{Display, Formatter};
+use std::time::{Duration, Instant};
 
 pub use controller::Controller;
-use openraft::{
-    RPCTypes, RaftNetwork, RaftNetworkFactory,
-    alias::{NodeIdOf, NodeOf},
-    error::{
-        InstallSnapshotError, NetworkError, RPCError, RaftError, RemoteError, Timeout, Unreachable,
-    },
-    network::RPCOption,
-    raft::{
-        AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest,
-        InstallSnapshotResponse, VoteRequest, VoteResponse,
-    },
+use openraft::alias::{NodeIdOf, NodeOf};
+use openraft::error::{
+    InstallSnapshotError, NetworkError, RPCError, RaftError, RemoteError, Timeout, Unreachable,
 };
+use openraft::network::RPCOption;
+use openraft::raft::{
+    AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse,
+    VoteRequest, VoteResponse,
+};
+use openraft::{RPCTypes, RaftNetwork, RaftNetworkFactory};
 pub use rpc::{JoinError, UpgridServer};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt};
 use tap::Tap;
-use tarpc::{client::RpcError, context::Context};
+use tarpc::client::RpcError;
+use tarpc::context::Context;
 use tracing::debug;
 #[cfg(test)]
 pub use transport::bi_stream_framed;
 use url::Url;
 
-use crate::{
-    Result, UrlInvalidHostSnafu, UrlParseSnafu,
-    network::rpc::UpgridServiceClient,
-    raft::{Identity, TC},
-};
+use crate::network::rpc::UpgridServiceClient;
+use crate::raft::{Identity, TC};
+use crate::{Result, UrlInvalidHostSnafu, UrlParseSnafu};
 
 const DEFAULT_UP_PORT: u16 = 11451;
 

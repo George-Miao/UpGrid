@@ -1,10 +1,9 @@
-use std::{
-    fs::{self, File, OpenOptions},
-    io::{self, Write},
-    path::Path,
-};
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Write};
+use std::path::Path;
 
-/// Atomically replaces a file after flushing its new contents to stable storage.
+/// Atomically replaces a file after flushing its new contents to stable
+/// storage.
 pub fn replace(path: &Path, contents: &[u8]) -> io::Result<()> {
     replace_with_mode(path, contents, false)
 }

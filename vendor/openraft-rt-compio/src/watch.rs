@@ -1,10 +1,8 @@
 use std::ops::Deref;
 
-use openraft::async_runtime::watch::RecvError;
-use openraft::async_runtime::watch::SendError;
+use openraft::async_runtime::watch::{RecvError, SendError};
 use openraft::type_config::async_runtime::watch;
-use openraft::OptionalSend;
-use openraft::OptionalSync;
+use openraft::{OptionalSend, OptionalSync};
 use tokio::sync::watch as tokio_watch;
 
 pub struct TokioWatch;
@@ -13,9 +11,9 @@ pub struct TokioWatchReceiver<T>(tokio_watch::Receiver<T>);
 pub struct TokioWatchRef<'a, T>(tokio_watch::Ref<'a, T>);
 
 impl watch::Watch for TokioWatch {
-    type Sender<T: OptionalSend + OptionalSync> = TokioWatchSender<T>;
     type Receiver<T: OptionalSend + OptionalSync> = TokioWatchReceiver<T>;
     type Ref<'a, T: OptionalSend + 'a> = TokioWatchRef<'a, T>;
+    type Sender<T: OptionalSend + OptionalSync> = TokioWatchSender<T>;
 
     #[inline]
     fn channel<T: OptionalSend + OptionalSync>(init: T) -> (Self::Sender<T>, Self::Receiver<T>) {

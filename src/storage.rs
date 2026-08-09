@@ -1,13 +1,17 @@
-use std::{collections::BTreeMap, fmt::Debug, fs, io, ops::RangeBounds, path::Path, sync::Arc};
+use std::collections::BTreeMap;
+use std::fmt::Debug;
+use std::ops::RangeBounds;
+use std::path::Path;
+use std::sync::Arc;
+use std::{fs, io};
 
-use openraft::{
-    LogState, RaftTypeConfig, StorageError,
-    alias::{LogIdOf, VoteOf},
-    entry::RaftEntry,
-};
+use openraft::alias::{LogIdOf, VoteOf};
+use openraft::entry::RaftEntry;
+use openraft::{LogState, RaftTypeConfig, StorageError};
 use openraft_rt_compio::futures::lock::Mutex;
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 const LOG_TABLE: TableDefinition<u64, &[u8]> = TableDefinition::new("raft_log");
 const META_TABLE: TableDefinition<u8, &[u8]> = TableDefinition::new("raft_meta");
@@ -62,7 +66,8 @@ impl<C: RaftTypeConfig> InMemStore<C> {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound(
     serialize = "C::Entry: Serialize, LogIdOf<C>: Serialize, VoteOf<C>: Serialize",
-    deserialize = "C::Entry: DeserializeOwned, LogIdOf<C>: DeserializeOwned, VoteOf<C>: DeserializeOwned"
+    deserialize = "C::Entry: DeserializeOwned, LogIdOf<C>: DeserializeOwned, VoteOf<C>: \
+                   DeserializeOwned"
 ))]
 pub struct InMemStoreInner<C: RaftTypeConfig> {
     /// The last purged log id.
@@ -268,14 +273,14 @@ fn write_error<C: RaftTypeConfig>(error: impl std::fmt::Display) -> StorageError
 }
 
 mod impl_log_store {
-    use std::{fmt::Debug, io, ops::RangeBounds};
+    use std::fmt::Debug;
+    use std::io;
+    use std::ops::RangeBounds;
 
-    use openraft::{
-        LogState, RaftLogReader, RaftTypeConfig, StorageError,
-        alias::{LogIdOf, VoteOf},
-        entry::RaftEntry,
-        storage::{IOFlushed, RaftLogStorage},
-    };
+    use openraft::alias::{LogIdOf, VoteOf};
+    use openraft::entry::RaftEntry;
+    use openraft::storage::{IOFlushed, RaftLogStorage};
+    use openraft::{LogState, RaftLogReader, RaftTypeConfig, StorageError};
     use serde::Serialize;
 
     use super::{

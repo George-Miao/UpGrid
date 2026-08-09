@@ -1,14 +1,10 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use base64::{
-    Engine as _,
-    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
-};
-use ring::{
-    aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey},
-    digest::{SHA256, digest},
-    rand::{SecureRandom, SystemRandom},
-};
+use base64::Engine as _;
+use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
+use ring::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
+use ring::digest::{SHA256, digest};
+use ring::rand::{SecureRandom, SystemRandom};
 use uuid::Uuid;
 
 const KEY_LEN: usize = 32;

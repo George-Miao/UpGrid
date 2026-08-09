@@ -1,13 +1,10 @@
 use std::future::Future;
 
 use futures::TryFutureExt;
-use openraft::async_runtime::Mpsc;
-use openraft::async_runtime::MpscReceiver;
-use openraft::async_runtime::MpscSender;
-use openraft::async_runtime::MpscWeakSender;
-use openraft::async_runtime::SendError;
-use openraft::async_runtime::TryRecvError;
 use openraft::OptionalSend;
+use openraft::async_runtime::{
+    Mpsc, MpscReceiver, MpscSender, MpscWeakSender, SendError, TryRecvError,
+};
 use tokio::sync::mpsc as tokio_mpsc;
 
 pub struct CompioMpsc;
@@ -33,8 +30,8 @@ impl<T> Clone for CompioMpscWeakSender<T> {
 }
 
 impl Mpsc for CompioMpsc {
-    type Sender<T: OptionalSend> = CompioMpscSender<T>;
     type Receiver<T: OptionalSend> = CompioMpscReceiver<T>;
+    type Sender<T: OptionalSend> = CompioMpscSender<T>;
     type WeakSender<T: OptionalSend> = CompioMpscWeakSender<T>;
 
     #[inline]

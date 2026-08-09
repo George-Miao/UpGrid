@@ -2,7 +2,8 @@ mod server;
 
 use std::net::{IpAddr, Ipv4Addr};
 
-use cyper::{Client, resolve::Resolve};
+use cyper::Client;
+use cyper::resolve::Resolve;
 use futures_util::{Stream, stream};
 use http::Uri;
 

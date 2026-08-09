@@ -44,10 +44,8 @@ async fn response_bytes() {
 #[compio::test]
 #[cfg(feature = "stream")]
 async fn response_bytes_stream() {
-    use std::{
-        pin::Pin,
-        task::{Context, Poll},
-    };
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
 
     use axum::body::Body;
     use compio::bytes;

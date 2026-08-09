@@ -2,7 +2,8 @@ mod server;
 
 use axum::response::IntoResponse;
 use cyper::{Client, redirect};
-use http::{StatusCode, header::LOCATION};
+use http::StatusCode;
+use http::header::LOCATION;
 
 #[compio::test]
 async fn test_redirect_follow() {

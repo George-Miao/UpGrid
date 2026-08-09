@@ -4,7 +4,8 @@ mod server;
 use std::io::Write;
 
 use decompression::Compress;
-use flate2::{Compression, write::GzEncoder};
+use flate2::Compression;
+use flate2::write::GzEncoder;
 
 struct Gzip;
 

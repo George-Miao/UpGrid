@@ -1,25 +1,21 @@
-use std::{
-    cell::{Cell, RefCell},
-    fmt::Debug,
-    fs, io,
-    io::Cursor,
-    path::{Path, PathBuf},
-    rc::Rc,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::cell::{Cell, RefCell};
+use std::fmt::Debug;
+use std::io::Cursor;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::{fs, io};
 
+use openraft::alias::SnapshotDataOf;
+use openraft::storage::{RaftStateMachine, Snapshot};
 use openraft::{
     Entry, EntryPayload, LogId, RaftSnapshotBuilder, SnapshotMeta, StorageError, StoredMembership,
-    alias::SnapshotDataOf,
-    storage::{RaftStateMachine, Snapshot},
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    domain::{ApplicationState, LegacyApplicationState, PreviousApplicationState},
-    durable,
-    raft::{Res, TC},
-};
+use crate::domain::{ApplicationState, LegacyApplicationState, PreviousApplicationState};
+use crate::durable;
+use crate::raft::{Res, TC};
 
 const STATE_MAGIC: &[u8] = b"UPGS2";
 const PREVIOUS_STATE_MAGIC: &[u8] = b"UPGS1";

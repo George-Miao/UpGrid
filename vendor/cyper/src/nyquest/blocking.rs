@@ -4,13 +4,13 @@ use std::io::Read;
 use compio::bytes::Bytes;
 use compio::runtime::Runtime;
 use futures_util::StreamExt;
+use nyquest_interface::Result;
+use nyquest_interface::blocking::{
+    BlockingBackend, BlockingClient, BlockingResponse, Request as BlockingRequest,
+};
+use nyquest_interface::client::ClientOptions;
 #[cfg(feature = "nyquest-blocking-stream")]
 use nyquest_interface::{Body, Request};
-use nyquest_interface::{
-    Result,
-    blocking::{BlockingBackend, BlockingClient, BlockingResponse, Request as BlockingRequest},
-    client::ClientOptions,
-};
 use send_wrapper::SendWrapper;
 
 use super::{CyperBackend, CyperClient, CyperResponse, to_io_error};

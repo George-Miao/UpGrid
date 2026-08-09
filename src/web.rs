@@ -1,41 +1,33 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    convert::Infallible,
-    time::Duration,
-};
+use std::collections::{BTreeMap, BTreeSet};
+use std::convert::Infallible;
+use std::time::Duration;
 
-use axum::{
-    Json, Router,
-    extract::{Path, Request, State},
-    http::{HeaderValue, StatusCode, header},
-    middleware::{self, Next},
-    response::{
-        IntoResponse, Response, Sse,
-        sse::{Event, KeepAlive},
-    },
-    routing::get,
-};
-use base64::{Engine as _, engine::general_purpose::STANDARD};
+use axum::extract::{Path, Request, State};
+use axum::http::{HeaderValue, StatusCode, header};
+use axum::middleware::{self, Next};
+use axum::response::sse::{Event, KeepAlive};
+use axum::response::{IntoResponse, Response, Sse};
+use axum::routing::get;
+use axum::{Json, Router};
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use serde::{Deserialize, Serialize};
 use url::Url;
 use utoipa::ToSchema;
-use utoipa::openapi::{
-    Components, Info,
-    security::{Http, HttpAuthScheme, SecurityRequirement, SecurityScheme},
-};
-use utoipa_axum::{router::OpenApiRouter, routes};
+use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityRequirement, SecurityScheme};
+use utoipa::openapi::{Components, Info};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 use uuid::Uuid;
 
-use crate::{
-    app::{AppResult, Config},
-    cluster::{ClusterError, Handle},
-    domain::{
-        AlertDelivery, AlertKind, AvailabilityState, Command, ConfigValue, DomainError,
-        EvaluationPolicy, HttpTarget, NotificationChannel, NotificationChannelId,
-        NotificationChannelKind, Secret, SecretId, StatusRange, Target, TargetId, TargetState,
-    },
-    secret::Cipher,
+use crate::app::{AppResult, Config};
+use crate::cluster::{ClusterError, Handle};
+use crate::domain::{
+    AlertDelivery, AlertKind, AvailabilityState, Command, ConfigValue, DomainError,
+    EvaluationPolicy, HttpTarget, NotificationChannel, NotificationChannelId,
+    NotificationChannelKind, Secret, SecretId, StatusRange, Target, TargetId, TargetState,
 };
+use crate::secret::Cipher;
 
 #[derive(Clone)]
 struct WebState {

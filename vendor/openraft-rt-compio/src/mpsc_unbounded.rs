@@ -1,7 +1,7 @@
 //! Unbounded MPSC channel wrapper types and their trait impl.
 
-use openraft::type_config::async_runtime::mpsc_unbounded;
 use openraft::OptionalSend;
+use openraft::type_config::async_runtime::mpsc_unbounded;
 use tokio::sync::mpsc as tokio_mpsc;
 
 pub struct TokioMpscUnbounded;
@@ -27,8 +27,8 @@ impl<T> Clone for TokioMpscUnboundedWeakSender<T> {
 }
 
 impl mpsc_unbounded::MpscUnbounded for TokioMpscUnbounded {
-    type Sender<T: OptionalSend> = TokioMpscUnboundedSender<T>;
     type Receiver<T: OptionalSend> = TokioMpscUnboundedReceiver<T>;
+    type Sender<T: OptionalSend> = TokioMpscUnboundedSender<T>;
     type WeakSender<T: OptionalSend> = TokioMpscUnboundedWeakSender<T>;
 
     #[inline]

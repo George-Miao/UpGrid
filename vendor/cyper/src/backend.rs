@@ -95,12 +95,12 @@ impl TlsBackend {
                 Ok(TlsConnector::from(if let Some(config) = config.clone() {
                     config
                 } else {
+                    use compio::rustls::client::danger::{
+                        HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier,
+                    };
+                    use compio::rustls::pki_types::{CertificateDer, ServerName, UnixTime};
                     use compio::rustls::{
                         ClientConfig, DigitallySignedStruct, Error as TLSError, SignatureScheme,
-                        client::danger::{
-                            HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier,
-                        },
-                        pki_types::{CertificateDer, ServerName, UnixTime},
                     };
                     use rustls_platform_verifier::ConfigVerifierExt;
 

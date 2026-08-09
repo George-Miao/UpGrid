@@ -2,17 +2,18 @@
 use std::task::{Context, Poll};
 
 use cyper_core::{CompioExecutor, CompioTimer};
-use http::{HeaderValue, header::Entry};
+use http::HeaderValue;
+use http::header::Entry;
 use hyper::{HeaderMap, Method, StatusCode, Uri};
 use url::Url;
 #[cfg(feature = "cookies")]
 use {compio::bytes::Bytes, cookie_store::CookieStore, std::sync::RwLock};
 
+use crate::resolve::{Resolve, SharedResolver};
+use crate::sync::shared::Shared;
 use crate::{
     Body, Connector, IntoUrl, Request, RequestBuilder, Response, Result, TlsBackend, proxy,
     redirect,
-    resolve::{Resolve, SharedResolver},
-    sync::shared::Shared,
 };
 
 /// An asynchronous `Client` to make Requests with.

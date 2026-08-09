@@ -1,34 +1,29 @@
-use std::{
-    cell::{OnceCell, RefCell},
-    pin::pin,
-    rc::Rc,
-};
+use std::cell::{OnceCell, RefCell};
+use std::pin::pin;
+use std::rc::Rc;
 
-use compio::{
-    net::ToSocketAddrsAsync,
-    runtime::{JoinHandle, spawn},
-};
+use compio::net::ToSocketAddrsAsync;
+use compio::runtime::{JoinHandle, spawn};
 use compio_quic::{Connection, Endpoint, Incoming};
 use openraft::alias::NodeOf;
-use openraft_rt_compio::futures::{FutureExt, StreamExt, lock::Mutex};
-use quick_cache::{Equivalent, unsync::Cache};
-use snafu::{OptionExt, ResultExt, futures::TryFutureExt as SnafuTryFutureExt};
+use openraft_rt_compio::futures::lock::Mutex;
+use openraft_rt_compio::futures::{FutureExt, StreamExt};
+use quick_cache::Equivalent;
+use quick_cache::unsync::Cache;
+use snafu::futures::TryFutureExt as SnafuTryFutureExt;
+use snafu::{OptionExt, ResultExt};
 use tap::Pipe;
-use tarpc::{
-    client::{Config, NewClient},
-    server::{BaseChannel, Channel},
-};
+use tarpc::client::{Config, NewClient};
+use tarpc::server::{BaseChannel, Channel};
 use tracing::debug;
 
+use crate::network::UpgridServer;
+use crate::network::rpc::{UpgridService, UpgridServiceClient};
+use crate::network::transport::{accept_framed, bi_stream_framed};
+use crate::raft::{Raft, TC};
 use crate::{
     QuicConnectSnafu, QuicConnectionSnafu, QuicIncomingStreamSnafu, ResolveEmptySnafu,
     ResolveSnafu, Result,
-    network::{
-        UpgridServer,
-        rpc::{UpgridService, UpgridServiceClient},
-        transport::{accept_framed, bi_stream_framed},
-    },
-    raft::{Raft, TC},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

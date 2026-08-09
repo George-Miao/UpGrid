@@ -1,6 +1,7 @@
 use std::net::{Ipv4Addr, SocketAddr};
 
-use axum::{extract::Request, handler::HandlerWithoutStateExt};
+use axum::extract::Request;
+use axum::handler::HandlerWithoutStateExt;
 use compio::net::TcpListener;
 use futures_channel::oneshot;
 

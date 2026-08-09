@@ -3,10 +3,8 @@
 mod server;
 
 use axum::extract::Request;
-use cyper::{
-    Client,
-    proxy::{NoProxy, Proxy},
-};
+use cyper::Client;
+use cyper::proxy::{NoProxy, Proxy};
 use http::{Method, StatusCode};
 
 // ===== HTTP Forward Proxy Tests =====

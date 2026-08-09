@@ -1,36 +1,29 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
-    sync::mpsc::{Receiver, TryRecvError},
-    time::Instant,
-};
+use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
+use std::sync::mpsc::{Receiver, TryRecvError};
+use std::time::Instant;
 
-use compio::{
-    buf::bytes::Bytes,
-    net::{ToSocketAddrsAsync, UdpSocket},
-    quic::{
-        ClientBuilder, ConnectError, Connecting, Connection, Endpoint, EndpointConfig,
-        h3::{OpenStreams, client::SendRequest},
-    },
-    runtime::Runtime,
-};
-use futures_util::{Stream, StreamExt, TryStreamExt, future::Either, stream};
+use compio::buf::bytes::Bytes;
+use compio::net::{ToSocketAddrsAsync, UdpSocket};
+use compio::quic::h3::OpenStreams;
+use compio::quic::h3::client::SendRequest;
+use compio::quic::{ClientBuilder, ConnectError, Connecting, Connection, Endpoint, EndpointConfig};
+use compio::runtime::Runtime;
+use futures_util::future::Either;
+use futures_util::{Stream, StreamExt, TryStreamExt, stream};
 use h3::error::ConnectionError;
-use http::{
-    Request, Uri,
-    uri::{Authority, Scheme},
-};
+use http::uri::{Authority, Scheme};
+use http::{Request, Uri};
 use http_body_util::BodyDataStream;
 use hyper::body::Buf;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use url::Url;
 
-use crate::{
-    Body, Error, Response, Result,
-    resolve::SharedResolver,
-    sync::{mutex_blocking::Mutex, shared::Shared},
-};
+use crate::resolve::SharedResolver;
+use crate::sync::mutex_blocking::Mutex;
+use crate::sync::shared::Shared;
+use crate::{Body, Error, Response, Result};
 
 mod sync {
     cfg_if::cfg_if! {

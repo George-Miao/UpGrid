@@ -1,8 +1,9 @@
-use std::{fmt::Debug, net::IpAddr};
+use std::fmt::Debug;
+use std::net::IpAddr;
 
-use futures_util::{
-    FutureExt, Stream, StreamExt, TryFutureExt, future::LocalBoxFuture, stream::LocalBoxStream,
-};
+use futures_util::future::LocalBoxFuture;
+use futures_util::stream::LocalBoxStream;
+use futures_util::{FutureExt, Stream, StreamExt, TryFutureExt};
 use http::Uri;
 use send_wrapper::SendWrapper;
 

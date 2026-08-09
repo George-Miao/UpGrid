@@ -3,15 +3,15 @@
 //! This support is experimental. Not all features are implemented.
 //! It might break regardless of semver in future releases.
 
-use std::{borrow::Cow, time::Duration};
+use std::borrow::Cow;
+use std::time::Duration;
 
 use http::{HeaderMap, HeaderName, HeaderValue};
 use http_body_util::BodyExt;
 #[cfg(feature = "nyquest-multipart")]
 use nyquest_interface::PartBody as NyquestPartBody;
-use nyquest_interface::{
-    Body as NyquestBody, Error as NyquestError, Request, Result, client::ClientOptions,
-};
+use nyquest_interface::client::ClientOptions;
+use nyquest_interface::{Body as NyquestBody, Error as NyquestError, Request, Result};
 use send_wrapper::SendWrapper;
 use url::Url;
 

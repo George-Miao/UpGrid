@@ -1,10 +1,12 @@
 //! Vendored and modified from `altsvc` crate.
 
-use std::{collections::HashMap, time::Instant};
+use std::collections::HashMap;
+use std::time::Instant;
 
 use thiserror::Error;
 
-use crate::sync::{mutex_blocking::Mutex, shared::Shared};
+use crate::sync::mutex_blocking::Mutex;
+use crate::sync::shared::Shared;
 
 #[derive(Error, Debug)]
 pub enum ParseError {

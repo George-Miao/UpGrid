@@ -2,10 +2,8 @@ use std::io;
 
 use async_stream::try_stream;
 use compio::bytes::Bytes;
-use compression_codecs::{
-    DecodeV2,
-    core::util::{PartialBuffer, WriteBuffer},
-};
+use compression_codecs::DecodeV2;
+use compression_codecs::core::util::{PartialBuffer, WriteBuffer};
 use futures_util::Stream;
 use http_body_util::BodyExt;
 use hyper::body::Incoming;

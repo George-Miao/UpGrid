@@ -1,9 +1,7 @@
 use std::fmt::Display;
 
-use hyper::{
-    HeaderMap, Method, Version,
-    header::{AUTHORIZATION, CONTENT_TYPE, HeaderName, HeaderValue},
-};
+use hyper::header::{AUTHORIZATION, CONTENT_TYPE, HeaderName, HeaderValue};
+use hyper::{HeaderMap, Method, Version};
 use serde::Serialize;
 use url::Url;
 

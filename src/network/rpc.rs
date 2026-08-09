@@ -1,29 +1,25 @@
-use std::{rc::Rc, time::Instant};
+use std::rc::Rc;
+use std::time::Instant;
 
 use compio::time::sleep;
-use openraft::{
-    ReadPolicy,
-    alias::LogIdOf,
-    async_runtime::watch::WatchReceiver,
-    error::{
-        ChangeMembershipError, CheckIsLeaderError, ClientWriteError, InstallSnapshotError,
-        RaftError,
-    },
-    raft::{
-        AppendEntriesRequest, AppendEntriesResponse, ClientWriteResponse, InstallSnapshotRequest,
-        InstallSnapshotResponse, VoteRequest, VoteResponse,
-    },
+use openraft::ReadPolicy;
+use openraft::alias::LogIdOf;
+use openraft::async_runtime::watch::WatchReceiver;
+use openraft::error::{
+    ChangeMembershipError, CheckIsLeaderError, ClientWriteError, InstallSnapshotError, RaftError,
+};
+use openraft::raft::{
+    AppendEntriesRequest, AppendEntriesResponse, ClientWriteResponse, InstallSnapshotRequest,
+    InstallSnapshotResponse, VoteRequest, VoteResponse,
 };
 use openraft_rt_compio::futures::lock::Mutex;
 use serde::{Deserialize, Serialize};
 use tarpc::context::Context;
 
-use crate::{
-    Result,
-    domain::{Command, DomainError},
-    raft::{Identity, Raft, Req, TC},
-    secret::{hash_join_token, join_operation_id},
-};
+use crate::Result;
+use crate::domain::{Command, DomainError};
+use crate::raft::{Identity, Raft, Req, TC};
+use crate::secret::{hash_join_token, join_operation_id};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum JoinError {
@@ -243,20 +239,23 @@ impl UpgridService for UpgridServer {
 mod test {
     use std::time::Duration;
 
-    use compio::{runtime::spawn, time::sleep};
-    use openraft_rt_compio::futures::{StreamExt, future::try_join};
-    use tarpc::{
-        client::{Config, NewClient},
-        context::Context,
-        server::{BaseChannel, Channel},
-    };
-    use tracing::{info, level_filters::LevelFilter};
-    use tracing_subscriber::{
-        Layer, filter::Targets, layer::SubscriberExt, util::SubscriberInitExt,
-    };
+    use compio::runtime::spawn;
+    use compio::time::sleep;
+    use openraft_rt_compio::futures::StreamExt;
+    use openraft_rt_compio::futures::future::try_join;
+    use tarpc::client::{Config, NewClient};
+    use tarpc::context::Context;
+    use tarpc::server::{BaseChannel, Channel};
+    use tracing::info;
+    use tracing::level_filters::LevelFilter;
+    use tracing_subscriber::Layer;
+    use tracing_subscriber::filter::Targets;
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
 
     use super::*;
-    use crate::{network::bi_stream_framed, utils::unsafe_endpoint};
+    use crate::network::bi_stream_framed;
+    use crate::utils::unsafe_endpoint;
 
     #[test]
     fn recognizes_membership_change_in_progress() {

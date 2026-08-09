@@ -4,7 +4,8 @@
 //! maximum redirect chain of 10 hops. To customize this behavior, a
 //! `redirect::Policy` can be used with a `ClientBuilder`.
 
-use std::{error::Error as StdError, fmt};
+use std::error::Error as StdError;
+use std::fmt;
 
 use http::{HeaderMap, HeaderValue, StatusCode};
 use hyper::header::{AUTHORIZATION, COOKIE, PROXY_AUTHORIZATION, WWW_AUTHENTICATE};

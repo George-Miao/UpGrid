@@ -1,9 +1,7 @@
 //! Code from cyper_core.
 
-use hyper::{
-    HeaderMap,
-    header::{Entry, HeaderValue, OccupiedEntry},
-};
+use hyper::HeaderMap;
+use hyper::header::{Entry, HeaderValue, OccupiedEntry};
 
 pub fn basic_auth<U, P>(username: U, password: Option<P>) -> HeaderValue
 where
@@ -12,7 +10,8 @@ where
 {
     use std::io::Write;
 
-    use base64::{prelude::BASE64_STANDARD, write::EncoderWriter};
+    use base64::prelude::BASE64_STANDARD;
+    use base64::write::EncoderWriter;
 
     let mut buf = b"Basic ".to_vec();
     {
@@ -58,11 +57,9 @@ pub(crate) fn replace_headers(dst: &mut HeaderMap, src: HeaderMap) {
 
 #[cfg(feature = "multipart")]
 pub(crate) fn fast_random() -> u64 {
-    use std::{
-        cell::Cell,
-        collections::hash_map::RandomState,
-        hash::{BuildHasher, Hasher},
-    };
+    use std::cell::Cell;
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hasher};
 
     thread_local! {
         static KEY: RandomState = RandomState::new();

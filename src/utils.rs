@@ -1,27 +1,24 @@
 use std::sync::Arc;
 
 use compio::net::UdpSocket;
-use compio_quic::{
-    Endpoint, EndpointConfig, ServerConfig,
-    crypto::rustls::{QuicClientConfig, QuicServerConfig},
-};
+use compio_quic::crypto::rustls::{QuicClientConfig, QuicServerConfig};
+use compio_quic::{Endpoint, EndpointConfig, ServerConfig};
 use rcgen::{
     BasicConstraints, CertificateParams, CertifiedIssuer, ExtendedKeyUsagePurpose, IsCa, KeyPair,
     PKCS_ED25519,
 };
-use rustls::{
-    DigitallySignedStruct, RootCertStore, SignatureScheme,
-    client::danger,
-    crypto::{CryptoProvider, verify_tls12_signature, verify_tls13_signature},
-    pki_types::{CertificateDer, PrivatePkcs8KeyDer, ServerName, UnixTime},
-    server::WebPkiClientVerifier,
-};
+use rustls::client::danger;
+use rustls::crypto::{CryptoProvider, verify_tls12_signature, verify_tls13_signature};
+use rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer, ServerName, UnixTime};
+use rustls::server::WebPkiClientVerifier;
+use rustls::{DigitallySignedStruct, RootCertStore, SignatureScheme};
 use snafu::ResultExt;
 use uuid::{ContextV7, Timestamp, Uuid};
 
+use crate::secret::Cipher;
 use crate::{
     CertificateSnafu, CertificateVerifierSnafu, EndpointCreationSnafu, QuicCipherSuiteSnafu,
-    Result, TLSSnafu, secret::Cipher,
+    Result, TLSSnafu,
 };
 
 #[thread_local]

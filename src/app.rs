@@ -1,8 +1,6 @@
-use std::{
-    env, fs, io,
-    path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::{env, fs, io};
 
 use uuid::Uuid;
 
@@ -95,24 +93,18 @@ impl Config {
 
 fn print_help() {
     println!(
-        "UpGrid service monitor\n\n\
-         Usage: upgrid [OPTIONS]\n\n\
-         Options:\n  \
-           --bind ADDRESS       API address [default: 127.0.0.1:8080]\n  \
-           --raft-url URL       advertised Raft URL [default: up://127.0.0.1:11451]\n  \
-           --join JOIN_LINK     join with a single-use up:// invitation\n  \
-           --data-dir PATH      persistent data directory [default: upgrid-data]\n  \
-           --username USER      Basic Auth username [default: admin]\n  \
-           --password PASSWORD  Basic Auth password [default: upgrid]\n  \
-           --secret-key BASE64  bootstrap or recovery deployment key\n  \
-           --history-retention-hours HOURS\n  \
-                                retain raw evaluations [default: 24]\n  \
-           --print-openapi      print generated OpenAPI JSON and exit\n  \
-           -h, --help           show this help\n\n\
-         The same settings are available as UPGRID_BIND, UPGRID_RAFT_URL,\n\
-         UPGRID_JOIN, UPGRID_DATA_DIR, UPGRID_USERNAME,\n\
-         UPGRID_PASSWORD,\n\
-         UPGRID_SECRET_KEY, and UPGRID_HISTORY_RETENTION_HOURS."
+        "UpGrid service monitor\n\nUsage: upgrid [OPTIONS]\n\nOptions:\n  --bind ADDRESS       \
+         API address [default: 127.0.0.1:8080]\n  --raft-url URL       advertised Raft URL \
+         [default: up://127.0.0.1:11451]\n  --join JOIN_LINK     join with a single-use up:// \
+         invitation\n  --data-dir PATH      persistent data directory [default: upgrid-data]\n  \
+         --username USER      Basic Auth username [default: admin]\n  --password PASSWORD  Basic \
+         Auth password [default: upgrid]\n  --secret-key BASE64  bootstrap or recovery deployment \
+         key\n  --history-retention-hours HOURS\n  retain raw evaluations [default: 24]\n  \
+         --print-openapi      print generated OpenAPI JSON and exit\n  -h, --help           show \
+         this help\n\nThe same settings are available as UPGRID_BIND, \
+         UPGRID_RAFT_URL,\nUPGRID_JOIN, UPGRID_DATA_DIR, \
+         UPGRID_USERNAME,\nUPGRID_PASSWORD,\nUPGRID_SECRET_KEY, and \
+         UPGRID_HISTORY_RETENTION_HOURS."
     );
 }
 

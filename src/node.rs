@@ -1,32 +1,26 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::Path,
-    rc::Rc,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
+use std::rc::Rc;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use compio::runtime::{JoinHandle, spawn};
 use compio::time::{sleep, timeout};
-use openraft::{
-    Config, ReadPolicy,
-    async_runtime::watch::WatchReceiver as _,
-    error::{ClientWriteError, InitializeError, RaftError},
-};
+use openraft::async_runtime::watch::WatchReceiver as _;
+use openraft::error::{ClientWriteError, InitializeError, RaftError};
+use openraft::{Config, ReadPolicy};
 use snafu::ResultExt;
 use tarpc::context::Context;
 use tracing::{debug, error, info};
 use url::Url;
 
-use crate::{
-    error::*,
-    network::{Controller, JoinError, UpgridNetwork, UpgridNode},
-    raft::{Identity, Raft, Req, Res},
-    secret::Cipher,
-    state_machine::StateMachine,
-    storage::InMemStore,
-    utils::secure_endpoint,
-};
+use crate::error::*;
+use crate::network::{Controller, JoinError, UpgridNetwork, UpgridNode};
+use crate::raft::{Identity, Raft, Req, Res};
+use crate::secret::Cipher;
+use crate::state_machine::StateMachine;
+use crate::storage::InMemStore;
+use crate::utils::secure_endpoint;
 
 pub struct Node {
     id: Identity,

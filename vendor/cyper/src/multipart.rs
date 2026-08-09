@@ -1,9 +1,11 @@
 //! multipart/form-data
+use std::borrow::Cow;
+use std::fmt;
 #[cfg(feature = "stream")]
 use std::io;
 #[cfg(feature = "stream")]
 use std::path::Path;
-use std::{borrow::Cow, fmt, pin::Pin};
+use std::pin::Pin;
 
 use compio::bytes::Bytes;
 #[cfg(feature = "stream")]

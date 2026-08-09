@@ -1,16 +1,14 @@
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use futures_util::StreamExt;
+use nyquest_interface::Result;
+use nyquest_interface::r#async::{
+    AsyncBackend, AsyncClient, AsyncResponse, Request as AsyncRequest,
+};
+use nyquest_interface::client::ClientOptions;
 #[cfg(feature = "nyquest-async-stream")]
 use nyquest_interface::{Body, Request};
-use nyquest_interface::{
-    Result,
-    r#async::{AsyncBackend, AsyncClient, AsyncResponse, Request as AsyncRequest},
-    client::ClientOptions,
-};
 
 use super::{CyperBackend, CyperClient, CyperResponse, to_io_error};
 

@@ -3,7 +3,10 @@
 use std::str::FromStr;
 
 use tracing::level_filters::LevelFilter;
-use tracing_subscriber::{Layer, filter::Targets, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::Layer;
+use tracing_subscriber::filter::Targets;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 mod admission;
 mod app;
@@ -100,7 +103,8 @@ async fn run() -> app::AppResult<()> {
     }
     if config.username == "admin" && config.password == "upgrid" {
         tracing::warn!(
-            "using default credentials; set UPGRID_USERNAME and UPGRID_PASSWORD before exposing the API"
+            "using default credentials; set UPGRID_USERNAME and UPGRID_PASSWORD before exposing \
+             the API"
         );
     }
     let (cluster, receiver) = cluster::Handle::new(node_id);
