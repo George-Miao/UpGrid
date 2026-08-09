@@ -107,15 +107,21 @@ impl ApplicationState {
                 self.join_tokens.insert(hash, expires_at_ms);
                 Ok(CommandResult::JoinTokenStored)
             }
-            Command::ConsumeJoinToken {
+            Command::AuthorizeJoinToken {
                 hash,
-                consumed_at_ms,
-            } => match self.join_tokens.remove(&hash) {
-                Some(expires_at_ms) if consumed_at_ms <= expires_at_ms => {
-                    Ok(CommandResult::JoinTokenConsumed)
+                authorized_at_ms,
+            } => match self.join_tokens.get(&hash) {
+                Some(expires_at_ms) if authorized_at_ms <= *expires_at_ms => {
+                    Ok(CommandResult::JoinTokenAuthorized)
                 }
                 _ => Err(DomainError::InvalidJoinToken),
             },
+            Command::RevokeJoinToken(hash) => {
+                self.join_tokens
+                    .remove(&hash)
+                    .ok_or(DomainError::InvalidJoinToken)?;
+                Ok(CommandResult::JoinTokenRevoked)
+            }
             Command::RecordEvaluation(evaluation) => self.record_evaluation(evaluation),
             Command::MarkAlertDelivered {
                 alert_id,

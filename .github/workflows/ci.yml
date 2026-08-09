@@ -30,5 +30,6 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo test --workspace --no-run
       - run: cargo test published_openapi_matches_routes
+      - run: scripts/test-api-tls.sh
       - run: pnpm --dir frontend exec playwright install --with-deps chromium
       - run: scripts/test-webui.sh

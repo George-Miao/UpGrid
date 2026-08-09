@@ -1,4 +1,4 @@
-//! Single-use Cluster admission links.
+//! Reusable, revocable Cluster admission links.
 
 use std::fmt::{Debug, Display, Formatter};
 
@@ -11,8 +11,7 @@ use crate::Cipher;
 
 const VERSION: u8 = 1;
 
-/// A short-lived bearer invitation containing everything a new Node needs to
-/// join.
+/// A bearer invitation containing everything a new Node needs to join.
 #[derive(Clone)]
 pub struct JoinLink {
     url: Url,
@@ -175,7 +174,7 @@ mod tests {
         let link = JoinLink::issue(
             "up://127.0.0.1:11451",
             &cipher(),
-            "single-use-token".to_owned(),
+            "reusable-token".to_owned(),
         )
         .unwrap();
         let encoded = link.to_string();
@@ -183,7 +182,7 @@ mod tests {
 
         assert!(encoded.starts_with("up://127.0.0.1:11451/"));
         assert_eq!(parsed.remote().as_str(), "up://127.0.0.1:11451");
-        assert_eq!(parsed.token(), "single-use-token");
+        assert_eq!(parsed.token(), "reusable-token");
         assert_eq!(parsed.cipher().encoded(), cipher().encoded());
         assert_eq!(format!("{parsed:?}"), "JoinLink { url: \"[REDACTED]\" }");
     }

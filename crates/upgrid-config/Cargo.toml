@@ -6,6 +6,8 @@ edition.workspace = true
 
 [dependencies]
 base64.workspace = true
+clap.workspace = true
+figment.workspace = true
 postcard.workspace = true
 ring.workspace = true
 serde.workspace = true

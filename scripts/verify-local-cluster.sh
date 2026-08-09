@@ -61,12 +61,14 @@ wait_for_api() {
 start_node 1 --secret-key "$secret_key"
 wait_for_api "$api_base_port" "${pids[0]}"
 
+join_token="$(curl --fail --silent --user "${username}:${password}" \
+  --header 'content-type: application/json' \
+  --data '{"expires_in_seconds":300}' \
+  "http://127.0.0.1:${api_base_port}/api/v1/join-tokens")"
+join_link="$(printf '%s' "$join_token" | jq --raw-output '.url')"
+join_token_id="$(printf '%s' "$join_token" | jq --raw-output '.id')"
+
 for number in $(seq 2 "$node_count"); do
-  join_link="$(curl --fail --silent --user "${username}:${password}" \
-    --header 'content-type: application/json' \
-    --data '{"expires_in_seconds":300}' \
-    "http://127.0.0.1:${api_base_port}/api/v1/join-links" \
-    | jq --raw-output '.url')"
   start_node "$number" \
     --join "$join_link"
 done
@@ -74,6 +76,31 @@ done
 for number in $(seq 2 "$node_count"); do
   wait_for_api "$((api_base_port + number - 1))" "${pids[number - 1]}"
 done
+
+curl --fail --silent --user "${username}:${password}" \
+  --request DELETE \
+  "http://127.0.0.1:${api_base_port}/api/v1/join-tokens/${join_token_id}" >/dev/null
+
+revoked_number=$((node_count + 1))
+start_node "$revoked_number" --join "$join_link"
+revoked_pid="${pids[revoked_number - 1]}"
+rejected=false
+for _ in $(seq 1 100); do
+  if ! kill -0 "$revoked_pid" 2>/dev/null; then
+    rejected=true
+    break
+  fi
+  sleep 0.1
+done
+if [[ "$rejected" != true ]]; then
+  echo "Revoked Join Token still admitted a Node" >&2
+  exit 1
+fi
+if ! rg --quiet 'invalid, expired, or revoked' "${test_root}/node-${revoked_number}.log"; then
+  echo "Revoked Join Token failed without the expected rejection" >&2
+  cat "${test_root}/node-${revoked_number}.log" >&2
+  exit 1
+fi
 
 # Exercise multiple heartbeat/read-barrier rounds instead of validating only
 # the instant at which membership commits.

@@ -18,11 +18,12 @@ use openraft_rt_compio::futures::lock::Mutex;
 use serde::{Deserialize, Serialize};
 use tarpc::context::Context;
 use upgrid_config::now_ms;
+use uuid::Uuid;
 
 use crate::Result;
 use crate::domain::{Command, DomainError};
 use crate::raft::{Identity, Raft, Req, TC};
-use crate::token::{hash_join_token, join_operation_id};
+use crate::token::hash_join_token;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum JoinError {
@@ -165,19 +166,19 @@ impl UpgridService for UpgridServer {
         }
         let now_ms = now_ms();
         let token_hash = hash_join_token(&token);
-        let consumed = self
+        let authorized = self
             .raft
             .client_write(Req {
-                operation_id: join_operation_id(&token, remote_id),
+                operation_id: Uuid::now_v7(),
                 submitted_at_ms: now_ms,
-                command: Command::ConsumeJoinToken {
+                command: Command::AuthorizeJoinToken {
                     hash: token_hash,
-                    consumed_at_ms: now_ms,
+                    authorized_at_ms: now_ms,
                 },
             })
             .await
             .map_err(JoinError::Raft)?;
-        consumed.data.result.map_err(JoinError::Rejected)?;
+        authorized.data.result.map_err(JoinError::Rejected)?;
         if !already_known {
             self.add_learner_when_ready(&context, &remote)
                 .await

@@ -155,7 +155,7 @@ fn history_retention_is_replicated_configuration() {
 }
 
 #[test]
-fn join_token_is_single_use_and_expires() {
+fn join_token_is_reusable_until_expiry_or_revocation() {
     let mut state = ApplicationState::default();
     let hash = JoinTokenHash([7; 32]);
     state
@@ -167,42 +167,48 @@ fn join_token_is_single_use_and_expires() {
 
     assert_eq!(
         state
-            .apply(Command::ConsumeJoinToken {
+            .apply(Command::AuthorizeJoinToken {
                 hash,
-                consumed_at_ms: 1_000,
+                authorized_at_ms: 1_000,
             })
             .unwrap(),
-        CommandResult::JoinTokenConsumed
+        CommandResult::JoinTokenAuthorized
+    );
+    assert_eq!(
+        state
+            .apply(Command::AuthorizeJoinToken {
+                hash,
+                authorized_at_ms: 1_001,
+            })
+            .unwrap(),
+        CommandResult::JoinTokenAuthorized
     );
     assert!(
         state
-            .apply(Command::ConsumeJoinToken {
+            .apply(Command::AuthorizeJoinToken {
                 hash,
-                consumed_at_ms: 1_001,
+                authorized_at_ms: 2_001,
             })
             .is_err()
     );
-
-    state
-        .apply(Command::PutJoinToken {
-            hash,
-            expires_at_ms: 2_000,
-        })
-        .unwrap();
+    assert_eq!(
+        state.apply(Command::RevokeJoinToken(hash)).unwrap(),
+        CommandResult::JoinTokenRevoked
+    );
     assert!(
         state
-            .apply(Command::ConsumeJoinToken {
+            .apply(Command::AuthorizeJoinToken {
                 hash,
-                consumed_at_ms: 2_001,
+                authorized_at_ms: 1_000,
             })
             .is_err()
     );
 }
 
 #[test]
-fn join_token_retry_is_idempotent_only_for_the_same_node() {
+fn reusable_join_token_authorizes_different_nodes() {
     let mut state = ApplicationState::default();
-    let token = "one-time-invitation";
+    let token = "reusable-invitation";
     let hash = crate::token::hash_join_token(token);
     let first_node = id(1);
     let second_node = id(2);
@@ -213,32 +219,28 @@ fn join_token_retry_is_idempotent_only_for_the_same_node() {
         })
         .unwrap();
 
-    let consume = || Command::ConsumeJoinToken {
+    let authorize = || Command::AuthorizeJoinToken {
         hash,
-        consumed_at_ms: 1_000,
+        authorized_at_ms: 1_000,
     };
-    let first_operation = crate::token::join_operation_id(token, first_node);
+    let first_operation = first_node;
     assert_eq!(
         state
-            .apply_operation(first_operation, 1_000, consume())
+            .apply_operation(first_operation, 1_000, authorize())
             .unwrap(),
-        CommandResult::JoinTokenConsumed
+        CommandResult::JoinTokenAuthorized
     );
     assert_eq!(
         state
-            .apply_operation(first_operation, 1_001, consume())
+            .apply_operation(first_operation, 1_001, authorize())
             .unwrap(),
-        CommandResult::JoinTokenConsumed
+        CommandResult::JoinTokenAuthorized
     );
     assert_eq!(
         state
-            .apply_operation(
-                crate::token::join_operation_id(token, second_node),
-                1_001,
-                consume(),
-            )
-            .unwrap_err(),
-        DomainError::InvalidJoinToken
+            .apply_operation(second_node, 1_001, authorize(),)
+            .unwrap(),
+        CommandResult::JoinTokenAuthorized
     );
 }
 use super::evaluation::{evaluation, id, state_with_target, target};

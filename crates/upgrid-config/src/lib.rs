@@ -2,6 +2,7 @@
 
 mod admission;
 mod app;
+mod cli;
 pub mod durable;
 mod secret;
 

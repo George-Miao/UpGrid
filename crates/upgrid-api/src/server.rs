@@ -29,6 +29,8 @@ async fn serve(
     cluster: Handle,
     cipher: Cipher,
 ) -> AppResult<()> {
+    let tls_cert = config.tls_cert.clone();
+    let tls_key = config.tls_key.clone();
     let state = WebState {
         cluster,
         cipher,
@@ -59,10 +61,18 @@ async fn serve(
             get(|| async { Json(serde_json::json!({"status": "ok"})) }),
         )
         .route("/assets/app.js", get(webui_script))
+        .route("/assets/state.js", get(shared_script))
         .route("/favicon.svg", get(favicon))
         .merge(protected);
-    let listener = tokio::net::TcpListener::from_std(listener)?;
-    axum::serve(listener, app).await?;
+    if let (Some(cert), Some(key)) = (tls_cert, tls_key) {
+        let tls = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key).await?;
+        axum_server::from_tcp_rustls(listener, tls)?
+            .serve(app.into_make_service())
+            .await?;
+    } else {
+        let listener = tokio::net::TcpListener::from_std(listener)?;
+        axum::serve(listener, app).await?;
+    }
     Ok(())
 }
 
@@ -76,7 +86,8 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(delete_channel))
         .routes(routes!(list_secrets, create_secret))
         .routes(routes!(delete_secret))
-        .routes(routes!(create_join_link))
+        .routes(routes!(list_join_tokens, create_join_token))
+        .routes(routes!(revoke_join_token))
         .routes(routes!(list_alerts))
         .routes(routes!(get_cluster))
         .routes(routes!(events))

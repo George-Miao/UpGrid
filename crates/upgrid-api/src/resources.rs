@@ -198,43 +198,105 @@ pub(super) async fn delete_secret(
 }
 
 #[utoipa::path(
-    post,
-    path = "/api/v1/join-links",
-    request_body = CreateJoinLinkRequest,
+    get,
+    path = "/api/v1/join-tokens",
     responses(
-        (status = 201, body = JoinLinkView),
+        (status = 200, body = [JoinTokenView]),
+        (status = 401, body = ErrorBody),
+        (status = 503, body = ErrorBody),
+    )
+)]
+pub(super) async fn list_join_tokens(
+    State(state): State<WebState>,
+) -> Result<Json<Vec<JoinTokenView>>, ApiError> {
+    let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
+    Ok(Json(
+        snapshot
+            .join_tokens
+            .iter()
+            .map(|(hash, expires_at_ms)| JoinTokenView {
+                id: encode_join_token_id(hash),
+                expires_at_ms: *expires_at_ms,
+            })
+            .collect(),
+    ))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/join-tokens",
+    request_body = CreateJoinTokenRequest,
+    responses(
+        (status = 201, body = CreatedJoinTokenView),
         (status = 400, body = ErrorBody),
         (status = 401, body = ErrorBody),
         (status = 503, body = ErrorBody),
     )
 )]
-pub(super) async fn create_join_link(
+pub(super) async fn create_join_token(
     State(state): State<WebState>,
-    Json(input): Json<CreateJoinLinkRequest>,
-) -> Result<(StatusCode, Json<JoinLinkView>), ApiError> {
+    Json(input): Json<CreateJoinTokenRequest>,
+) -> Result<(StatusCode, Json<CreatedJoinTokenView>), ApiError> {
     if input.expires_in_seconds == 0 || input.expires_in_seconds > 24 * 60 * 60 {
         return Err(ApiError::bad_request(
             "join link lifetime must be between 1 second and 24 hours",
         ));
     }
     let token = generate_join_token().map_err(ApiError::unavailable)?;
-    let link = JoinLink::issue(&state.raft_url, &state.cipher, token.clone())
-        .map_err(ApiError::bad_request)?;
+    let hash = hash_join_token(&token);
+    let link =
+        JoinLink::issue(&state.raft_url, &state.cipher, token).map_err(ApiError::bad_request)?;
     let expires_at_ms = now_ms().saturating_add(input.expires_in_seconds.saturating_mul(1_000));
     state
         .cluster
         .apply(Command::PutJoinToken {
-            hash: hash_join_token(&token),
+            hash,
             expires_at_ms,
         })
         .await?;
     Ok((
         StatusCode::CREATED,
-        Json(JoinLinkView {
+        Json(CreatedJoinTokenView {
+            id: encode_join_token_id(&hash),
             url: link.to_string(),
             expires_at_ms,
         }),
     ))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/v1/join-tokens/{id}",
+    params(("id" = String, Path)),
+    responses(
+        (status = 204),
+        (status = 400, body = ErrorBody),
+        (status = 401, body = ErrorBody),
+        (status = 422, body = ErrorBody),
+        (status = 503, body = ErrorBody),
+    )
+)]
+pub(super) async fn revoke_join_token(
+    State(state): State<WebState>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    let hash = decode_join_token_id(&id)?;
+    state.cluster.apply(Command::RevokeJoinToken(hash)).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+fn encode_join_token_id(hash: &upgrid_raft::domain::JoinTokenHash) -> String {
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(hash.0)
+}
+
+fn decode_join_token_id(id: &str) -> Result<upgrid_raft::domain::JoinTokenHash, ApiError> {
+    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(id)
+        .map_err(|_| ApiError::bad_request("invalid Join Token ID"))?;
+    let bytes: [u8; 32] = bytes
+        .try_into()
+        .map_err(|_| ApiError::bad_request("invalid Join Token ID"))?;
+    Ok(upgrid_raft::domain::JoinTokenHash(bytes))
 }
 
 #[utoipa::path(

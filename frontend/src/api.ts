@@ -57,7 +57,13 @@ export interface Secret {
 }
 
 export interface JoinLink {
+  id: string;
   url: string;
+  expires_at_ms: number;
+}
+
+export interface JoinToken {
+  id: string;
   expires_at_ms: number;
 }
 

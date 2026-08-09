@@ -24,9 +24,9 @@ pub enum Command {
         hash: JoinTokenHash,
         expires_at_ms: u64,
     },
-    ConsumeJoinToken {
+    AuthorizeJoinToken {
         hash: JoinTokenHash,
-        consumed_at_ms: u64,
+        authorized_at_ms: u64,
     },
     AssignEvaluations(Vec<EvaluationAssignment>),
     SetTargetPaused {
@@ -35,6 +35,7 @@ pub enum Command {
     },
     DeleteSecret(SecretId),
     DeleteNotificationChannel(NotificationChannelId),
+    RevokeJoinToken(JoinTokenHash),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -54,13 +55,14 @@ pub enum CommandResult {
     EvaluationAssigned(EvaluationId),
     HistoryRetentionSet(u64),
     JoinTokenStored,
-    JoinTokenConsumed,
+    JoinTokenAuthorized,
     TargetPauseSet {
         target_id: TargetId,
         paused: bool,
     },
     SecretDeleted(SecretId),
     NotificationChannelDeleted(NotificationChannelId),
+    JoinTokenRevoked,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -98,7 +100,7 @@ impl Display for DomainError {
                 id.target_id.0, id.evaluation_scheduled_at_ms
             ),
             Self::InvalidJoinToken => {
-                formatter.write_str("join link is invalid, expired, or already used")
+                formatter.write_str("join token is invalid, expired, or revoked")
             }
         }
     }

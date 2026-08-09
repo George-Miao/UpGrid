@@ -4,8 +4,13 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs, io};
 
+use clap::Parser as _;
+use figment::Figment;
+use figment::providers::{Env, Format, Serialized, Toml};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::cli::Cli;
 use crate::{Cipher, JoinLink, durable};
 
 pub type AppResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -15,33 +20,46 @@ pub struct Config {
     pub bind: String,
     pub raft_url: String,
     pub join: Option<JoinLink>,
+    pub setup: bool,
     pub data_dir: PathBuf,
     pub username: String,
     pub password: String,
     pub secret_key: Option<String>,
     pub history_retention_ms: Option<u64>,
+    pub tls_cert: Option<PathBuf>,
+    pub tls_key: Option<PathBuf>,
 }
 
-impl Config {
-    fn from_env() -> AppResult<Self> {
-        let config = Self {
-            bind: env::var("UPGRID_BIND").unwrap_or_else(|_| "127.0.0.1:8080".to_owned()),
-            raft_url: env::var("UPGRID_RAFT_URL")
-                .unwrap_or_else(|_| "up://127.0.0.1:11451".to_owned()),
-            join: None,
-            data_dir: env::var_os("UPGRID_DATA_DIR")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("upgrid-data")),
-            username: env::var("UPGRID_USERNAME").unwrap_or_else(|_| "admin".to_owned()),
-            password: env::var("UPGRID_PASSWORD").unwrap_or_else(|_| "upgrid".to_owned()),
-            secret_key: env::var("UPGRID_SECRET_KEY").ok(),
-            history_retention_ms: env::var("UPGRID_HISTORY_RETENTION_HOURS")
-                .ok()
-                .map(|value| parse_history_retention(&value))
-                .transpose()?,
-        };
+#[derive(Clone, Deserialize, Serialize)]
+struct RawConfig {
+    bind: String,
+    raft_url: String,
+    join: Option<String>,
+    setup: bool,
+    data_dir: PathBuf,
+    username: String,
+    password: String,
+    secret_key: Option<String>,
+    history_retention_hours: Option<u64>,
+    tls_cert: Option<PathBuf>,
+    tls_key: Option<PathBuf>,
+}
 
-        Ok(config)
+impl Default for RawConfig {
+    fn default() -> Self {
+        Self {
+            bind: "127.0.0.1:8080".to_owned(),
+            raft_url: "up://127.0.0.1:11451".to_owned(),
+            join: None,
+            setup: false,
+            data_dir: PathBuf::from("upgrid-data"),
+            username: "admin".to_owned(),
+            password: "upgrid".to_owned(),
+            secret_key: None,
+            history_retention_hours: None,
+            tls_cert: None,
+            tls_key: None,
+        }
     }
 }
 
@@ -52,82 +70,105 @@ pub enum Action {
 
 impl Action {
     pub fn from_env_and_args() -> AppResult<Option<Self>> {
-        let mut config = Config::from_env()?;
-        let mut join = env::var("UPGRID_JOIN").ok();
-        let mut args = env::args().skip(1);
-        while let Some(argument) = args.next() {
-            let value = match argument.as_str() {
-                "-h" | "--help" => {
-                    print_help();
-                    return Ok(None);
-                }
-                "--print-openapi" => {
-                    return Ok(Some(Self::PrintOpenApi));
-                }
-                "--bind"
-                | "--raft-url"
-                | "--join"
-                | "--data-dir"
-                | "--username"
-                | "--password"
-                | "--secret-key"
-                | "--history-retention-hours" => args.next().ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!("missing value for {argument}"),
-                    )
-                })?,
-                _ => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!("unknown argument: {argument}"),
-                    )
-                    .into());
-                }
-            };
-            match argument.as_str() {
-                "--bind" => config.bind = value,
-                "--raft-url" => config.raft_url = value,
-                "--join" => join = Some(value),
-                "--data-dir" => config.data_dir = PathBuf::from(value),
-                "--username" => config.username = value,
-                "--password" => config.password = value,
-                "--secret-key" => config.secret_key = Some(value),
-                "--history-retention-hours" => {
-                    config.history_retention_ms = Some(parse_history_retention(&value)?)
-                }
-                _ => unreachable!(),
+        let cli = match Cli::try_parse() {
+            Ok(cli) => cli,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
+                ) =>
+            {
+                error.print()?;
+                return Ok(None);
             }
+            Err(error) => return Err(error.into()),
+        };
+        if cli.print_openapi {
+            return Ok(Some(Self::PrintOpenApi));
         }
-        config.join = join.map(|value| JoinLink::parse(&value)).transpose()?;
-        Ok(Some(Self::Run(Box::new(config))))
+        load(cli).map(|config| Some(Self::Run(Box::new(config))))
     }
 }
 
-fn print_help() {
-    println!(
-        "UpGrid service monitor\n\nUsage: upgrid [OPTIONS]\n\nOptions:\n  --bind ADDRESS       \
-         API address [default: 127.0.0.1:8080]\n  --raft-url URL       advertised Raft URL \
-         [default: up://127.0.0.1:11451]\n  --join JOIN_LINK     join with a single-use up:// \
-         invitation\n  --data-dir PATH      persistent data directory [default: upgrid-data]\n  \
-         --username USER      Basic Auth username [default: admin]\n  --password PASSWORD  Basic \
-         Auth password [default: upgrid]\n  --secret-key BASE64  bootstrap or recovery deployment \
-         key\n  --history-retention-hours HOURS\n  retain raw evaluations [default: 24]\n  \
-         --print-openapi      print generated OpenAPI JSON and exit\n  -h, --help           show \
-         this help\n\nThe same settings are available as UPGRID_BIND, \
-         UPGRID_RAFT_URL,\nUPGRID_JOIN, UPGRID_DATA_DIR, \
-         UPGRID_USERNAME,\nUPGRID_PASSWORD,\nUPGRID_SECRET_KEY, and \
-         UPGRID_HISTORY_RETENTION_HOURS."
-    );
+fn load(cli: Cli) -> AppResult<Config> {
+    load_with(cli, true)
 }
 
-fn parse_history_retention(value: &str) -> io::Result<u64> {
-    let hours = value.parse::<u64>().map_err(|_| {
-        io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "history retention must be a positive integer number of hours",
-        )
-    })?;
+fn load_with(cli: Cli, environment: bool) -> AppResult<Config> {
+    let mut figment = Figment::from(Serialized::defaults(RawConfig::default()));
+    if let Some(path) = cli.config.or_else(|| {
+        environment
+            .then(|| env::var_os("UPGRID_CONFIG"))
+            .flatten()
+            .map(PathBuf::from)
+    }) {
+        figment = figment.merge(Toml::file(path));
+    }
+    if environment {
+        figment = figment.merge(Env::prefixed("UPGRID_"));
+    }
+    macro_rules! override_value {
+        ($field:ident) => {
+            if let Some(value) = cli.$field {
+                figment = figment.merge((stringify!($field), value));
+            }
+        };
+    }
+    override_value!(bind);
+    override_value!(raft_url);
+    override_value!(join);
+    override_value!(data_dir);
+    override_value!(username);
+    override_value!(password);
+    override_value!(secret_key);
+    override_value!(history_retention_hours);
+    override_value!(tls_cert);
+    override_value!(tls_key);
+    if cli.setup {
+        figment = figment.merge(("setup", true));
+    }
+    RawConfig::try_into(figment.extract()?)
+}
+
+impl TryFrom<RawConfig> for Config {
+    type Error = Box<dyn std::error::Error + Send + Sync>;
+
+    fn try_from(raw: RawConfig) -> Result<Self, Self::Error> {
+        if raw.setup && raw.join.is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "setup and join cannot be configured together",
+            )
+            .into());
+        }
+        if raw.tls_cert.is_some() != raw.tls_key.is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "tls_cert and tls_key must be configured together",
+            )
+            .into());
+        }
+        let history_retention_ms = raw
+            .history_retention_hours
+            .map(history_retention_ms)
+            .transpose()?;
+        Ok(Self {
+            bind: raw.bind,
+            raft_url: raw.raft_url,
+            join: raw.join.map(|value| JoinLink::parse(&value)).transpose()?,
+            setup: raw.setup,
+            data_dir: raw.data_dir,
+            username: raw.username,
+            password: raw.password,
+            secret_key: raw.secret_key,
+            history_retention_ms,
+            tls_cert: raw.tls_cert,
+            tls_key: raw.tls_key,
+        })
+    }
+}
+
+fn history_retention_ms(hours: u64) -> io::Result<u64> {
     hours
         .checked_mul(60 * 60 * 1_000)
         .filter(|value| *value > 0)
@@ -223,6 +264,48 @@ mod tests {
         let joining = directory.join("joining");
         fs::create_dir_all(&joining).unwrap();
         assert!(load_or_create_cipher(&joining, None, true).is_err());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn tls_configuration_requires_a_certificate_and_key() {
+        let cert_only = RawConfig {
+            tls_cert: Some(PathBuf::from("cert.pem")),
+            ..RawConfig::default()
+        };
+        assert!(Config::try_from(cert_only).is_err());
+
+        let pair = RawConfig {
+            tls_cert: Some(PathBuf::from("cert.pem")),
+            tls_key: Some(PathBuf::from("key.pem")),
+            ..RawConfig::default()
+        };
+        assert!(Config::try_from(pair).is_ok());
+    }
+
+    #[test]
+    fn cli_overrides_toml_configuration() {
+        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("upgrid.toml");
+        fs::write(
+            &path,
+            "bind = \"127.0.0.1:9000\"\nusername = \"from-file\"\n",
+        )
+        .unwrap();
+        let cli = Cli::try_parse_from([
+            "upgrid",
+            "--config",
+            path.to_str().unwrap(),
+            "--bind",
+            "127.0.0.1:9001",
+        ])
+        .unwrap();
+
+        let config = load_with(cli, false).unwrap();
+
+        assert_eq!(config.bind, "127.0.0.1:9001");
+        assert_eq!(config.username, "from-file");
         fs::remove_dir_all(directory).unwrap();
     }
 }

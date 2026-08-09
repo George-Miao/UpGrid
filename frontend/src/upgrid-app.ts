@@ -13,6 +13,7 @@ import {
   type Channel,
   type Cluster,
   type JoinLink,
+  type JoinToken,
   type Secret,
   type Target,
   type TargetInput,
@@ -35,6 +36,7 @@ export class UpgridApp extends LitElement {
   @state() private alerts: Alert[] = [];
   @state() private secrets: Secret[] = [];
   @state() private cluster?: Cluster;
+  @state() private joinTokens: JoinToken[] = [];
   @state() private error = "";
   @state() private live = false;
   @state() private saving = false;
@@ -315,12 +317,20 @@ export class UpgridApp extends LitElement {
 
   private async refresh(): Promise<void> {
     try {
-      [this.targets, this.channels, this.alerts, this.secrets, this.cluster] = await Promise.all([
+      [
+        this.targets,
+        this.channels,
+        this.alerts,
+        this.secrets,
+        this.cluster,
+        this.joinTokens,
+      ] = await Promise.all([
         request<Target[]>("/api/v1/targets"),
         request<Channel[]>("/api/v1/channels"),
         request<Alert[]>("/api/v1/alerts"),
         request<Secret[]>("/api/v1/secrets"),
         request<Cluster>("/api/v1/cluster"),
+        request<JoinToken[]>("/api/v1/join-tokens"),
       ]);
       this.error = "";
     } catch (error) {
@@ -580,13 +590,27 @@ export class UpgridApp extends LitElement {
   private async createJoinLink(): Promise<void> {
     this.saving = true;
     try {
-      const link = await request<JoinLink>("/api/v1/join-links", {
+      const link = await request<JoinLink>("/api/v1/join-tokens", {
         method: "POST",
         body: JSON.stringify({ expires_in_seconds: 600 }),
       });
       this.joinCommand = `upgrid --join '${link.url}'`;
       this.copied = false;
+      await this.refresh();
       this.showDialog("join-dialog");
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  private async revokeJoinToken(token: JoinToken): Promise<void> {
+    if (!window.confirm("Revoke this Join Token? Nodes using it will no longer be admitted.")) return;
+    this.saving = true;
+    try {
+      await request<void>(`/api/v1/join-tokens/${token.id}`, { method: "DELETE" });
+      await this.refresh();
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
     } finally {
@@ -757,7 +781,7 @@ export class UpgridApp extends LitElement {
         </form>
       </dialog>
       <dialog id="join-dialog" aria-labelledby="join-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><h2 id="join-title">Join a node</h2><p>This command contains Cluster credentials. Keep it private.</p></div>
+        <div class="dialog-head"><h2 id="join-title">Join a node</h2><p>This reusable command contains Cluster credentials. Revoke it when no longer needed.</p></div>
         <div class="join-command">${this.joinCommand}</div>
         <div class="dialog-actions" style="padding: 0 22px 22px"><button class="button secondary" @click=${() => this.closeDialog("join-dialog")}>Close</button><button class="button" @click=${this.copyJoinCommand}>${this.copied ? "Copied" : "Copy command"}</button></div>
       </dialog>
@@ -832,6 +856,17 @@ export class UpgridApp extends LitElement {
         <div class="panel-head"><h2>Nodes</h2><span class="meta">${this.cluster?.members.length ?? 0} members</span></div>
         ${this.cluster?.members.map((member) => html`<div class="resource"><div><strong>${member.raft_url}</strong><code>${member.id}</code></div><div class="actions">${member.local ? html`<span class="badge">This node</span>` : nothing}${member.leader ? html`<span class="badge">Leader</span>` : nothing}</div></div>`)}
         ${this.cluster?.members.length ? nothing : html`<div class="empty">Cluster topology unavailable.</div>`}
+      </section>
+      <section class="panel" aria-label="Join tokens" style="margin-top: 18px">
+        <div class="panel-head"><h2>Join Tokens</h2><span class="meta">${this.joinTokens.length} stored</span></div>
+        ${this.joinTokens.length
+          ? this.joinTokens.map((token) => html`
+              <div class="resource">
+                <div><strong>${token.id.slice(0, 12)}…</strong><code>Expires ${new Date(token.expires_at_ms).toLocaleString()}</code></div>
+                <button class="button danger" aria-label=${`Revoke Join Token ${token.id.slice(0, 12)}`} @click=${() => this.revokeJoinToken(token)}>Revoke</button>
+              </div>
+            `)
+          : html`<div class="empty">No Join Tokens.</div>`}
       </section>
     `;
   }

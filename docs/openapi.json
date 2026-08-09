@@ -275,14 +275,52 @@
         }
       }
     },
-    "/api/v1/join-links": {
+    "/api/v1/join-tokens": {
+      "get": {
+        "operationId": "list_join_tokens",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JoinTokenView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
-        "operationId": "create_join_link",
+        "operationId": "create_join_token",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateJoinLinkRequest"
+                "$ref": "#/components/schemas/CreateJoinTokenRequest"
               }
             }
           },
@@ -294,7 +332,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JoinLinkView"
+                  "$ref": "#/components/schemas/CreatedJoinTokenView"
                 }
               }
             }
@@ -310,6 +348,66 @@
             }
           },
           "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join-tokens/{id}": {
+      "delete": {
+        "operationId": "revoke_join_token",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
             "description": "",
             "content": {
               "application/json": {
@@ -1094,13 +1192,34 @@
           }
         ]
       },
-      "CreateJoinLinkRequest": {
+      "CreateJoinTokenRequest": {
         "type": "object",
         "properties": {
           "expires_in_seconds": {
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "CreatedJoinTokenView": {
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "expires_at_ms"
+        ],
+        "properties": {
+          "expires_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
           }
         }
       },
@@ -1163,10 +1282,10 @@
           }
         }
       },
-      "JoinLinkView": {
+      "JoinTokenView": {
         "type": "object",
         "required": [
-          "url",
+          "id",
           "expires_at_ms"
         ],
         "properties": {
@@ -1175,7 +1294,7 @@
             "format": "int64",
             "minimum": 0
           },
-          "url": {
+          "id": {
             "type": "string"
           }
         }

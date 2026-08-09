@@ -162,6 +162,12 @@ test("configures notification resources and creates a join command", async ({ pa
   await page.getByRole("button", { name: "Add node" }).first().click();
   const join = page.getByRole("dialog", { name: "Join a node" });
   await expect(join.getByText(/upgrid --join 'up:\/\//)).toBeVisible();
+  await join.getByRole("button", { name: "Close" }).click();
+  await page.getByRole("link", { name: "Cluster" }).click();
+  await expect(page.getByRole("region", { name: "Join tokens" }).getByText("1 stored")).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: /Revoke Join Token/ }).click();
+  await expect(page.getByRole("region", { name: "Join tokens" }).getByText("0 stored")).toBeVisible();
 });
 
 test("pauses and resumes cluster-wide evaluations", async ({ page }) => {
@@ -288,4 +294,22 @@ test("target hover highlights the checkbox and content as one row", async ({ pag
   }));
   expect(backgrounds.row).toBe(backgrounds.button);
   expect(backgrounds.row).not.toBe("rgba(0, 0, 0, 0)");
+});
+
+test("joins a fresh node to the Cluster from its WebUI", async ({ page, request }) => {
+  const invitation = await request.post("/api/v1/join-tokens", {
+    data: { expires_in_seconds: 600 },
+  });
+  expect(invitation.ok()).toBeTruthy();
+  const token = await invitation.json();
+
+  await page.goto(process.env.UPGRID_SETUP_URL ?? "http://127.0.0.1:18081");
+  await expect(page.getByRole("heading", { name: "Join an UpGrid cluster" })).toBeVisible();
+  await page.getByLabel("Join Link").fill(token.url);
+  await page.getByRole("button", { name: "Join Cluster" }).click();
+  await expect(page.getByRole("status")).toHaveText("Joining the Cluster…");
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible({ timeout: 20_000 });
+
+  await page.getByRole("link", { name: "Cluster" }).click();
+  await expect(page.getByRole("region", { name: "Cluster topology" }).locator(".resource")).toHaveCount(2);
 });

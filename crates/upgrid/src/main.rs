@@ -53,7 +53,11 @@ async fn run() -> AppResult<()> {
     };
     let mut config = *config;
     std::fs::create_dir_all(&config.data_dir)?;
-    let join = config.join.take();
+    let mut join = config.join.take();
+    if config.setup {
+        ensure_fresh_setup(&config.data_dir)?;
+        join = Some(upgrid_api::wait_for_join(&config)?);
+    }
     let manual_cipher = config
         .secret_key
         .take()
@@ -111,6 +115,26 @@ async fn run() -> AppResult<()> {
     Err(std::io::Error::other("cluster request channel stopped").into())
 }
 
+fn ensure_fresh_setup(data_dir: &std::path::Path) -> AppResult<()> {
+    const CLUSTER_FILES: [&str; 4] = [
+        "deployment-key",
+        "raft-log.redb",
+        "raft-log.postcard",
+        "raft-state.postcard",
+    ];
+    if CLUSTER_FILES
+        .iter()
+        .any(|name| data_dir.join(name).exists())
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            "WebUI Cluster setup requires a fresh data directory",
+        )
+        .into());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod logging_tests {
     use tracing::Level;
@@ -130,5 +154,15 @@ mod logging_tests {
         let filter = log_filter(LevelFilter::DEBUG);
         assert!(!filter.would_enable("openraft::replication", &Level::ERROR));
         assert!(!filter.would_enable("openraft_rt_compio", &Level::ERROR));
+    }
+
+    #[test]
+    fn web_setup_rejects_existing_cluster_state() {
+        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", uuid::Uuid::now_v7()));
+        std::fs::create_dir_all(&directory).unwrap();
+        assert!(ensure_fresh_setup(&directory).is_ok());
+        std::fs::write(directory.join("deployment-key"), "existing").unwrap();
+        assert!(ensure_fresh_setup(&directory).is_err());
+        std::fs::remove_dir_all(directory).unwrap();
     }
 }

@@ -32,6 +32,7 @@ use uuid::Uuid;
 mod assets;
 mod resources;
 mod server;
+mod setup;
 mod targets;
 
 #[cfg(test)]
@@ -39,6 +40,7 @@ mod targets;
 mod api_tests;
 
 pub use server::{openapi_json, start};
+pub use setup::wait_for_join;
 
 #[derive(Clone)]
 struct WebState {
@@ -362,7 +364,7 @@ struct SecretView {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
-struct CreateJoinLinkRequest {
+struct CreateJoinTokenRequest {
     #[serde(default = "default_join_link_lifetime")]
     expires_in_seconds: u64,
 }
@@ -372,8 +374,15 @@ fn default_join_link_lifetime() -> u64 {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
-struct JoinLinkView {
+struct CreatedJoinTokenView {
+    id: String,
     url: String,
+    expires_at_ms: u64,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+struct JoinTokenView {
+    id: String,
     expires_at_ms: u64,
 }
 
