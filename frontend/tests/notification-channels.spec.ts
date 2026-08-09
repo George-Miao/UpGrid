@@ -62,6 +62,7 @@ test("uses trash icons for secret and Target deletion", async ({ page }) => {
   const deleteSecret = page.getByRole("button", {
     name: "Delete secret Browser delete icon secret",
   });
+  await expect(page.getByText("write-only", { exact: true })).toHaveCount(0);
   await expect(deleteSecret.locator("iconify-icon")).toBeVisible();
   page.once("dialog", (confirmation) => confirmation.accept());
   await deleteSecret.click();

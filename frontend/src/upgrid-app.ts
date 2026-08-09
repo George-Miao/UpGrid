@@ -84,7 +84,7 @@ export class UpgridApp extends AppController {
     .live { gap: 7px; }
     .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); transition: background-color 160ms ease, box-shadow 160ms ease; }
     .dot.on { background: var(--green); box-shadow: 0 0 10px var(--green); }
-    .heading { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; }
+    .heading { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 30px; }
     .heading h1 { margin: 2px 0 0; font-size: clamp(27px, 4vw, 38px); line-height: 1.1; letter-spacing: -.035em; }
     .eyebrow { text-transform: uppercase; letter-spacing: .16em; }
     .button { border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 120ms ease; }
@@ -395,7 +395,7 @@ export class UpgridApp extends AppController {
         </section>
         <section class="panel" aria-label="Secrets">
           <div class="panel-head"><h2>Secrets</h2><button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div>
-          ${this.secrets.length ? this.secrets.map((secret) => html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id}</code></div><div class="actions"><span class="badge">write-only</span><button class="button danger icon-button" aria-label=${`Delete secret ${secret.name}`} title=${`Delete ${secret.name}`} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div></div>`) : html`<div class="empty">No reusable Secrets.</div>`}
+          ${this.secrets.length ? this.secrets.map((secret) => html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id}</code></div><button class="button danger icon-button" aria-label=${`Delete secret ${secret.name}`} title=${`Delete ${secret.name}`} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div>`) : html`<div class="empty">No reusable Secrets.</div>`}
         </section>
       </section>
       <section class="panel" aria-label="Targets">
