@@ -96,10 +96,21 @@ test("edits, inspects, and deletes a target", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Evaluation history" })).toBeVisible();
   const details = page.getByRole("dialog", { name: "Target details" });
   await expect(details.locator(".dialog-head p")).toHaveCount(0);
+  await expect(details.getByRole("button", { name: "Close", exact: true })).toHaveCount(0);
+  await expect(details.getByRole("button", { name: "Close target details" }).locator("iconify-icon")).toBeVisible();
+  await expect(details.getByRole("button", { name: "Delete target" }).locator("iconify-icon")).toBeVisible();
+  const pause = details.getByRole("button", { name: "Pause evaluations" });
+  await expect(pause).toHaveClass(/warning/);
+  await expect(pause).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(pause.locator("iconify-icon")).toBeVisible();
+  await expect(details.locator(".danger-actions").getByRole("button")).toHaveCount(2);
+  const save = details.getByRole("button", { name: "Save changes" });
+  await expect(save).toBeDisabled();
   const history = details.getByRole("list", { name: "Recent evaluation latency" });
   await expect(history).toBeVisible();
   await expect(history.getByRole("listitem").first()).toBeVisible();
   await details.getByLabel("Name", { exact: true }).fill("Renamed lifecycle target");
+  await expect(save).toBeEnabled();
   await details.getByLabel("Failures before Down").fill("5");
   await details.getByRole("button", { name: "Save changes" }).click();
 
@@ -151,7 +162,10 @@ test("pauses and resumes cluster-wide evaluations", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Pausing target" })).toContainText("Paused");
 
   await page.getByRole("button", { name: "Pausing target" }).click();
-  await page.getByRole("button", { name: "Resume evaluations" }).click();
+  const resume = page.getByRole("button", { name: "Resume evaluations" });
+  await expect(resume).toHaveClass(/success/);
+  await expect(resume).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await resume.click();
   await expect(page.getByRole("button", { name: "Pausing target" })).not.toContainText("Paused");
 });
 

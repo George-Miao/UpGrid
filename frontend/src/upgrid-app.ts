@@ -2,7 +2,11 @@ import { LitElement, css, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import darkIcon from "@iconify-icons/lucide/moon";
 import systemIcon from "@iconify-icons/lucide/palette";
+import pauseIcon from "@iconify-icons/lucide/pause";
+import playIcon from "@iconify-icons/lucide/play";
 import brightIcon from "@iconify-icons/lucide/sun";
+import deleteIcon from "@iconify-icons/lucide/trash-2";
+import closeIcon from "@iconify-icons/lucide/x";
 import "iconify-icon";
 import {
   type Alert,
@@ -44,6 +48,7 @@ export class UpgridApp extends LitElement {
   @state() private activeSection = "overview";
   @state() private copied = false;
   @state() private theme = storedTheme();
+  @state() private detailDirty = false;
   private events?: EventSource;
   private readonly systemTheme = matchMedia("(prefers-color-scheme: light)");
   private readonly systemThemeChanged = () => {
@@ -88,6 +93,9 @@ export class UpgridApp extends LitElement {
       --focus: #4b936c;
       --danger-text: #ff9b97;
       --danger-border: #633b39;
+      --warning-bg: #594315;
+      --warning-text: #ffd778;
+      --warning-border: #9c7625;
       --join-bg: #0b110e;
       display: block;
       min-height: 100vh;
@@ -157,7 +165,7 @@ export class UpgridApp extends LitElement {
     .bulk { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--line); background: var(--bulk-bg); }
     dialog { width: min(580px, calc(100% - 28px)); border: 1px solid var(--line); border-radius: 17px; background: var(--panel); color: var(--text); padding: 0; box-shadow: 0 28px 90px var(--dialog-shadow); }
     dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(5px); }
-    .dialog-head { padding: 20px 22px 15px; border-bottom: 1px solid var(--line); }
+    .dialog-head { position: relative; padding: 20px 58px 15px 22px; border-bottom: 1px solid var(--line); }
     .dialog-head h2 { margin: 0; font-size: 18px; }
     .dialog-head p { margin: 4px 0 0; color: var(--muted); }
     form { display: grid; gap: 13px; padding: 20px 22px 22px; }
@@ -167,8 +175,14 @@ export class UpgridApp extends LitElement {
     input:focus, select:focus { border-color: var(--focus); }
     input:disabled { cursor: not-allowed; opacity: .5; }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
+    .danger-actions { display: flex; gap: 8px; margin-right: auto; }
     .secondary { background: transparent; color: var(--muted); border-color: var(--line); }
-    .danger { margin-right: auto; background: transparent; color: var(--danger-text); border-color: var(--danger-border); }
+    .danger { background: transparent; color: var(--danger-text); border-color: var(--danger-border); }
+    .warning { background: transparent; color: var(--warning-text); border-color: var(--warning-border); }
+    .warning:hover { border-color: var(--warning-text); }
+    .success { background: transparent; color: var(--green); border-color: var(--green); }
+    .success:hover { border-color: var(--button-text); }
+    .dialog-close { position: absolute; top: 12px; right: 14px; }
     .check { display: flex; align-items: center; gap: 8px; }
     .check input { width: auto; }
     .history { margin: 0 22px 22px; border-top: 1px solid var(--line); padding-top: 18px; }
@@ -224,6 +238,9 @@ export class UpgridApp extends LitElement {
         --focus: #168655;
         --danger-text: #b42318;
         --danger-border: #dda29d;
+        --warning-bg: #fff1bd;
+        --warning-text: #805b00;
+        --warning-border: #d4aa36;
         --join-bg: #eef8f2;
     }
     @media (prefers-reduced-motion: reduce) {
@@ -299,6 +316,7 @@ export class UpgridApp extends LitElement {
   }
 
   private openTarget(target: Target): void {
+    this.detailDirty = false;
     this.selected = target;
     void this.updateComplete.then(() =>
       this.renderRoot.querySelector<HTMLDialogElement>("#detail-dialog")?.showModal(),
@@ -307,6 +325,7 @@ export class UpgridApp extends LitElement {
 
   private closeDetailDialog(): void {
     this.renderRoot.querySelector<HTMLDialogElement>("#detail-dialog")?.close();
+    this.detailDirty = false;
     this.selected = undefined;
   }
 
@@ -318,7 +337,10 @@ export class UpgridApp extends LitElement {
     const dialog = event.currentTarget as HTMLDialogElement;
     if (event.target !== dialog) return;
     dialog.close();
-    if (dialog.id === "detail-dialog") this.selected = undefined;
+    if (dialog.id === "detail-dialog") {
+      this.detailDirty = false;
+      this.selected = undefined;
+    }
   }
 
   private navigate(event: MouseEvent, section: string): void {
@@ -341,6 +363,10 @@ export class UpgridApp extends LitElement {
       "max_redirects",
     ) as HTMLInputElement | null;
     if (maxRedirects) maxRedirects.disabled = !followRedirects.checked;
+  }
+
+  private markDetailDirty(): void {
+    this.detailDirty = true;
   }
 
   private async createTarget(event: SubmitEvent): Promise<void> {
@@ -806,8 +832,11 @@ export class UpgridApp extends LitElement {
     });
     return html`
       <dialog id="detail-dialog" aria-labelledby="target-detail-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><h2 id="target-detail-title">Target details</h2></div>
-        <form @submit=${this.updateTarget}>
+        <div class="dialog-head">
+          <h2 id="target-detail-title">Target details</h2>
+          <button class="button secondary icon-button dialog-close" type="button" aria-label="Close target details" title="Close" @click=${this.closeDetailDialog}><iconify-icon .icon=${closeIcon} aria-hidden="true"></iconify-icon></button>
+        </div>
+        <form @submit=${this.updateTarget} @input=${this.markDetailDirty}>
           <label>Name<input name="name" .value=${target.name} required /></label>
           <label>URL<input name="url" type="url" .value=${target.url} required /></label>
           <div class="row">
@@ -828,10 +857,11 @@ export class UpgridApp extends LitElement {
             <label class="check"><input name="skip_tls_verification" type="checkbox" .checked=${target.skip_tls_verification} />Skip TLS verification</label>
           </div>
           <div class="dialog-actions">
-            <button class="button danger" type="button" @click=${this.deleteTarget}>Delete target</button>
-            <button class="button secondary" type="button" @click=${() => this.setPaused(!target.paused)}>${target.paused ? "Resume evaluations" : "Pause evaluations"}</button>
-            <button class="button secondary" type="button" @click=${this.closeDetailDialog}>Close</button>
-            <button class="button" type="submit" ?disabled=${this.saving}>Save changes</button>
+            <div class="danger-actions">
+              <button class="button danger icon-button" type="button" aria-label="Delete target" title="Delete target" @click=${this.deleteTarget}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
+              <button class=${`button ${target.paused ? "success" : "warning"} icon-button`} type="button" aria-label=${target.paused ? "Resume evaluations" : "Pause evaluations"} title=${target.paused ? "Resume evaluations" : "Pause evaluations"} @click=${() => this.setPaused(!target.paused)}><iconify-icon .icon=${target.paused ? playIcon : pauseIcon} aria-hidden="true"></iconify-icon></button>
+            </div>
+            <button class="button" type="submit" ?disabled=${this.saving || !this.detailDirty}>Save changes</button>
           </div>
         </form>
         <section class="history">
