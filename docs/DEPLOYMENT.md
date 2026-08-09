@@ -10,6 +10,7 @@ UpGrid combines built-in defaults, an optional TOML file, `UPGRID_` environment 
 bind = "127.0.0.1:8080"
 raft_url = "up://node-1.internal:11451"
 data_dir = "/var/lib/upgrid"
+node_name = "edge-shanghai"
 username = "admin"
 password = "change-me"
 history_retention_hours = 24
@@ -55,9 +56,9 @@ Do not expose Basic authentication over an untrusted plaintext connection. Restr
 
 ## Node Admission
 
-An authenticated operator creates a reusable, expiring invitation from the WebUI's **Add node** action or `POST /api/v1/join-tokens`. The response is an opaque bearer URL used directly as `upgrid --join 'up://…'`. A token may admit multiple Nodes until it expires or an operator revokes it from the Cluster page or with `DELETE /api/v1/join-tokens/{id}`.
+An authenticated operator creates an expiring invitation from the Cluster page's **Create token** action or `POST /api/v1/join-tokens`. Tokens default to one day and unlimited uses; set `expires_in_seconds` to any positive duration and `max_uses` to a positive integer to bound admissions. The response is an opaque bearer URL used directly as `upgrid --join 'up://…'`. Revoke it from the Cluster page or with `DELETE /api/v1/join-tokens/{id}`.
 
-For browser onboarding, start a new Node against a fresh data directory with `upgrid --setup` and its intended `--bind` and `--raft-url`. Open that Node's WebUI and paste an invitation. The setup listener validates the link before initializing the deployment key, mutual-TLS transport, and Raft membership. Direct `--join` remains available for automation.
+For browser onboarding, start a new Node against a fresh data directory with `upgrid --setup` and its intended `--bind`, `--raft-url`, and optional `--node-name`. Open its Cluster page, choose **Join cluster**, and paste the invitation. The setup listener validates the link before initializing the deployment key, mutual-TLS transport, and Raft membership. Direct `--join` remains available for automation. Without `--node-name`, UpGrid generates and persists a friendly two-word name.
 
 Join Links transport long-lived deployment material. Keep them confidential, never place them in logs or tickets, and revoke reusable tokens as soon as provisioning is complete. Normal restarts use the persisted data directory and need no invitation.
 

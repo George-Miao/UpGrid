@@ -32,7 +32,7 @@ A durable notice created when a Target enters Down or returns to Up and addresse
 _Avoid_: Notification, message, delivery attempt
 
 **Join Token**:
-A reusable, expiring, and revocable authorization for admitting Nodes to a Cluster.
+An expiring and revocable authorization for admitting a limited or unlimited number of Nodes to a Cluster.
 _Avoid_: Invite, cluster password
 
 **Target**:
