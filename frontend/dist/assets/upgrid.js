@@ -356,7 +356,7 @@
     .button[aria-busy="true"] { cursor: wait; }
     .icon-button { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; }
     iconify-icon { display: inline-block; width: 18px; height: 18px; font-size: 18px; }
-    .overview-top { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 18px; margin-bottom: 18px; }
+    .overview-top { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; }
     .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .metric, .panel { border: 1px solid var(--line); background: var(--panel-surface); box-shadow: 0 16px 48px var(--panel-shadow); transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
     .metric { border-radius: 14px; padding: 17px 18px; }

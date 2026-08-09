@@ -301,6 +301,7 @@ test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
   expect(targetsBox).not.toBeNull();
   expect(summaryBox!.x).toBeLessThan(secretsBox!.x);
   expect(Math.abs(summaryBox!.y - secretsBox!.y)).toBeLessThan(2);
+  expect(Math.abs(summaryBox!.width - secretsBox!.width)).toBeLessThan(2);
   expect(targetsBox!.y).toBeGreaterThanOrEqual(Math.max(
     summaryBox!.y + summaryBox!.height,
     secretsBox!.y + secretsBox!.height,
