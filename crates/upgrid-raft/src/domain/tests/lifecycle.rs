@@ -243,5 +243,58 @@ fn reusable_join_token_authorizes_different_nodes() {
         CommandResult::JoinTokenAuthorized
     );
 }
+
+#[test]
+fn limited_join_token_is_removed_after_its_last_use() {
+    let mut state = ApplicationState::default();
+    let hash = JoinTokenHash([8; 32]);
+    state
+        .apply(Command::PutLimitedJoinToken {
+            hash,
+            expires_at_ms: 2_000,
+            uses: 2,
+        })
+        .unwrap();
+
+    let authorize = || Command::AuthorizeJoinToken {
+        hash,
+        authorized_at_ms: 1_000,
+    };
+    assert_eq!(
+        state.apply(authorize()).unwrap(),
+        CommandResult::JoinTokenAuthorized
+    );
+    assert_eq!(state.join_token_uses.get(&hash), Some(&1));
+    assert_eq!(
+        state.apply(authorize()).unwrap(),
+        CommandResult::JoinTokenAuthorized
+    );
+    assert!(!state.join_tokens.contains_key(&hash));
+    assert!(state.apply(authorize()).is_err());
+}
+
+#[test]
+fn node_names_are_trimmed_and_validated() {
+    let mut state = ApplicationState::default();
+    let node_id = id(3);
+    assert_eq!(
+        state
+            .apply(Command::SetNodeName {
+                node_id,
+                name: "  edge-shanghai  ".to_owned(),
+            })
+            .unwrap(),
+        CommandResult::NodeNameSet(node_id)
+    );
+    assert_eq!(state.node_names.get(&node_id).unwrap(), "edge-shanghai");
+    assert!(
+        state
+            .apply(Command::SetNodeName {
+                node_id,
+                name: "\n".to_owned(),
+            })
+            .is_err()
+    );
+}
 use super::evaluation::{evaluation, id, state_with_target, target};
 use super::*;

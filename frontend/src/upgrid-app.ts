@@ -15,6 +15,7 @@ import {
   type JoinLink,
   type JoinToken,
   type Secret,
+  type Setup,
   type Target,
   type TargetInput,
   request,
@@ -23,6 +24,19 @@ import {
 const themes = ["system", "dark", "bright"] as const;
 type Theme = (typeof themes)[number];
 const themeIcons = { system: systemIcon, dark: darkIcon, bright: brightIcon };
+
+const sectionPaths = {
+  overview: "/",
+  alerts: "/alerts",
+  cluster: "/cluster",
+} as const;
+
+type Section = keyof typeof sectionPaths;
+
+function sectionFromPath(): Section {
+  return (Object.entries(sectionPaths).find(([, path]) => path === window.location.pathname)?.[0]
+    ?? "overview") as Section;
+}
 
 function storedTheme(): Theme {
   const theme = localStorage.getItem("upgrid-theme");
@@ -47,8 +61,11 @@ export class UpgridApp extends LitElement {
   @state() private statusFilter = "all";
   @state() private sort = "name";
   @state() private selectedIds = new Set<string>();
-  @state() private activeSection = "overview";
+  @state() private activeSection: Section = sectionFromPath();
   @state() private copied = false;
+  @state() private setupMode = false;
+  @state() private joining = false;
+  @state() private unlimitedUses = true;
   @state() private theme = storedTheme();
   @state() private detailDirty = false;
   private events?: EventSource;
@@ -56,6 +73,9 @@ export class UpgridApp extends LitElement {
   private readonly systemTheme = matchMedia("(prefers-color-scheme: light)");
   private readonly systemThemeChanged = () => {
     if (this.theme === "system") this.applyTheme();
+  };
+  private readonly routeChanged = () => {
+    this.activeSection = sectionFromPath();
   };
 
   static styles = css`
@@ -286,17 +306,40 @@ export class UpgridApp extends LitElement {
     super.connectedCallback();
     this.applyTheme();
     this.systemTheme.addEventListener("change", this.systemThemeChanged);
-    void this.refresh();
-    this.events = new EventSource("/api/v1/events");
-    this.events.addEventListener("state", () => void this.refresh());
-    this.events.onopen = () => (this.live = true);
-    this.events.onerror = () => (this.live = false);
+    window.addEventListener("popstate", this.routeChanged);
+    void this.start();
   }
 
   disconnectedCallback(): void {
     this.systemTheme.removeEventListener("change", this.systemThemeChanged);
+    window.removeEventListener("popstate", this.routeChanged);
     this.events?.close();
     super.disconnectedCallback();
+  }
+
+  private async start(): Promise<void> {
+    try {
+      const setup = await request<Setup>("/api/v1/setup");
+      this.setupMode = setup.setup;
+      if (this.setupMode) {
+        this.activeSection = "cluster";
+        window.history.replaceState(null, "", sectionPaths.cluster);
+        this.live = true;
+        return;
+      }
+      await this.refresh();
+      this.connectEvents();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  private connectEvents(): void {
+    this.events?.close();
+    this.events = new EventSource("/api/v1/events");
+    this.events.addEventListener("state", () => void this.refresh());
+    this.events.onopen = () => (this.live = true);
+    this.events.onerror = () => (this.live = false);
   }
 
   private applyTheme(): void {
@@ -379,9 +422,10 @@ export class UpgridApp extends LitElement {
     }
   }
 
-  private navigate(event: MouseEvent, section: string): void {
+  private navigate(event: MouseEvent, section: Section): void {
     event.preventDefault();
     this.activeSection = section;
+    window.history.pushState(null, "", sectionPaths[section]);
     void this.updateComplete.then(() =>
       this.renderRoot
         .querySelector<HTMLElement>(`#${section}`)
@@ -587,21 +631,60 @@ export class UpgridApp extends LitElement {
     }
   }
 
-  private async createJoinLink(): Promise<void> {
+  private openTokenDialog(): void {
+    this.unlimitedUses = true;
+    this.showDialog("token-config-dialog");
+  }
+
+  private async createJoinToken(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const fields = new FormData(form);
+    const expiresInSeconds = Number(fields.get("expiration")) * Number(fields.get("unit"));
+    const maxUses = this.unlimitedUses ? null : Number(fields.get("max_uses"));
     this.saving = true;
     try {
       const link = await request<JoinLink>("/api/v1/join-tokens", {
         method: "POST",
-        body: JSON.stringify({ expires_in_seconds: 600 }),
+        body: JSON.stringify({ expires_in_seconds: expiresInSeconds, max_uses: maxUses }),
       });
       this.joinCommand = `upgrid --join '${link.url}'`;
       this.copied = false;
       await this.refresh();
+      this.closeDialog("token-config-dialog");
       this.showDialog("join-dialog");
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
     } finally {
       this.saving = false;
+    }
+  }
+
+  private async joinCluster(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const joinLink = String(new FormData(form).get("join_link")).trim();
+    this.joining = true;
+    try {
+      await request<{ status: string }>("/api/v1/cluster/join", {
+        method: "POST",
+        body: JSON.stringify({ join_link: joinLink }),
+      });
+      this.closeDialog("join-cluster-dialog");
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+        try {
+          await request<Cluster>("/api/v1/cluster");
+          window.location.replace(sectionPaths.cluster);
+          return;
+        } catch {
+          // The setup listener is replaced by the Cluster API during provisioning.
+        }
+      }
+      throw new Error("Cluster join did not finish within 30 seconds");
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+      this.joining = false;
     }
   }
 
@@ -698,6 +781,7 @@ export class UpgridApp extends LitElement {
     const up = this.targets.filter((target) => target.availability === "up").length;
     const down = this.targets.filter((target) => target.availability === "down").length;
     const pending = this.alerts.filter((alert) => alert.delivery === "pending").length;
+    const sections: Section[] = this.setupMode ? ["cluster"] : ["overview", "alerts", "cluster"];
     const visibleTargets = this.targets
       .filter((target) =>
         `${target.name} ${target.url}`.toLowerCase().includes(this.search.toLowerCase()),
@@ -725,13 +809,12 @@ export class UpgridApp extends LitElement {
             </div>
           </div>
           <nav aria-label="Primary">
-            ${["overview", "alerts", "cluster"].map(
-              (section) => html`<a class=${this.activeSection === section ? "active" : ""} href=${`#${section}`} @click=${(event: MouseEvent) => this.navigate(event, section)}>${section[0].toUpperCase()}${section.slice(1)}</a>`,
+            ${sections.map(
+              (section) => html`<a class=${this.activeSection === section ? "active" : ""} href=${sectionPaths[section]} @click=${(event: MouseEvent) => this.navigate(event, section)}>${section[0].toUpperCase()}${section.slice(1)}</a>`,
             )}
           </nav>
           <div class="actions">
             <button class="button secondary icon-button" aria-label=${`Theme: ${this.theme[0].toUpperCase()}${this.theme.slice(1)}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button>
-            <button class="button secondary" @click=${this.createJoinLink} ?disabled=${this.saving}>Add node</button>
           </div>
         </header>
         ${this.error ? html`<div class="notice" role="alert">${this.error}</div>` : nothing}
@@ -780,10 +863,29 @@ export class UpgridApp extends LitElement {
           <div class="dialog-actions"><button class="button secondary" type="button" @click=${() => this.closeDialog("channel-dialog")}>Cancel</button><button class="button" type="submit" ?disabled=${this.saving}>Create channel</button></div>
         </form>
       </dialog>
+      <dialog id="token-config-dialog" aria-labelledby="token-config-title" @click=${this.dismissOnBackdrop}>
+        <div class="dialog-head"><h2 id="token-config-title">Create Join Token</h2><p>Choose how long the token remains valid and how many Nodes it may admit.</p></div>
+        <form @submit=${this.createJoinToken}>
+          <div class="row">
+            <label>Expiration<input name="expiration" type="number" min="1" step="1" value="1" required /></label>
+            <label>Unit<select name="unit"><option value="1">Seconds</option><option value="60">Minutes</option><option value="3600">Hours</option><option value="86400" selected>Days</option></select></label>
+          </div>
+          <label>Usage<select name="usage" @change=${(event: Event) => (this.unlimitedUses = (event.target as HTMLSelectElement).value === "unlimited")}><option value="unlimited">Unlimited</option><option value="limited">Limited</option></select></label>
+          <label>Maximum uses<input name="max_uses" type="number" min="1" step="1" value="1" ?disabled=${this.unlimitedUses} required /></label>
+          <div class="dialog-actions"><button class="button secondary" type="button" @click=${() => this.closeDialog("token-config-dialog")}>Cancel</button><button class="button" type="submit" ?disabled=${this.saving}>${this.saving ? "Creating…" : "Create token"}</button></div>
+        </form>
+      </dialog>
       <dialog id="join-dialog" aria-labelledby="join-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><h2 id="join-title">Join a node</h2><p>This reusable command contains Cluster credentials. Revoke it when no longer needed.</p></div>
+        <div class="dialog-head"><h2 id="join-title">Join Token Created</h2><p>This command contains Cluster credentials. Revoke the token when no longer needed.</p></div>
         <div class="join-command">${this.joinCommand}</div>
         <div class="dialog-actions" style="padding: 0 22px 22px"><button class="button secondary" @click=${() => this.closeDialog("join-dialog")}>Close</button><button class="button" @click=${this.copyJoinCommand}>${this.copied ? "Copied" : "Copy command"}</button></div>
+      </dialog>
+      <dialog id="join-cluster-dialog" aria-labelledby="join-cluster-title" @click=${this.dismissOnBackdrop}>
+        <div class="dialog-head"><h2 id="join-cluster-title">Join Cluster</h2><p>Paste an <code>up://</code> Join Token issued by the destination Cluster.</p></div>
+        <form @submit=${this.joinCluster}>
+          <label>Join Token<input name="join_link" type="url" pattern="up://.*" placeholder="up://node.example/token" autocomplete="off" required /></label>
+          <div class="dialog-actions"><button class="button secondary" type="button" @click=${() => this.closeDialog("join-cluster-dialog")}>Cancel</button><button class="button" type="submit" ?disabled=${this.joining}>${this.joining ? "Joining…" : "Join cluster"}</button></div>
+        </form>
       </dialog>
     `;
   }
@@ -850,24 +952,31 @@ export class UpgridApp extends LitElement {
     return html`
       <section class="heading" id="cluster">
         <div><span class="eyebrow">Raft membership</span><h1>Cluster</h1></div>
-        <button class="button" @click=${this.createJoinLink}>Add node</button>
+        <div class="actions">
+          ${this.setupMode ? nothing : html`<button class="button secondary" @click=${this.openTokenDialog}>Create token</button>`}
+          <button class="button" @click=${() => this.showDialog("join-cluster-dialog")}>Join cluster</button>
+        </div>
       </section>
       <section class="panel" aria-label="Cluster topology">
         <div class="panel-head"><h2>Nodes</h2><span class="meta">${this.cluster?.members.length ?? 0} members</span></div>
-        ${this.cluster?.members.map((member) => html`<div class="resource"><div><strong>${member.raft_url}</strong><code>${member.id}</code></div><div class="actions">${member.local ? html`<span class="badge">This node</span>` : nothing}${member.leader ? html`<span class="badge">Leader</span>` : nothing}</div></div>`)}
-        ${this.cluster?.members.length ? nothing : html`<div class="empty">Cluster topology unavailable.</div>`}
+        ${this.cluster?.members.map((member) => html`<div class="resource"><div><strong>${member.name}</strong><code>${member.raft_url}</code></div><div class="actions">${member.local ? html`<span class="badge">This node</span>` : nothing}${member.leader ? html`<span class="badge">Leader</span>` : nothing}</div></div>`)}
+        ${this.cluster?.members.length
+          ? nothing
+          : html`<div class="empty">${this.setupMode
+            ? (this.joining ? "Joining the Cluster…" : "This fresh Node is ready to join a Cluster.")
+            : "Cluster topology unavailable."}</div>`}
       </section>
-      <section class="panel" aria-label="Join tokens" style="margin-top: 18px">
+      ${this.setupMode ? nothing : html`<section class="panel" aria-label="Join tokens" style="margin-top: 18px">
         <div class="panel-head"><h2>Join Tokens</h2><span class="meta">${this.joinTokens.length} stored</span></div>
         ${this.joinTokens.length
           ? this.joinTokens.map((token) => html`
               <div class="resource">
-                <div><strong>${token.id.slice(0, 12)}…</strong><code>Expires ${new Date(token.expires_at_ms).toLocaleString()}</code></div>
+                <div><strong>${token.id.slice(0, 12)}…</strong><code>Expires ${new Date(token.expires_at_ms).toLocaleString()} · ${token.remaining_uses === null ? "unlimited uses" : `${token.remaining_uses} uses left`}</code></div>
                 <button class="button danger" aria-label=${`Revoke Join Token ${token.id.slice(0, 12)}`} @click=${() => this.revokeJoinToken(token)}>Revoke</button>
               </div>
             `)
           : html`<div class="empty">No Join Tokens.</div>`}
-      </section>
+      </section>`}
     `;
   }
 

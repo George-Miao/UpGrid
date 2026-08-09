@@ -248,6 +248,63 @@
         }
       }
     },
+    "/api/v1/cluster/join": {
+      "post": {
+        "operationId": "join_cluster",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinClusterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinClusterView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/events": {
       "get": {
         "operationId": "events",
@@ -584,6 +641,33 @@
             }
           },
           "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/setup": {
+      "get": {
+        "operationId": "get_setup",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupView"
+                }
+              }
+            }
+          },
+          "401": {
             "description": "",
             "content": {
               "application/json": {
@@ -1086,6 +1170,7 @@
         "type": "object",
         "required": [
           "id",
+          "name",
           "raft_url",
           "leader",
           "local"
@@ -1100,6 +1185,9 @@
           },
           "local": {
             "type": "boolean"
+          },
+          "name": {
+            "type": "string"
           },
           "raft_url": {
             "type": "string"
@@ -1199,6 +1287,14 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "max_uses": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -1217,6 +1313,14 @@
           },
           "id": {
             "type": "string"
+          },
+          "remaining_uses": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
           },
           "url": {
             "type": "string"
@@ -1282,6 +1386,28 @@
           }
         }
       },
+      "JoinClusterRequest": {
+        "type": "object",
+        "required": [
+          "join_link"
+        ],
+        "properties": {
+          "join_link": {
+            "type": "string"
+          }
+        }
+      },
+      "JoinClusterView": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
       "JoinTokenView": {
         "type": "object",
         "required": [
@@ -1296,6 +1422,14 @@
           },
           "id": {
             "type": "string"
+          },
+          "remaining_uses": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -1471,6 +1605,17 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "SetupView": {
+        "type": "object",
+        "required": [
+          "setup"
+        ],
+        "properties": {
+          "setup": {
+            "type": "boolean"
           }
         }
       },

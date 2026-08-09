@@ -60,18 +60,25 @@ export interface JoinLink {
   id: string;
   url: string;
   expires_at_ms: number;
+  remaining_uses: number | null;
 }
 
 export interface JoinToken {
   id: string;
   expires_at_ms: number;
+  remaining_uses: number | null;
 }
 
 export interface ClusterMember {
   id: string;
+  name: string;
   raft_url: string;
   leader: boolean;
   local: boolean;
+}
+
+export interface Setup {
+  setup: boolean;
 }
 
 export interface Cluster {

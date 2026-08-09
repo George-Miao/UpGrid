@@ -11,6 +11,10 @@ pub struct ApplicationState {
     pub assignments: BTreeMap<EvaluationId, EvaluationAssignment>,
     #[serde(default)]
     pub join_tokens: BTreeMap<JoinTokenHash, u64>,
+    #[serde(default)]
+    pub join_token_uses: BTreeMap<JoinTokenHash, u64>,
+    #[serde(default)]
+    pub node_names: BTreeMap<Uuid, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -42,6 +46,19 @@ pub(crate) struct PreviousApplicationState {
     assignments: BTreeMap<EvaluationId, EvaluationAssignment>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct TokenApplicationState {
+    targets: BTreeMap<TargetId, TargetState>,
+    secrets: BTreeMap<SecretId, Secret>,
+    notification_channels: BTreeMap<NotificationChannelId, NotificationChannel>,
+    alerts: BTreeMap<AlertId, Alert>,
+    history_retention_ms: u64,
+    processed_operations: BTreeMap<Uuid, ProcessedOperation>,
+    latest_operation_at_ms: u64,
+    assignments: BTreeMap<EvaluationId, EvaluationAssignment>,
+    join_tokens: BTreeMap<JoinTokenHash, u64>,
+}
+
 #[cfg(test)]
 impl From<ApplicationState> for LegacyApplicationState {
     fn from(current: ApplicationState) -> Self {
@@ -69,6 +86,8 @@ impl From<LegacyApplicationState> for ApplicationState {
             latest_operation_at_ms: legacy.latest_operation_at_ms,
             assignments: BTreeMap::new(),
             join_tokens: BTreeMap::new(),
+            join_token_uses: BTreeMap::new(),
+            node_names: BTreeMap::new(),
         }
     }
 }
@@ -85,6 +104,43 @@ impl From<PreviousApplicationState> for ApplicationState {
             latest_operation_at_ms: previous.latest_operation_at_ms,
             assignments: previous.assignments,
             join_tokens: BTreeMap::new(),
+            join_token_uses: BTreeMap::new(),
+            node_names: BTreeMap::new(),
+        }
+    }
+}
+
+impl From<TokenApplicationState> for ApplicationState {
+    fn from(previous: TokenApplicationState) -> Self {
+        Self {
+            targets: previous.targets,
+            secrets: previous.secrets,
+            notification_channels: previous.notification_channels,
+            alerts: previous.alerts,
+            history_retention_ms: previous.history_retention_ms,
+            processed_operations: previous.processed_operations,
+            latest_operation_at_ms: previous.latest_operation_at_ms,
+            assignments: previous.assignments,
+            join_tokens: previous.join_tokens,
+            join_token_uses: BTreeMap::new(),
+            node_names: BTreeMap::new(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl From<ApplicationState> for TokenApplicationState {
+    fn from(current: ApplicationState) -> Self {
+        Self {
+            targets: current.targets,
+            secrets: current.secrets,
+            notification_channels: current.notification_channels,
+            alerts: current.alerts,
+            history_retention_ms: current.history_retention_ms,
+            processed_operations: current.processed_operations,
+            latest_operation_at_ms: current.latest_operation_at_ms,
+            assignments: current.assignments,
+            join_tokens: current.join_tokens,
         }
     }
 }
@@ -114,6 +170,8 @@ impl Default for ApplicationState {
             alerts: BTreeMap::new(),
             assignments: BTreeMap::new(),
             join_tokens: BTreeMap::new(),
+            join_token_uses: BTreeMap::new(),
+            node_names: BTreeMap::new(),
             history_retention_ms: DEFAULT_HISTORY_RETENTION_MS,
             processed_operations: BTreeMap::new(),
             latest_operation_at_ms: 0,

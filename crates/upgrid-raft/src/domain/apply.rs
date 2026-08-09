@@ -105,22 +105,57 @@ impl ApplicationState {
                     return Err(DomainError::InvalidJoinToken);
                 }
                 self.join_tokens.insert(hash, expires_at_ms);
+                self.join_token_uses.remove(&hash);
+                Ok(CommandResult::JoinTokenStored)
+            }
+            Command::PutLimitedJoinToken {
+                hash,
+                expires_at_ms,
+                uses,
+            } => {
+                if expires_at_ms == 0 || uses == 0 {
+                    return Err(DomainError::InvalidJoinToken);
+                }
+                self.join_tokens.insert(hash, expires_at_ms);
+                self.join_token_uses.insert(hash, uses);
                 Ok(CommandResult::JoinTokenStored)
             }
             Command::AuthorizeJoinToken {
                 hash,
                 authorized_at_ms,
-            } => match self.join_tokens.get(&hash) {
-                Some(expires_at_ms) if authorized_at_ms <= *expires_at_ms => {
-                    Ok(CommandResult::JoinTokenAuthorized)
+            } => {
+                let Some(expires_at_ms) = self.join_tokens.get(&hash).copied() else {
+                    return Err(DomainError::InvalidJoinToken);
+                };
+                if authorized_at_ms > expires_at_ms {
+                    return Err(DomainError::InvalidJoinToken);
                 }
-                _ => Err(DomainError::InvalidJoinToken),
-            },
+                if let Some(uses) = self.join_token_uses.get_mut(&hash) {
+                    if *uses == 1 {
+                        self.join_token_uses.remove(&hash);
+                        self.join_tokens.remove(&hash);
+                    } else {
+                        *uses = uses.saturating_sub(1);
+                    }
+                }
+                Ok(CommandResult::JoinTokenAuthorized)
+            }
             Command::RevokeJoinToken(hash) => {
                 self.join_tokens
                     .remove(&hash)
                     .ok_or(DomainError::InvalidJoinToken)?;
+                self.join_token_uses.remove(&hash);
                 Ok(CommandResult::JoinTokenRevoked)
+            }
+            Command::SetNodeName { node_id, name } => {
+                let name = name.trim();
+                if name.is_empty() || name.len() > 64 || name.chars().any(char::is_control) {
+                    return Err(DomainError::InvalidNodeName(
+                        "node name must contain 1 to 64 printable characters".to_owned(),
+                    ));
+                }
+                self.node_names.insert(node_id, name.to_owned());
+                Ok(CommandResult::NodeNameSet(node_id))
             }
             Command::RecordEvaluation(evaluation) => self.record_evaluation(evaluation),
             Command::MarkAlertDelivered {

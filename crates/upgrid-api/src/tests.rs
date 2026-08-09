@@ -59,18 +59,6 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../frontend/dist/assets/app.js"
         ));
-        let setup_html = include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../frontend/dist/setup.html"
-        ));
-        let setup_script = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../frontend/dist/assets/setup.js"
-        ));
-        let shared_script = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../frontend/dist/assets/state.js"
-        ));
         let logo = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../frontend/dist/favicon.svg"
@@ -79,9 +67,6 @@ mod tests {
         assert!(html.contains("rel=\"icon\" href=\"/favicon.svg\""));
         assert!(html.contains("src=\"/assets/app.js\""));
         assert!(!script.is_empty());
-        assert!(setup_html.contains("src=\"/assets/setup.js\""));
-        assert!(!setup_script.is_empty());
-        assert!(!shared_script.is_empty());
         assert!(logo.starts_with("<svg"));
         assert!(logo.contains("<title id=\"title\">UpGrid</title>"));
     }

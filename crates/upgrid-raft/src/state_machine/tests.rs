@@ -167,4 +167,41 @@ mod tests {
 
         fs::remove_dir_all(directory).unwrap();
     }
+
+    #[test]
+    fn token_version_is_migrated_without_losing_join_tokens() {
+        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("raft-state.postcard");
+        let hash = crate::domain::JoinTokenHash([9; 32]);
+        let mut application = ApplicationState::default();
+        application
+            .apply(Command::PutJoinToken {
+                hash,
+                expires_at_ms: 2_000,
+            })
+            .unwrap();
+        let previous = TokenPersistedStateMachine {
+            state_machine: TokenStateMachineData {
+                last_applied_log: None,
+                last_membership: StoredMembership::default(),
+                application: application.into(),
+            },
+            current_snapshot: None,
+            snapshot_idx: 0,
+        };
+        let mut encoded = TOKEN_STATE_MAGIC.to_vec();
+        encoded.extend_from_slice(&postcard::to_stdvec(&previous).unwrap());
+        fs::write(&path, encoded).unwrap();
+
+        let state_machine = StateMachine::open(&path).unwrap();
+        assert_eq!(
+            state_machine.application_state().join_tokens.get(&hash),
+            Some(&2_000)
+        );
+        assert!(state_machine.application_state().join_token_uses.is_empty());
+        assert!(state_machine.application_state().node_names.is_empty());
+
+        fs::remove_dir_all(directory).unwrap();
+    }
 }

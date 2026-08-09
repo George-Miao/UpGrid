@@ -1,4 +1,5 @@
 use super::assets::*;
+use super::join::*;
 use super::resources::*;
 use super::targets::*;
 use super::*;
@@ -44,6 +45,8 @@ async fn serve(
     let protected = Router::new()
         .merge(api)
         .route("/", get(index))
+        .route("/alerts", get(index))
+        .route("/cluster", get(index))
         .route(
             "/openapi.json",
             get({
@@ -61,7 +64,6 @@ async fn serve(
             get(|| async { Json(serde_json::json!({"status": "ok"})) }),
         )
         .route("/assets/app.js", get(webui_script))
-        .route("/assets/state.js", get(shared_script))
         .route("/favicon.svg", get(favicon))
         .merge(protected);
     if let (Some(cert), Some(key)) = (tls_cert, tls_key) {
@@ -90,6 +92,7 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(revoke_join_token))
         .routes(routes!(list_alerts))
         .routes(routes!(get_cluster))
+        .routes(routes!(get_setup, join_cluster))
         .routes(routes!(events))
 }
 

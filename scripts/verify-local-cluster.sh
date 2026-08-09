@@ -33,6 +33,7 @@ start_node() {
     --bind "127.0.0.1:${api_port}" \
     --raft-url "up://127.0.0.1:${raft_port}" \
     --data-dir "${test_root}/node-${number}" \
+    --node-name "test-node-${number}" \
     --username "$username" \
     --password "$password" \
     "$@" >"${test_root}/node-${number}.log" 2>&1 &
@@ -76,6 +77,13 @@ done
 for number in $(seq 2 "$node_count"); do
   wait_for_api "$((api_base_port + number - 1))" "${pids[number - 1]}"
 done
+
+cluster="$(curl --fail --silent --user "${username}:${password}" \
+  "http://127.0.0.1:${api_base_port}/api/v1/cluster")"
+if (( $(printf '%s' "$cluster" | jq '[.members[].name | select(startswith("test-node-"))] | length') != node_count )); then
+  echo "Configured Node names are missing from Cluster topology: ${cluster}" >&2
+  exit 1
+fi
 
 curl --fail --silent --user "${username}:${password}" \
   --request DELETE \

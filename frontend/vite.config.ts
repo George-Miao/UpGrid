@@ -21,7 +21,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         app: resolve(import.meta.dirname, "index.html"),
-        setup: resolve(import.meta.dirname, "setup.html"),
       },
       output: {
         entryFileNames: (chunk) => `assets/${chunk.name}.js`,

@@ -8,11 +8,11 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
-use serde::{Deserialize, Serialize};
 use tokio::sync::Notify;
 use upgrid_config::{AppResult, Config, JoinLink};
 
-use crate::{ApiError, ErrorBody};
+use crate::assets::{favicon, index, webui_script};
+use crate::{ApiError, ErrorBody, JoinClusterRequest, JoinClusterView, SetupView};
 
 #[derive(Clone)]
 struct SetupState {
@@ -20,16 +20,6 @@ struct SetupState {
     password: String,
     result: Arc<Mutex<Option<JoinLink>>>,
     accepted: Arc<Notify>,
-}
-
-#[derive(Deserialize)]
-struct JoinRequest {
-    join_link: String,
-}
-
-#[derive(Serialize)]
-struct JoinResponse {
-    status: &'static str,
 }
 
 pub fn wait_for_join(config: &Config) -> AppResult<JoinLink> {
@@ -45,11 +35,12 @@ pub fn wait_for_join(config: &Config) -> AppResult<JoinLink> {
     };
     let protected = Router::new()
         .route("/", get(index))
-        .route("/setup/join", post(join))
+        .route("/cluster", get(index))
+        .route("/api/v1/setup", get(setup_status))
+        .route("/api/v1/cluster/join", post(join))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
     let app = Router::new()
-        .route("/assets/setup.js", get(script))
-        .route("/assets/state.js", get(shared_script))
+        .route("/assets/app.js", get(webui_script))
         .route("/favicon.svg", get(favicon))
         .merge(protected)
         .with_state(state);
@@ -90,8 +81,8 @@ pub fn wait_for_join(config: &Config) -> AppResult<JoinLink> {
 
 async fn join(
     State(state): State<SetupState>,
-    Json(input): Json<JoinRequest>,
-) -> Result<(StatusCode, Json<JoinResponse>), ApiError> {
+    Json(input): Json<JoinClusterRequest>,
+) -> Result<(StatusCode, Json<JoinClusterView>), ApiError> {
     let link = JoinLink::parse(input.join_link.trim()).map_err(ApiError::bad_request)?;
     let mut result = state
         .result
@@ -105,62 +96,12 @@ async fn join(
     state.accepted.notify_one();
     Ok((
         StatusCode::ACCEPTED,
-        Json(JoinResponse { status: "joining" }),
+        Json(JoinClusterView { status: "joining" }),
     ))
 }
 
-async fn index() -> impl IntoResponse {
-    (
-        [
-            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
-            (header::CACHE_CONTROL, "no-cache"),
-        ],
-        include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../frontend/dist/setup.html"
-        )),
-    )
-}
-
-async fn script() -> impl IntoResponse {
-    (
-        [
-            (header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
-            (header::CACHE_CONTROL, "public, max-age=3600"),
-        ],
-        include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../frontend/dist/assets/setup.js"
-        ))
-        .as_slice(),
-    )
-}
-
-async fn shared_script() -> impl IntoResponse {
-    (
-        [
-            (header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
-            (header::CACHE_CONTROL, "public, max-age=3600"),
-        ],
-        include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../frontend/dist/assets/state.js"
-        ))
-        .as_slice(),
-    )
-}
-
-async fn favicon() -> impl IntoResponse {
-    (
-        [
-            (header::CONTENT_TYPE, "image/svg+xml"),
-            (header::CACHE_CONTROL, "public, max-age=86400"),
-        ],
-        include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../frontend/dist/favicon.svg"
-        )),
-    )
+async fn setup_status() -> Json<SetupView> {
+    Json(SetupView { setup: true })
 }
 
 async fn require_auth(State(state): State<SetupState>, request: Request, next: Next) -> Response {

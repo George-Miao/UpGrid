@@ -30,6 +30,7 @@ use utoipa_axum::routes;
 use uuid::Uuid;
 
 mod assets;
+mod join;
 mod resources;
 mod server;
 mod setup;
@@ -367,10 +368,12 @@ struct SecretView {
 struct CreateJoinTokenRequest {
     #[serde(default = "default_join_link_lifetime")]
     expires_in_seconds: u64,
+    #[serde(default)]
+    max_uses: Option<u64>,
 }
 
 fn default_join_link_lifetime() -> u64 {
-    600
+    24 * 60 * 60
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -378,12 +381,29 @@ struct CreatedJoinTokenView {
     id: String,
     url: String,
     expires_at_ms: u64,
+    remaining_uses: Option<u64>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 struct JoinTokenView {
     id: String,
     expires_at_ms: u64,
+    remaining_uses: Option<u64>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+struct JoinClusterRequest {
+    join_link: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+struct SetupView {
+    setup: bool,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+struct JoinClusterView {
+    status: &'static str,
 }
 
 impl From<&Secret> for SecretView {
@@ -408,6 +428,7 @@ struct AlertView {
 #[derive(Debug, Serialize, ToSchema)]
 struct ClusterMemberView {
     id: Uuid,
+    name: String,
     raft_url: String,
     leader: bool,
     local: bool,

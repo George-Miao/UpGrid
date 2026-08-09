@@ -7,7 +7,10 @@ use tracing_subscriber::Layer;
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use upgrid_config::{Action, AppResult, Cipher, load_or_create_cipher, load_or_create_node_id};
+use upgrid_config::{
+    Action, AppResult, Cipher, load_or_create_cipher, load_or_create_node_id,
+    load_or_create_node_name,
+};
 use upgrid_raft::domain::{Command, DEFAULT_HISTORY_RETENTION_MS};
 use upgrid_raft::{Handle, Identity, Node, Req};
 
@@ -77,6 +80,8 @@ async fn run() -> AppResult<()> {
     let cipher =
         load_or_create_cipher(&config.data_dir, configured_cipher.as_ref(), join.is_some())?;
     let node_id = load_or_create_node_id(&config.data_dir)?;
+    let node_name =
+        load_or_create_node_name(&config.data_dir, config.node_name.as_deref(), node_id)?;
     let identity = Identity::with_id(node_id, config.raft_url.as_str())?;
     let node = Node::open(identity, &config.data_dir, &cipher).await?;
     let bootstrapping = !node.has_membership() && join.is_none();
@@ -89,6 +94,16 @@ async fn run() -> AppResult<()> {
             node.start_cluster().await?;
         }
     }
+    node.write(Req {
+        operation_id: uuid::Uuid::now_v7(),
+        submitted_at_ms: upgrid_config::now_ms(),
+        command: Command::SetNodeName {
+            node_id,
+            name: node_name,
+        },
+    })
+    .await
+    .map_err(std::io::Error::other)?;
     if let Some(retention_ms) = config
         .history_retention_ms
         .or_else(|| bootstrapping.then_some(DEFAULT_HISTORY_RETENTION_MS))

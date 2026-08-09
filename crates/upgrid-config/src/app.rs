@@ -22,6 +22,7 @@ pub struct Config {
     pub join: Option<JoinLink>,
     pub setup: bool,
     pub data_dir: PathBuf,
+    pub node_name: Option<String>,
     pub username: String,
     pub password: String,
     pub secret_key: Option<String>,
@@ -37,6 +38,7 @@ struct RawConfig {
     join: Option<String>,
     setup: bool,
     data_dir: PathBuf,
+    node_name: Option<String>,
     username: String,
     password: String,
     secret_key: Option<String>,
@@ -53,6 +55,7 @@ impl Default for RawConfig {
             join: None,
             setup: false,
             data_dir: PathBuf::from("upgrid-data"),
+            node_name: None,
             username: "admin".to_owned(),
             password: "upgrid".to_owned(),
             secret_key: None,
@@ -118,6 +121,7 @@ fn load_with(cli: Cli, environment: bool) -> AppResult<Config> {
     override_value!(raft_url);
     override_value!(join);
     override_value!(data_dir);
+    override_value!(node_name);
     override_value!(username);
     override_value!(password);
     override_value!(secret_key);
@@ -158,6 +162,7 @@ impl TryFrom<RawConfig> for Config {
             join: raw.join.map(|value| JoinLink::parse(&value)).transpose()?,
             setup: raw.setup,
             data_dir: raw.data_dir,
+            node_name: raw.node_name,
             username: raw.username,
             password: raw.password,
             secret_key: raw.secret_key,

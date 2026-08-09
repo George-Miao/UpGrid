@@ -29,6 +29,10 @@ pub(super) struct Cli {
     #[arg(long, value_name = "PATH")]
     pub(super) data_dir: Option<PathBuf>,
 
+    /// Friendly name shown for this Node.
+    #[arg(long, value_name = "NAME")]
+    pub(super) node_name: Option<String>,
+
     /// Basic Auth username.
     #[arg(long, value_name = "USER")]
     pub(super) username: Option<String>,

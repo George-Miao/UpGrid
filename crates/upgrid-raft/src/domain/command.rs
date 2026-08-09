@@ -36,6 +36,15 @@ pub enum Command {
     DeleteSecret(SecretId),
     DeleteNotificationChannel(NotificationChannelId),
     RevokeJoinToken(JoinTokenHash),
+    PutLimitedJoinToken {
+        hash: JoinTokenHash,
+        expires_at_ms: u64,
+        uses: u64,
+    },
+    SetNodeName {
+        node_id: Uuid,
+        name: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -63,6 +72,7 @@ pub enum CommandResult {
     SecretDeleted(SecretId),
     NotificationChannelDeleted(NotificationChannelId),
     JoinTokenRevoked,
+    NodeNameSet(Uuid),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,6 +88,7 @@ pub enum DomainError {
     NotificationChannelNotFound(NotificationChannelId),
     AlertNotFound(AlertId),
     InvalidJoinToken,
+    InvalidNodeName(String),
 }
 
 impl Display for DomainError {
@@ -102,6 +113,7 @@ impl Display for DomainError {
             Self::InvalidJoinToken => {
                 formatter.write_str("join token is invalid, expired, or revoked")
             }
+            Self::InvalidNodeName(message) => formatter.write_str(message),
         }
     }
 }
@@ -110,6 +122,7 @@ impl std::error::Error for DomainError {}
 use std::fmt::{Display, Formatter};
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use super::{
     AlertId, AvailabilityState, Evaluation, EvaluationAssignment, EvaluationId, JoinTokenHash,
