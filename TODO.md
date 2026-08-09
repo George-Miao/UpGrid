@@ -5,7 +5,6 @@ The MVP is complete. This file records unfinished work for future agile iteratio
 ## Near-Term Hardening
 
 - [ ] Replace the static shared administrator username and password with replicated identities, API tokens or sessions, password hashing, and role-based authorization.
-- [ ] Remove the vendored Cyper and OpenRaft Compio compatibility shims once upstream releases build against the pinned Compio master APIs.
 - [ ] Add safe Node drain, membership removal, and failed-Node replacement workflows.
 - [ ] Support editing Notification Channels and sending explicit test deliveries.
 - [ ] Add alert acknowledgement, manual delivery retry, and richer alert-history filters.
@@ -24,6 +23,13 @@ The MVP is complete. This file records unfinished work for future agile iteratio
 - [ ] Add configurable trash or restore behavior for deleted Targets.
 - [ ] Provide safe discovery and cleanup of unreferenced Secrets.
 
+## Remove Vendored Dependencies
+
+- [ ] Upstream Cyper's missing `compio::buf::IoBufMutExt` import so its `ensure_init` calls compile with Compio master, then depend on a released or Git revision instead of `vendor/cyper`.
+- [ ] Upstream the boxed-buffer compatibility fix in `openraft-rt-compio`, then replace `vendor/openraft-rt-compio` with the matching released or Git revision.
+- [ ] Alternatively, migrate to canonical OpenRaft main and its maintained Compio runtime adapter. This requires adopting the current network-v2, storage, and type-configuration APIs rather than carrying the George-Miao fork interfaces.
+- [ ] Remove both workspace exclusions and vendor directories only after `cargo check --workspace`, strict Clippy, all tests, and `scripts/verify-local-cluster.sh` pass with upstream sources.
+
 ## Iteration Policy
 
-Before starting an item, define its acceptance criteria and move only that coherent slice into the active iteration. Completed work belongs in `docs/ROADMAP.md`, not in this backlog.
+Before starting an item, define its acceptance criteria and move only that coherent slice into the active iteration. Remove completed items after their implementation and acceptance evidence are committed.

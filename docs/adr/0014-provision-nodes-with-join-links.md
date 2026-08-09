@@ -1,5 +1,7 @@
 # Provision Nodes with opaque Join Links
 
+Superseded by ADR 0015 for token reuse, revocation, and browser onboarding. The opaque `up://` provisioning format remains in force.
+
 Joining previously required operators to copy a Raft URL, a deployment key, and a separately issued token into three command-line options. These values form one admission capability and exposing their internal split created avoidable configuration and mismatch errors.
 
 The Cluster API now issues a versioned, opaque `up://` Join Link. Its authority identifies the reachable bootstrap Node; its URL-safe payload carries the deployment key and a random token. `--join` parses this value through one typed interface, privately persists the key, establishes the existing mutual-TLS transport, and asks the leader to atomically consume the token before adding the Node. Token consumption uses an operation ID derived from the token and joining Node identity, so a lost response can be retried by that Node without allowing another Node to reuse the link. Restarted members use their durable identity and key without another link.
