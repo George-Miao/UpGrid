@@ -315,11 +315,27 @@ test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Alerts" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Targets" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Notification channels" })).toBeVisible();
+  const [historyBox, channelsBox] = await Promise.all([
+    page.getByRole("region", { name: "Alert history" }).boundingBox(),
+    page.getByRole("region", { name: "Notification channels" }).boundingBox(),
+  ]);
+  expect(historyBox).not.toBeNull();
+  expect(channelsBox).not.toBeNull();
+  expect(historyBox!.x).toBeLessThan(channelsBox!.x);
+  expect(Math.abs(historyBox!.y - channelsBox!.y)).toBeLessThan(2);
 
   await page.getByRole("link", { name: "Cluster" }).click();
   await expect(page).toHaveURL(/\/cluster$/);
   await expect(page.getByRole("link", { name: "Cluster" })).toHaveClass(/active/);
   await expect(page.getByRole("region", { name: "Cluster topology" })).toBeInViewport();
+  const [nodesBox, tokensBox] = await Promise.all([
+    page.getByRole("region", { name: "Cluster topology" }).boundingBox(),
+    page.getByRole("region", { name: "Join tokens" }).boundingBox(),
+  ]);
+  expect(nodesBox).not.toBeNull();
+  expect(tokensBox).not.toBeNull();
+  expect(nodesBox!.x).toBeLessThan(tokensBox!.x);
+  expect(Math.abs(nodesBox!.y - tokensBox!.y)).toBeLessThan(2);
   await expect(page.getByRole("heading", { name: "Alerts" })).toHaveCount(0);
 });
 

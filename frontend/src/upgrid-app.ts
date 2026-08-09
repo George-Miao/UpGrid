@@ -95,6 +95,7 @@ export class UpgridApp extends AppController {
     .icon-button { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; }
     iconify-icon { display: inline-block; width: 18px; height: 18px; font-size: 18px; }
     .overview-top { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; }
+    .page-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
     .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .metric, .panel { border: 1px solid var(--line); background: var(--panel-surface); box-shadow: 0 16px 48px var(--panel-shadow); transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
     .metric { border-radius: 14px; padding: 17px 18px; }
@@ -237,6 +238,7 @@ export class UpgridApp extends AppController {
       header { grid-template-columns: minmax(0, 1fr) auto; }
       nav { display: none; }
       .overview-top { grid-template-columns: 1fr; }
+      .page-columns { grid-template-columns: 1fr; }
       .toolbar { grid-template-columns: 1fr 1fr; }
       .toolbar input { grid-column: 1 / -1; }
       .heading { align-items: flex-start; gap: 16px; }
@@ -416,16 +418,18 @@ export class UpgridApp extends AppController {
       <section class="heading" id="alerts">
         <div><span class="eyebrow">Delivery history</span><h1>Alerts</h1></div>
       </section>
+      <div class="page-columns">
       <section class="panel" aria-label="Alert history">
         <div class="panel-head"><h2>Availability transitions</h2><span class="meta">${this.alerts.length} events</span></div>
         ${this.alerts.length
           ? this.alerts.map((alert) => html`<div class="resource"><div><strong>${alert.target_name}</strong><code>${new Date(alert.scheduled_at_ms).toLocaleString()}</code></div><span class="badge">${alert.kind} · ${alert.delivery}</span></div>`)
           : html`<div class="empty">No availability transitions.</div>`}
       </section>
-      <section class="panel" aria-label="Notification channels" style="margin-top: 18px">
+      <section class="panel" aria-label="Notification channels">
         <div class="panel-head"><h2>Notification channels</h2><button class="button secondary" @click=${() => this.showDialog("channel-dialog")}>Add channel</button></div>
         ${this.channels.length ? this.channels.map((channel) => html`<div class="resource"><div><strong>${channel.name}</strong><code>${channel.destination}</code></div><div class="actions"><span class="badge">${channel.kind}</span><button class="button danger" aria-label=${`Delete channel ${channel.name}`} @click=${() => this.deleteResource("channels", channel.id, channel.name)}>Delete</button></div></div>`) : html`<div class="empty">No notification channels.</div>`}
       </section>
+      </div>
     `;
   }
 
@@ -437,6 +441,7 @@ export class UpgridApp extends AppController {
           <button class="button" @click=${this.openTokenDialog}>Create token</button>
         </div>
       </section>
+      <div class="page-columns">
       <section class="panel" aria-label="Cluster topology">
         <div class="panel-head"><h2>Nodes</h2><span class="meta">${this.cluster?.members.length ?? 0} members</span></div>
         ${this.cluster?.members.map((member) => html`<div class="resource"><div><strong>${member.name}</strong><code>${member.raft_url}</code></div><div class="actions">${member.local ? html`<span class="badge">This node</span>` : nothing}${member.leader ? html`<span class="badge">Leader</span>` : nothing}</div></div>`)}
@@ -444,7 +449,7 @@ export class UpgridApp extends AppController {
           ? nothing
           : html`<div class="empty">Cluster topology unavailable.</div>`}
       </section>
-      <section class="panel" aria-label="Join tokens" style="margin-top: 18px">
+      <section class="panel" aria-label="Join tokens">
         <div class="panel-head"><h2>Join Tokens</h2><span class="meta">${this.joinTokens.length} stored</span></div>
         ${this.joinTokens.length
           ? this.joinTokens.map((token) => html`
@@ -455,6 +460,7 @@ export class UpgridApp extends AppController {
             `)
           : html`<div class="empty">No Join Tokens.</div>`}
       </section>
+      </div>
     `;
   }
 
