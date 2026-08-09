@@ -172,13 +172,21 @@ export class UpgridApp extends LitElement {
     .check { display: flex; align-items: center; gap: 8px; }
     .check input { width: auto; }
     .history { margin: 0 22px 22px; border-top: 1px solid var(--line); padding-top: 18px; }
-    .history h3 { margin: 0 0 10px; font-size: 14px; }
-    .history-time { display: inline-flex; align-items: center; gap: 7px; }
-    .history-time .state { width: 7px; height: 7px; box-shadow: none; }
+    .history-head, .chart-legend, .chart-legend span, .chart-axis { display: flex; align-items: center; }
+    .history-head { justify-content: space-between; margin-bottom: 12px; }
+    .history-head h3 { margin: 0; font-size: 14px; }
+    .history-chart { display: flex; height: 140px; align-items: flex-end; gap: 3px; padding: 14px 10px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--input-bg); }
+    .history-bar { flex: 1; min-width: 3px; max-width: 16px; border-radius: 3px 3px 1px 1px; opacity: .82; transform-origin: bottom; transition: opacity 120ms ease, transform 120ms ease; }
+    .history-bar:hover { opacity: 1; transform: scaleX(1.15); }
+    .history-bar.up { background: var(--green); }
+    .history-bar.down { background: var(--red); }
+    .chart-axis { justify-content: space-between; margin-top: 5px; color: var(--muted); font-size: 10px; }
+    .chart-legend { justify-content: flex-end; gap: 12px; margin-top: 9px; color: var(--muted); font-size: 10px; }
+    .chart-legend span { gap: 5px; }
+    .chart-legend i { width: 7px; height: 7px; border-radius: 2px; }
+    .chart-legend .up { background: var(--green); }
+    .chart-legend .down { background: var(--red); }
     .join-command { margin: 20px 22px; border: 1px solid var(--line); border-radius: 10px; background: var(--join-bg); color: var(--green); padding: 13px; overflow-wrap: anywhere; font: 12px/1.6 ui-monospace, SFMono-Regular, monospace; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { padding: 7px 5px; border-bottom: 1px solid var(--divider); text-align: left; }
-    th { color: var(--muted); font-weight: 500; }
     :host([data-theme="bright"]) {
         color-scheme: light;
         --bg: #f4f8f6;
@@ -219,7 +227,7 @@ export class UpgridApp extends LitElement {
         --join-bg: #eef8f2;
     }
     @media (prefers-reduced-motion: reduce) {
-      :host, nav a, .button, .metric, .panel, .target-wrap, .target, input, select { transition-duration: 0s; }
+      :host, nav a, .button, .metric, .panel, .target-wrap, .target, .history-bar, input, select { transition-duration: 0s; }
     }
     @media (max-width: 720px) {
       .shell { padding: 20px 14px 60px; }
@@ -788,9 +796,17 @@ export class UpgridApp extends LitElement {
     const statuses = target.accepted_statuses
       .map((range) => (range.start === range.end ? range.start : `${range.start}-${range.end}`))
       .join(",");
+    const history = target.history.slice(0, 30).reverse();
+    const maxLatency = Math.max(1, ...history.map((item) => item.latency_ms));
+    const chartTime = (timestamp: number) => new Date(timestamp).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
     return html`
       <dialog id="detail-dialog" aria-labelledby="target-detail-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><h2 id="target-detail-title">Target details</h2><p>${target.id}</p></div>
+        <div class="dialog-head"><h2 id="target-detail-title">Target details</h2></div>
         <form @submit=${this.updateTarget}>
           <label>Name<input name="name" .value=${target.name} required /></label>
           <label>URL<input name="url" type="url" .value=${target.url} required /></label>
@@ -819,9 +835,20 @@ export class UpgridApp extends LitElement {
           </div>
         </form>
         <section class="history">
-          <h3>Evaluation history</h3>
-          ${target.history.length
-            ? html`<table><thead><tr><th>Time</th><th>Status</th><th>Latency</th></tr></thead><tbody>${target.history.map((item) => html`<tr><td><span class="history-time"><i class="state ${item.succeeded ? "up" : "down"}" role="img" aria-label=${item.succeeded ? "Up" : "Failed"}></i>${new Date(item.recorded_at_ms).toLocaleString()}</span></td><td>${item.status_code ?? "—"}</td><td>${item.latency_ms} ms</td></tr>`)}</tbody></table>`
+          <div class="history-head"><h3>Evaluation history</h3>${history.length ? html`<span class="meta">Latest ${history.length}</span>` : nothing}</div>
+          ${history.length
+            ? html`
+                <div class="history-chart" role="list" aria-label="Recent evaluation latency">
+                  ${history.map((item) => {
+                    const result = item.succeeded ? "Passed" : "Failed";
+                    const status = item.status_code === null ? "network error" : `HTTP ${item.status_code}`;
+                    const label = `${result} at ${new Date(item.recorded_at_ms).toLocaleString()}: ${item.latency_ms} ms, ${status}`;
+                    return html`<span class="history-bar ${item.succeeded ? "up" : "down"}" role="listitem" aria-label=${label} title=${label} style=${`height: ${Math.max(8, item.latency_ms / maxLatency * 100)}%`}></span>`;
+                  })}
+                </div>
+                <div class="chart-axis"><span>${chartTime(history[0].recorded_at_ms)}</span><span>${chartTime(history.at(-1)!.recorded_at_ms)}</span></div>
+                <div class="chart-legend"><span><i class="up"></i>Passed</span><span><i class="down"></i>Failed</span><span>Height = latency</span></div>
+              `
             : html`<p class="meta">No evaluations recorded yet.</p>`}
         </section>
       </dialog>

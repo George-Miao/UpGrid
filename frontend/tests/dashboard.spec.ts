@@ -89,10 +89,16 @@ test("edits, inspects, and deletes a target", async ({ page }) => {
   await addTarget.getByLabel("URL").fill("http://127.0.0.1:18080/healthz");
   await addTarget.getByRole("button", { name: "Create target" }).click();
 
-  await page.getByRole("button", { name: "Target lifecycle" }).click();
+  const target = page.getByRole("button", { name: "Target lifecycle" });
+  await expect(target).not.toContainText("waiting", { timeout: 15_000 });
+  await target.click();
   await expect(page.getByRole("heading", { name: "Target details" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Evaluation history" })).toBeVisible();
   const details = page.getByRole("dialog", { name: "Target details" });
+  await expect(details.locator(".dialog-head p")).toHaveCount(0);
+  const history = details.getByRole("list", { name: "Recent evaluation latency" });
+  await expect(history).toBeVisible();
+  await expect(history.getByRole("listitem").first()).toBeVisible();
   await details.getByLabel("Name", { exact: true }).fill("Renamed lifecycle target");
   await details.getByLabel("Failures before Down").fill("5");
   await details.getByRole("button", { name: "Save changes" }).click();
