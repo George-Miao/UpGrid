@@ -61,7 +61,7 @@ pub fn wait_for_oobe(config: &Config, node_name: &str) -> AppResult<OobeChoice> 
         .route("/api/v1/setup/new-cluster", post(new_cluster))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
     let app = Router::new()
-        .route("/assets/app.js", get(webui_script))
+        .route("/assets/upgrid.js", get(webui_script))
         .route("/favicon.svg", get(favicon))
         .merge(protected)
         .with_state(state);

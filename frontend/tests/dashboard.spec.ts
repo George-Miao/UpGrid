@@ -335,20 +335,45 @@ test("target hover highlights the checkbox and content as one row", async ({ pag
 
 test("keeps the first-run Cluster choice compact", async ({ page }) => {
   await page.setViewportSize({ width: 735, height: 560 });
-  await page.goto(process.env.UPGRID_NEW_SETUP_URL ?? "http://127.0.0.1:18082");
+  const setupUrl = process.env.UPGRID_NEW_SETUP_URL ?? "http://127.0.0.1:18082";
+  await page.goto(setupUrl);
   const setup = page.getByRole("region", { name: "UpGrid setup" });
   await expect(setup.getByRole("textbox", { name: "Node name" })).toHaveCount(1);
 
-  const choices = setup.locator(".cluster-choice");
-  await expect(choices).toHaveCount(2);
-  const [create, join] = await Promise.all([
-    choices.nth(0).boundingBox(),
-    choices.nth(1).boundingBox(),
+  const divider = setup.getByText("Or", { exact: true });
+  const [create, separator, join, token, joinButton] = await Promise.all([
+    setup.locator(".cluster-create").boundingBox(),
+    divider.boundingBox(),
+    setup.locator(".cluster-join").boundingBox(),
+    setup.getByLabel("Join Token").boundingBox(),
+    setup.getByRole("button", { name: "Join Cluster" }).boundingBox(),
   ]);
   expect(create).not.toBeNull();
+  expect(separator).not.toBeNull();
   expect(join).not.toBeNull();
-  expect(Math.abs(create!.y - join!.y)).toBeLessThan(2);
-  expect(Math.max(create!.y + create!.height, join!.y + join!.height)).toBeLessThanOrEqual(560);
+  expect(token).not.toBeNull();
+  expect(joinButton).not.toBeNull();
+  expect(create!.y + create!.height).toBeLessThanOrEqual(separator!.y);
+  expect(separator!.y + separator!.height).toBeLessThanOrEqual(join!.y);
+  expect(join!.y + join!.height).toBeLessThanOrEqual(560);
+  expect(token!.x + token!.width).toBeLessThanOrEqual(joinButton!.x - 9);
+  expect(Math.abs(token!.height - joinButton!.height)).toBeLessThan(1);
+
+  const [shell, header, flow] = await Promise.all([
+    page.locator(".setup-shell").boundingBox(),
+    page.locator(".setup-shell header").boundingBox(),
+    setup.boundingBox(),
+  ]);
+  expect(shell).not.toBeNull();
+  expect(header).not.toBeNull();
+  expect(flow).not.toBeNull();
+  const spaceAbove = flow!.y - (header!.y + header!.height);
+  const spaceBelow = shell!.y + shell!.height - (flow!.y + flow!.height);
+  expect(Math.abs(spaceAbove - spaceBelow)).toBeLessThan(30);
+
+  const script = await page.request.get(`${setupUrl}/assets/upgrid.js`);
+  expect(script.ok()).toBeTruthy();
+  expect(script.headers()["cache-control"]).toBe("no-store");
 });
 
 test("keeps dashboard routes inside OOBE before Cluster setup", async ({ page }) => {

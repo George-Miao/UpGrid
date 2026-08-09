@@ -57,7 +57,7 @@ mod tests {
         ));
         let script = include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../frontend/dist/assets/app.js"
+            "/../../frontend/dist/assets/upgrid.js"
         ));
         let logo = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -65,7 +65,7 @@ mod tests {
         ));
 
         assert!(html.contains("rel=\"icon\" href=\"/favicon.svg\""));
-        assert!(html.contains("src=\"/assets/app.js\""));
+        assert!(html.contains("src=\"/assets/upgrid.js\""));
         assert!(!script.is_empty());
         assert!(logo.starts_with("<svg"));
         assert!(logo.contains("<title id=\"title\">UpGrid</title>"));

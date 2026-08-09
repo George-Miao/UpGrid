@@ -13,36 +13,42 @@ export class UpgridSetup extends LitElement {
 
   static styles = css`
     :host { display: block; }
+    *, *::before, *::after { box-sizing: border-box; }
     .flow { width: min(760px, 100%); margin: 0 auto; }
     .eyebrow { color: var(--muted); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; }
     h1 { margin: 5px 0 8px; font-size: clamp(30px, 5vw, 46px); letter-spacing: -.04em; }
-    .lead { margin: 0 0 24px; color: var(--muted); font-size: 15px; }
+    .lead { margin: 0 0 16px; color: var(--muted); font-size: 15px; }
     .panel { border: 1px solid var(--line); border-radius: 16px; background: var(--panel-surface); box-shadow: 0 16px 48px var(--panel-shadow); overflow: hidden; }
     .choice { display: grid; gap: 14px; padding: 22px; border-top: 1px solid var(--line); }
     .choice:first-child { border-top: 0; }
     .choice h2 { margin: 0; font-size: 17px; }
     .choice p { margin: -8px 0 0; color: var(--muted); }
-    .cluster-identity { margin-bottom: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 13px; background: var(--panel-surface); box-shadow: 0 12px 32px var(--panel-shadow); }
-    .cluster-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .cluster-choice { display: flex; min-width: 0; flex-direction: column; gap: 12px; padding: 17px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel-surface); box-shadow: 0 12px 32px var(--panel-shadow); transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease; }
-    .cluster-choice:hover { border-color: var(--button-border); transform: translateY(-1px); }
-    .cluster-choice h2 { margin: 0; font-size: 17px; }
-    .cluster-choice p { min-height: 42px; margin: -5px 0 0; color: var(--muted); }
-    .cluster-choice .actions { margin-top: auto; }
+    .cluster-panel { border: 1px solid var(--line); border-radius: 16px; background: var(--panel-surface); box-shadow: 0 16px 48px var(--panel-shadow); overflow: hidden; }
+    .cluster-identity, .cluster-create, .cluster-join { padding: 15px 18px; }
+    .cluster-identity { border-bottom: 1px solid var(--line); }
+    .cluster-create { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+    .cluster-copy h2 { margin: 0; font-size: 17px; }
+    .cluster-copy p { margin: 2px 0 0; color: var(--muted); }
+    .cluster-divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
+    .cluster-divider::before, .cluster-divider::after { height: 1px; flex: 1; background: var(--line); content: ""; }
+    .cluster-join { display: grid; gap: 10px; }
+    .cluster-join-fields { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; }
+    .cluster-join-fields label { min-width: 0; }
+    .cluster-join-fields button { height: 41px; white-space: nowrap; }
     form { display: grid; gap: 13px; }
     label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
-    input, select { width: 100%; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font: inherit; transition: border-color 160ms ease, opacity 160ms ease; }
+    input, select { width: 100%; min-height: 41px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font: inherit; transition: border-color 160ms ease, opacity 160ms ease; }
     input:focus, select:focus { border-color: var(--focus); }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
     .actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 5px; }
-    button { border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; font: inherit; transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease, transform 120ms ease; }
+    button { display: inline-flex; min-height: 41px; align-items: center; justify-content: center; border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; font: inherit; transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease, transform 120ms ease; }
     button:hover { border-color: var(--button-hover-border); }
     button:active { transform: translateY(1px); }
     button:disabled { cursor: not-allowed; opacity: .65; }
     .secondary { background: transparent; color: var(--muted); border-color: var(--line); }
     .notice { margin-bottom: 16px; border: 1px solid var(--notice-border); border-radius: 10px; background: var(--notice-bg); color: var(--notice-text); padding: 10px 12px; }
     .count { display: inline-block; margin-top: 6px; color: var(--green); font-size: 12px; }
-    @media (max-width: 620px) { .cluster-options, .row { grid-template-columns: 1fr; } .cluster-choice p { min-height: 0; } }
+    @media (max-width: 620px) { .row, .cluster-join-fields { grid-template-columns: 1fr; } .cluster-create { align-items: stretch; flex-direction: column; } .cluster-create button, .cluster-join button { justify-self: end; } }
   `;
 
   connectedCallback(): void {
@@ -166,18 +172,21 @@ export class UpgridSetup extends LitElement {
     return html`
       <span class="eyebrow">First-run setup</span><h1>Choose your Cluster</h1>
       <p class="lead">Review this Node’s name, then create a new Cluster or use an invitation to join one.</p>
-      <div class="cluster-identity">
-        <label for="setup-node-name">Node name<input id="setup-node-name" .value=${this.setup.node_name} required /></label>
-      </div>
-      <div class="cluster-options">
-        <form class="cluster-choice" @submit=${this.createCluster}>
-          <h2>Start a new Cluster</h2><p>This Node becomes the first voting member.</p>
-          <div class="actions"><button type="submit" ?disabled=${this.saving}>${this.saving ? "Setting up…" : "Create new Cluster"}</button></div>
+      <div class="cluster-panel">
+        <div class="cluster-identity">
+          <label for="setup-node-name">Node name<input id="setup-node-name" .value=${this.setup.node_name} required /></label>
+        </div>
+        <form class="cluster-create" @submit=${this.createCluster}>
+          <div class="cluster-copy"><h2>Start a new Cluster</h2><p>This Node becomes the first voting member.</p></div>
+          <button type="submit" ?disabled=${this.saving}>${this.saving ? "Setting up…" : "Create new Cluster"}</button>
         </form>
-        <form class="cluster-choice" @submit=${this.joinCluster}>
-          <h2>Join an existing Cluster</h2><p>Paste an <code>up://</code> Join Token from a current member.</p>
-          <label>Join Token<input name="join_link" type="url" pattern="up://.*" placeholder="up://node.example/token" autocomplete="off" required /></label>
-          <div class="actions"><button class="secondary" type="submit" ?disabled=${this.saving}>Join Cluster</button></div>
+        <div class="cluster-divider"><span>Or</span></div>
+        <form class="cluster-join" @submit=${this.joinCluster}>
+          <div class="cluster-copy"><h2>Join an existing Cluster</h2><p>Paste an <code>up://</code> Join Token from a current member.</p></div>
+          <div class="cluster-join-fields">
+            <label>Join Token<input name="join_link" type="url" pattern="up://.*" placeholder="up://node.example/token" autocomplete="off" required /></label>
+            <button class="secondary" type="submit" ?disabled=${this.saving}>Join Cluster</button>
+          </div>
         </form>
       </div>`;
   }

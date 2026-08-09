@@ -17,11 +17,11 @@ pub(super) async fn webui_script() -> impl IntoResponse {
     (
         [
             (header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
-            (header::CACHE_CONTROL, "public, max-age=3600"),
+            (header::CACHE_CONTROL, "no-store"),
         ],
         include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../frontend/dist/assets/app.js"
+            "/../../frontend/dist/assets/upgrid.js"
         ))
         .as_slice(),
     )

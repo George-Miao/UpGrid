@@ -23,7 +23,7 @@ export default defineConfig({
         app: resolve(import.meta.dirname, "index.html"),
       },
       output: {
-        entryFileNames: (chunk) => `assets/${chunk.name}.js`,
+        entryFileNames: "assets/upgrid.js",
         chunkFileNames: "assets/[name].js",
         assetFileNames: "assets/[name][extname]",
       },

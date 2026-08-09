@@ -86,7 +86,7 @@ async fn serve(
             "/healthz",
             get(|| async { Json(serde_json::json!({"status": "ok"})) }),
         )
-        .route("/assets/app.js", get(webui_script))
+        .route("/assets/upgrid.js", get(webui_script))
         .route("/favicon.svg", get(favicon))
         .merge(protected);
     if let (Some(cert), Some(key)) = (tls_cert, tls_key) {

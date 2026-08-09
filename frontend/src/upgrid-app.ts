@@ -65,8 +65,9 @@ export class UpgridApp extends AppController {
     * { box-sizing: border-box; }
     button, input, select { font: inherit; }
     .shell { max-width: 1200px; margin: auto; padding: 28px 24px 72px; }
-    .setup-shell { padding-top: 20px; }
+    .setup-shell { display: grid; min-height: 100vh; grid-template-rows: auto minmax(0, 1fr); padding-top: 20px; padding-bottom: 20px; }
     .setup-shell header { margin-bottom: 18px; }
+    .setup-shell upgrid-setup { align-self: center; }
     header { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; margin-bottom: 34px; }
     .brand, .actions, .live, nav { display: flex; align-items: center; }
     .brand { gap: 13px; }
