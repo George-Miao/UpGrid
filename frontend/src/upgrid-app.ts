@@ -203,9 +203,11 @@ export class UpgridApp extends LitElement {
   private navigate(event: MouseEvent, section: string): void {
     event.preventDefault();
     this.activeSection = section;
-    this.renderRoot
-      .querySelector<HTMLElement>(`#${section}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    void this.updateComplete.then(() =>
+      this.renderRoot
+        .querySelector<HTMLElement>(`#${section}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
   }
 
   private closeDialog(id: string): void {
@@ -505,7 +507,7 @@ export class UpgridApp extends LitElement {
             <div><strong>UpGrid</strong><span>Distributed service monitoring</span></div>
           </div>
           <nav aria-label="Primary">
-            ${["overview", "targets", "alerts", "cluster"].map(
+            ${["overview", "alerts", "cluster"].map(
               (section) => html`<a class=${this.activeSection === section ? "active" : ""} href=${`#${section}`} @click=${(event: MouseEvent) => this.navigate(event, section)}>${section[0].toUpperCase()}${section.slice(1)}</a>`,
             )}
           </nav>
@@ -514,54 +516,12 @@ export class UpgridApp extends LitElement {
             <div class="live"><i class="dot ${this.live ? "on" : ""}"></i>${this.live ? "live" : "connecting"}</div>
           </div>
         </header>
-        <section class="heading" id="overview">
-          <div><span class="eyebrow">Cluster status</span><h1>Overview</h1></div>
-          <button class="button" @click=${this.openTargetDialog}>Add target</button>
-        </section>
         ${this.error ? html`<div class="notice" role="alert">${this.error}</div>` : nothing}
-        <section class="summary" aria-label="Target summary">
-          <div class="metric"><span>Targets</span><strong>${this.targets.length}</strong></div>
-          <div class="metric"><span>Up</span><strong>${up}</strong></div>
-          <div class="metric"><span>Down</span><strong>${down}</strong></div>
-          <div class="metric"><span>Pending alerts</span><strong>${pending}</strong></div>
-        </section>
-        <section class="panel" id="targets">
-          <div class="panel-head"><h2>Targets</h2><span class="meta">${this.targets.length} configured</span></div>
-          <div class="toolbar">
-            <input aria-label="Search targets" type="search" placeholder="Search name or URL" .value=${this.search} @input=${(event: Event) => (this.search = (event.target as HTMLInputElement).value)} />
-            <select aria-label="Filter targets" .value=${this.statusFilter} @change=${(event: Event) => (this.statusFilter = (event.target as HTMLSelectElement).value)}><option value="all">All states</option><option value="up">Up</option><option value="down">Down</option><option value="unknown">Unknown</option><option value="paused">Paused</option></select>
-            <select aria-label="Sort targets" .value=${this.sort} @change=${(event: Event) => (this.sort = (event.target as HTMLSelectElement).value)}><option value="name">Sort by name</option><option value="status">Sort by status</option></select>
-          </div>
-          ${this.selectedIds.size ? html`<div class="bulk"><span class="meta">${this.selectedIds.size} selected</span><button class="button secondary" @click=${() => this.bulkPause(true)}>Pause selected</button><button class="button secondary" @click=${() => this.bulkPause(false)}>Resume selected</button><button class="button danger" @click=${this.bulkDelete}>Delete selected</button></div>` : nothing}
-          ${visibleTargets.length
-            ? visibleTargets.map((target) => this.renderTarget(target))
-            : html`<div class="empty">${this.targets.length ? "No Targets match these filters." : "No targets yet. Add the first one to begin monitoring."}</div>`}
-        </section>
-        <section class="resources" aria-label="Notification configuration">
-          <section class="panel">
-            <div class="panel-head"><h2>Notification channels</h2><button class="button secondary" @click=${() => this.showDialog("channel-dialog")}>Add channel</button></div>
-            ${this.channels.length
-              ? this.channels.map((channel) => html`<div class="resource"><div><strong>${channel.name}</strong><code>${channel.destination}</code></div><div class="actions"><span class="badge">${channel.kind}</span><button class="button danger" aria-label=${`Delete channel ${channel.name}`} @click=${() => this.deleteResource("channels", channel.id, channel.name)}>Delete</button></div></div>`)
-              : html`<div class="empty">No notification channels.</div>`}
-          </section>
-          <section class="panel">
-            <div class="panel-head"><h2>Secrets</h2><button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div>
-            ${this.secrets.length
-              ? this.secrets.map((secret) => html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id}</code></div><div class="actions"><span class="badge">write-only</span><button class="button danger" aria-label=${`Delete secret ${secret.name}`} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}>Delete</button></div></div>`)
-              : html`<div class="empty">No reusable Secrets.</div>`}
-          </section>
-          <section class="panel" id="alerts">
-            <div class="panel-head"><h2>Alert history</h2><span class="meta">${this.alerts.length} events</span></div>
-            ${this.alerts.length
-              ? this.alerts.slice(0, 10).map((alert) => html`<div class="resource"><div><strong>${alert.target_name}</strong><code>${new Date(alert.scheduled_at_ms).toLocaleString()}</code></div><span class="badge">${alert.kind} · ${alert.delivery}</span></div>`)
-              : html`<div class="empty">No availability transitions.</div>`}
-          </section>
-          <section class="panel" id="cluster" aria-label="Cluster topology">
-            <div class="panel-head"><h2>Cluster access</h2><button class="button secondary" @click=${this.createJoinLink}>Add node</button></div>
-            ${this.cluster?.members.map((member) => html`<div class="resource"><div><strong>${member.raft_url}</strong><code>${member.id}</code></div><div class="actions">${member.local ? html`<span class="badge">This node</span>` : nothing}${member.leader ? html`<span class="badge">Leader</span>` : nothing}</div></div>`)}
-            ${this.cluster?.members.length ? nothing : html`<div class="empty">Cluster topology unavailable.</div>`}
-          </section>
-        </section>
+        ${this.activeSection === "overview"
+          ? this.renderOverview(visibleTargets, up, down, pending)
+          : this.activeSection === "alerts"
+            ? this.renderAlertsPage()
+            : this.renderClusterPage()}
       </main>
       <dialog id="target-dialog" aria-labelledby="add-target-title" @click=${this.dismissOnBackdrop}>
         <div class="dialog-head"><h2 id="add-target-title">Add target</h2><p>Start monitoring an HTTP or HTTPS endpoint.</p></div>
@@ -607,6 +567,75 @@ export class UpgridApp extends LitElement {
         <div class="join-command">${this.joinCommand}</div>
         <div class="dialog-actions" style="padding: 0 22px 22px"><button class="button secondary" @click=${() => this.closeDialog("join-dialog")}>Close</button><button class="button" @click=${this.copyJoinCommand}>${this.copied ? "Copied" : "Copy command"}</button></div>
       </dialog>
+    `;
+  }
+
+  private renderOverview(visibleTargets: Target[], up: number, down: number, pending: number) {
+    return html`
+      <section class="heading" id="overview">
+        <div><span class="eyebrow">Cluster status</span><h1>Overview</h1></div>
+        <button class="button" @click=${this.openTargetDialog}>Add target</button>
+      </section>
+      <section class="summary" aria-label="Target summary">
+        <div class="metric"><span>Targets</span><strong>${this.targets.length}</strong></div>
+        <div class="metric"><span>Up</span><strong>${up}</strong></div>
+        <div class="metric"><span>Down</span><strong>${down}</strong></div>
+        <div class="metric"><span>Pending alerts</span><strong>${pending}</strong></div>
+      </section>
+      <section class="panel" aria-label="Targets">
+        <div class="panel-head"><h2>Targets</h2><span class="meta">${this.targets.length} configured</span></div>
+        <div class="toolbar">
+          <input aria-label="Search targets" type="search" placeholder="Search name or URL" .value=${this.search} @input=${(event: Event) => (this.search = (event.target as HTMLInputElement).value)} />
+          <select aria-label="Filter targets" .value=${this.statusFilter} @change=${(event: Event) => (this.statusFilter = (event.target as HTMLSelectElement).value)}><option value="all">All states</option><option value="up">Up</option><option value="down">Down</option><option value="unknown">Unknown</option><option value="paused">Paused</option></select>
+          <select aria-label="Sort targets" .value=${this.sort} @change=${(event: Event) => (this.sort = (event.target as HTMLSelectElement).value)}><option value="name">Sort by name</option><option value="status">Sort by status</option></select>
+        </div>
+        ${this.selectedIds.size ? html`<div class="bulk"><span class="meta">${this.selectedIds.size} selected</span><button class="button secondary" @click=${() => this.bulkPause(true)}>Pause selected</button><button class="button secondary" @click=${() => this.bulkPause(false)}>Resume selected</button><button class="button danger" @click=${this.bulkDelete}>Delete selected</button></div>` : nothing}
+        ${visibleTargets.length
+          ? visibleTargets.map((target) => this.renderTarget(target))
+          : html`<div class="empty">${this.targets.length ? "No Targets match these filters." : "No targets yet. Add the first one to begin monitoring."}</div>`}
+      </section>
+      <section class="resources" aria-label="Notification configuration">
+        <section class="panel">
+          <div class="panel-head"><h2>Notification channels</h2><button class="button secondary" @click=${() => this.showDialog("channel-dialog")}>Add channel</button></div>
+          ${this.channels.length
+            ? this.channels.map((channel) => html`<div class="resource"><div><strong>${channel.name}</strong><code>${channel.destination}</code></div><div class="actions"><span class="badge">${channel.kind}</span><button class="button danger" aria-label=${`Delete channel ${channel.name}`} @click=${() => this.deleteResource("channels", channel.id, channel.name)}>Delete</button></div></div>`)
+            : html`<div class="empty">No notification channels.</div>`}
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2>Secrets</h2><button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div>
+          ${this.secrets.length
+            ? this.secrets.map((secret) => html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id}</code></div><div class="actions"><span class="badge">write-only</span><button class="button danger" aria-label=${`Delete secret ${secret.name}`} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}>Delete</button></div></div>`)
+            : html`<div class="empty">No reusable Secrets.</div>`}
+        </section>
+      </section>
+    `;
+  }
+
+  private renderAlertsPage() {
+    return html`
+      <section class="heading" id="alerts">
+        <div><span class="eyebrow">Delivery history</span><h1>Alerts</h1></div>
+      </section>
+      <section class="panel" aria-label="Alert history">
+        <div class="panel-head"><h2>Availability transitions</h2><span class="meta">${this.alerts.length} events</span></div>
+        ${this.alerts.length
+          ? this.alerts.map((alert) => html`<div class="resource"><div><strong>${alert.target_name}</strong><code>${new Date(alert.scheduled_at_ms).toLocaleString()}</code></div><span class="badge">${alert.kind} · ${alert.delivery}</span></div>`)
+          : html`<div class="empty">No availability transitions.</div>`}
+      </section>
+    `;
+  }
+
+  private renderClusterPage() {
+    return html`
+      <section class="heading" id="cluster">
+        <div><span class="eyebrow">Raft membership</span><h1>Cluster</h1></div>
+        <button class="button" @click=${this.createJoinLink}>Add node</button>
+      </section>
+      <section class="panel" aria-label="Cluster topology">
+        <div class="panel-head"><h2>Nodes</h2><span class="meta">${this.cluster?.members.length ?? 0} members</span></div>
+        ${this.cluster?.members.map((member) => html`<div class="resource"><div><strong>${member.raft_url}</strong><code>${member.id}</code></div><div class="actions">${member.local ? html`<span class="badge">This node</span>` : nothing}${member.leader ? html`<span class="badge">Leader</span>` : nothing}</div></div>`)}
+        ${this.cluster?.members.length ? nothing : html`<div class="empty">Cluster topology unavailable.</div>`}
+      </section>
     `;
   }
 

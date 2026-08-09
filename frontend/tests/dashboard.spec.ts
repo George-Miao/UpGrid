@@ -84,6 +84,7 @@ test("pauses and resumes cluster-wide evaluations", async ({ page }) => {
 
 test("shows the local Raft topology and leader", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("link", { name: "Cluster" }).click();
 
   const cluster = page.getByRole("region", { name: "Cluster topology" });
   await expect(cluster.getByText("up://127.0.0.1:18451")).toBeVisible();
@@ -109,12 +110,19 @@ test("filters and bulk-pauses selected targets", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Search alpha" })).toContainText("Paused");
 });
 
-test("navigation tabs activate and scroll to their section", async ({ page }) => {
+test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
   await page.goto("/");
+
+  await expect(page.getByRole("link", { name: "Targets" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Alerts" }).click();
+  await expect(page.getByRole("link", { name: "Alerts" })).toHaveClass(/active/);
+  await expect(page.getByRole("heading", { name: "Alerts" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Targets" })).toHaveCount(0);
 
   await page.getByRole("link", { name: "Cluster" }).click();
   await expect(page.getByRole("link", { name: "Cluster" })).toHaveClass(/active/);
   await expect(page.getByRole("region", { name: "Cluster topology" })).toBeInViewport();
+  await expect(page.getByRole("heading", { name: "Alerts" })).toHaveCount(0);
 });
 
 test("copying a join command confirms success", async ({ page }) => {
