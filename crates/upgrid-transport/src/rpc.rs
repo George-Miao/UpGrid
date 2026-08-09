@@ -35,35 +35,60 @@ impl RpcTransport {
     }
 
     pub async fn connect<In, Out>(&self, host: &str, port: u16) -> Result<FramedConn<In, Out>> {
-        let connection = if let Some(connection) = self.peers.borrow().get(&Key {
+        let key = Key {
             host: host.to_owned(),
             port,
-        }) {
-            connection.clone()
-        } else {
-            let addr = (host, port)
-                .to_socket_addrs_async()
-                .context(ResolveSnafu { host })
-                .await?
-                .next()
-                .context(ResolveEmptySnafu { host })?;
-            let connection = self
-                .endpoint
-                .connect(addr, host, None)
-                .context(QuicConnectSnafu { host, port })?
-                .context(QuicConnectionSnafu { host, port })
-                .await?;
-            self.peers.borrow_mut().insert(
-                Key {
-                    host: host.to_owned(),
-                    port,
-                },
-                connection.clone(),
-            );
-            connection
         };
-        let (send, recv) = connection.open_bi_wait().context(QuicIncomingSnafu).await?;
+        let cached = self
+            .peers
+            .borrow()
+            .get(&key)
+            .filter(|connection| connection.close_reason().is_none())
+            .cloned();
+        let connection = match cached {
+            Some(connection) => connection,
+            None => {
+                self.peers.borrow_mut().remove(&key);
+                self.establish(&key).await?
+            }
+        };
+        let (send, recv) = match connection.open_bi_wait().await {
+            Ok(streams) => streams,
+            Err(_) => {
+                self.peers.borrow_mut().remove(&key);
+                self.establish(&key)
+                    .await?
+                    .open_bi_wait()
+                    .context(QuicIncomingSnafu)
+                    .await?
+            }
+        };
         Ok(bi_stream_framed(send, recv))
+    }
+
+    async fn establish(&self, key: &Key) -> Result<Connection> {
+        let addr = (key.host.as_str(), key.port)
+            .to_socket_addrs_async()
+            .context(ResolveSnafu { host: &key.host })
+            .await?
+            .next()
+            .context(ResolveEmptySnafu { host: &key.host })?;
+        let connection = self
+            .endpoint
+            .connect(addr, &key.host, None)
+            .context(QuicConnectSnafu {
+                host: &key.host,
+                port: key.port,
+            })?
+            .context(QuicConnectionSnafu {
+                host: &key.host,
+                port: key.port,
+            })
+            .await?;
+        self.peers
+            .borrow_mut()
+            .insert(key.clone(), connection.clone());
+        Ok(connection)
     }
 
     pub fn invalidate(&self, host: &str, port: u16) {
@@ -101,5 +126,58 @@ impl RpcSession {
 
     pub fn channels<In, Out>(self) -> impl Stream<Item = Result<FramedConn<In, Out>>> {
         accept_framed(self.connection)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use compio::runtime::spawn;
+
+    use super::*;
+
+    #[compio::test]
+    async fn reconnects_after_cached_connection_closes() {
+        let server_endpoint = crate::tls::insecure_endpoint("127.0.0.1".to_owned(), 0)
+            .await
+            .unwrap();
+        let server_port = server_endpoint.local_addr().unwrap().port();
+        let server = RpcTransport::new(server_endpoint);
+        let client = RpcTransport::new(
+            crate::tls::insecure_endpoint("127.0.0.1".to_owned(), 0)
+                .await
+                .unwrap(),
+        );
+
+        let first_accept = spawn({
+            let server = server.clone();
+            async move { server.accept().await.unwrap().unwrap() }
+        });
+        let first = client
+            .connect::<u8, u8>("127.0.0.1", server_port)
+            .await
+            .unwrap();
+        let _first_session = first_accept.await.unwrap();
+        drop(first);
+
+        let key = Key {
+            host: "127.0.0.1".to_owned(),
+            port: server_port,
+        };
+        client
+            .peers
+            .borrow()
+            .get(&key)
+            .unwrap()
+            .close(0_u32.into(), b"test reconnect");
+
+        let second_accept = spawn({
+            let server = server.clone();
+            async move { server.accept().await.unwrap().unwrap() }
+        });
+        client
+            .connect::<u8, u8>("127.0.0.1", server_port)
+            .await
+            .unwrap();
+        let _second_session = second_accept.await.unwrap();
     }
 }

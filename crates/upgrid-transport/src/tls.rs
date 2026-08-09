@@ -142,7 +142,7 @@ pub async fn secure_endpoint(host: String, port: u16, cipher: &Cipher) -> Result
         .context(EndpointCreationSnafu)
 }
 
-#[cfg(feature = "test-util")]
+#[cfg(any(test, feature = "test-util"))]
 pub async fn insecure_endpoint(host: String, port: u16) -> Result<Endpoint> {
     let rcgen::CertifiedKey { cert, signing_key } =
         rcgen::generate_simple_self_signed(vec![host]).unwrap();

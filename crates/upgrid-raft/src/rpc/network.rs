@@ -78,6 +78,7 @@ impl TarpcConnector {
             }
             RpcError::DeadlineExceeded => {
                 debug!("deadline exceeded");
+                self.rpc.invalidate(&self.target);
                 Timeout {
                     action,
                     id: self.self_id,
