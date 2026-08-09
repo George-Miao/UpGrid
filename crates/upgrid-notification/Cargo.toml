@@ -1,0 +1,19 @@
+[package]
+name = "upgrid-notification"
+publish = false
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+compio.workspace = true
+cyper.workspace = true
+http.workspace = true
+httpdate.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+upgrid-config.workspace = true
+upgrid-raft.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+uuid.workspace = true

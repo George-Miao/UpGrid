@@ -1,0 +1,22 @@
+[package]
+name = "upgrid-transport"
+publish = false
+version.workspace = true
+edition.workspace = true
+
+[features]
+test-util = []
+
+[dependencies]
+async-stream.workspace = true
+compio.workspace = true
+compio-quic.workspace = true
+futures-core.workspace = true
+postcard.workspace = true
+quick_cache.workspace = true
+rcgen.workspace = true
+rustls.workspace = true
+serde.workspace = true
+snafu.workspace = true
+tarpc.workspace = true
+upgrid-config.workspace = true

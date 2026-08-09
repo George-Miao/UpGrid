@@ -1,0 +1,13 @@
+[package]
+name = "upgrid-config"
+publish = false
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+base64.workspace = true
+postcard.workspace = true
+ring.workspace = true
+serde.workspace = true
+url.workspace = true
+uuid.workspace = true

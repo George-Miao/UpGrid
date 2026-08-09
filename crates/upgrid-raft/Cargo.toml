@@ -1,0 +1,27 @@
+[package]
+name = "upgrid-raft"
+publish = false
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+compio.workspace = true
+openraft.workspace = true
+openraft-rt-compio.workspace = true
+postcard.workspace = true
+redb.workspace = true
+ring.workspace = true
+serde.workspace = true
+snafu.workspace = true
+tap.workspace = true
+tarpc.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+upgrid-config.workspace = true
+upgrid-transport.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tracing-subscriber.workspace = true
+upgrid-transport = { workspace = true, features = ["test-util"] }

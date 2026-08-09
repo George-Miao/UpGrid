@@ -1,0 +1,170 @@
+use super::core::*;
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+    use std::fs;
+    use std::rc::Rc;
+
+    use openraft::storage::RaftStateMachine;
+    use openraft::vote::leader_id_adv::CommittedLeaderId;
+    use openraft::{Entry, EntryPayload, LogId, StoredMembership};
+    use url::Url;
+    use uuid::Uuid;
+
+    use super::*;
+    use crate::domain::{
+        ApplicationState, Command, EvaluationPolicy, HttpTarget, Target, TargetId,
+    };
+    use crate::raft::TC;
+
+    #[compio::test]
+    async fn batches_state_machine_checkpoints() {
+        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("raft-state.postcard");
+        let mut state_machine = Rc::new(StateMachine::open(&path).unwrap());
+        let leader = CommittedLeaderId::<TC> {
+            term: 1,
+            node_id: Uuid::now_v7(),
+        };
+        let entries = (1..CHECKPOINT_INTERVAL).map(|index| Entry {
+            log_id: LogId::new(leader, index),
+            payload: EntryPayload::Blank,
+        });
+
+        RaftStateMachine::apply(&mut state_machine, entries)
+            .await
+            .unwrap();
+        assert!(!path.exists());
+
+        RaftStateMachine::apply(
+            &mut state_machine,
+            [Entry {
+                log_id: LogId::new(leader, CHECKPOINT_INTERVAL),
+                payload: EntryPayload::Blank,
+            }],
+        )
+        .await
+        .unwrap();
+
+        let reopened = StateMachine::open(&path).unwrap();
+        assert_eq!(reopened.applied_index(), Some(CHECKPOINT_INTERVAL));
+        drop(reopened);
+        drop(state_machine);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn application_state_survives_reopen() {
+        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("raft-state.postcard");
+        let target_id = TargetId(Uuid::now_v7());
+        let state_machine = StateMachine::open(&path).unwrap();
+        state_machine
+            .state_machine
+            .borrow_mut()
+            .application
+            .apply(Command::CreateTarget(Target {
+                id: target_id,
+                name: "Example".to_owned(),
+                http: HttpTarget::get(Url::parse("https://example.com/health").unwrap()),
+                policy: EvaluationPolicy::default(),
+                notification_channels: BTreeSet::new(),
+            }))
+            .unwrap();
+        state_machine.persist().unwrap();
+        drop(state_machine);
+
+        let reopened = StateMachine::open(&path).unwrap();
+        assert!(
+            reopened
+                .application_state()
+                .targets
+                .contains_key(&target_id)
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn legacy_state_is_migrated_to_the_versioned_format() {
+        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("raft-state.postcard");
+        let target_id = TargetId(Uuid::now_v7());
+        let mut application = ApplicationState::default();
+        application
+            .apply(Command::CreateTarget(Target {
+                id: target_id,
+                name: "Migrated".to_owned(),
+                http: HttpTarget::get(Url::parse("https://example.com/health").unwrap()),
+                policy: EvaluationPolicy::default(),
+                notification_channels: BTreeSet::new(),
+            }))
+            .unwrap();
+        let legacy = LegacyPersistedStateMachine {
+            state_machine: LegacyStateMachineData {
+                last_applied_log: None,
+                last_membership: StoredMembership::default(),
+                application: application.into(),
+            },
+            current_snapshot: None,
+            snapshot_idx: 0,
+        };
+        fs::write(&path, postcard::to_stdvec(&legacy).unwrap()).unwrap();
+
+        let state_machine = StateMachine::open(&path).unwrap();
+        assert!(
+            state_machine
+                .application_state()
+                .targets
+                .contains_key(&target_id)
+        );
+        state_machine.persist().unwrap();
+        assert!(fs::read(&path).unwrap().starts_with(STATE_MAGIC));
+
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn previous_version_is_migrated_without_losing_application_state() {
+        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("raft-state.postcard");
+        let target_id = TargetId(Uuid::now_v7());
+        let mut application = ApplicationState::default();
+        application
+            .apply(Command::CreateTarget(Target {
+                id: target_id,
+                name: "Previous".to_owned(),
+                http: HttpTarget::get(Url::parse("https://example.com/health").unwrap()),
+                policy: EvaluationPolicy::default(),
+                notification_channels: BTreeSet::new(),
+            }))
+            .unwrap();
+        let previous = PreviousPersistedStateMachine {
+            state_machine: PreviousStateMachineData {
+                last_applied_log: None,
+                last_membership: StoredMembership::default(),
+                application: application.into(),
+            },
+            current_snapshot: None,
+            snapshot_idx: 0,
+        };
+        let mut encoded = PREVIOUS_STATE_MAGIC.to_vec();
+        encoded.extend_from_slice(&postcard::to_stdvec(&previous).unwrap());
+        fs::write(&path, encoded).unwrap();
+
+        let state_machine = StateMachine::open(&path).unwrap();
+        assert!(
+            state_machine
+                .application_state()
+                .targets
+                .contains_key(&target_id)
+        );
+        assert!(state_machine.application_state().join_tokens.is_empty());
+
+        fs::remove_dir_all(directory).unwrap();
+    }
+}
