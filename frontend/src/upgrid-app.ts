@@ -10,6 +10,7 @@ import { type Target } from "./api.ts";
 import { AppController } from "./app-controller.ts";
 import { type Section, sectionPaths, themeIcons } from "./app-state.ts";
 import { renderTargetDetail } from "./target-detail-view.ts";
+import { renderTargetForm } from "./target-form-view.ts";
 
 @customElement("upgrid-app")
 export class UpgridApp extends AppController {
@@ -164,6 +165,9 @@ export class UpgridApp extends AppController {
     .success:hover { border-color: var(--button-text); }
     .dialog-close { position: absolute; top: 12px; right: 14px; }
     .check { display: flex; align-items: center; gap: 8px; } .check input { width: auto; }
+    .channel-fields { display: grid; gap: 7px; margin: 0; border: 0; padding: 0; }
+    .channel-fields legend { margin-bottom: 5px; padding: 0; color: var(--muted); font-size: 11px; letter-spacing: .03em; }
+    .channel-options { display: flex; flex-wrap: wrap; gap: 10px 16px; }
     .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .switch input { width: 40px; height: 22px; flex: none; appearance: none; border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
     .switch input::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
@@ -313,26 +317,12 @@ export class UpgridApp extends AppController {
             ? this.renderAlertsPage()
             : this.renderClusterPage()}
       </main>
-      <dialog id="target-dialog" aria-labelledby="add-target-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><h2 id="add-target-title">Add target</h2><p>Start monitoring an HTTP or HTTPS endpoint.</p></div>
-        <form @submit=${this.createTarget}>
-          <label>Name<input name="name" placeholder="Production API" required /></label>
-          <label>URL<input name="url" type="url" placeholder="https://example.com/health" required /></label>
-          <div class="row">
-            <label>Method<input name="method" value="GET" required /></label>
-            <label>Interval (seconds)<input name="interval" type="number" min="1" value="60" required /></label>
-          </div>
-          <div class="row">
-            <label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label>
-            <label>Failures before Down<input name="failures" type="number" min="1" value="3" required /></label>
-          </div>
-          <div class="dialog-actions">
-            <button class="button secondary" type="button" @click=${this.closeTargetDialog}>Cancel</button>
-            <button class="button" type="submit" ?disabled=${this.saving}>${this.saving ? "Creating…" : "Create target"}</button>
-          </div>
-        </form>
-      </dialog>
-      ${this.selected ? renderTargetDetail(this.selected, this.saving, this.detailDirty, this.cluster?.members ?? [], {
+      ${renderTargetForm(this.channels, this.saving, {
+        backdrop: (event) => this.dismissOnBackdrop(event),
+        close: () => this.closeTargetDialog(),
+        create: (event) => void this.createTarget(event),
+      })}
+      ${this.selected ? renderTargetDetail(this.selected, this.saving, this.detailDirty, this.cluster?.members ?? [], this.channels, {
         backdrop: (event) => this.dismissOnBackdrop(event),
         close: () => this.closeDetailDialog(),
         update: (event) => void this.updateTarget(event),
@@ -420,9 +410,9 @@ export class UpgridApp extends AppController {
       </section>
       <div class="page-columns">
       <section class="panel" aria-label="Alert history">
-        <div class="panel-head"><h2>Availability transitions</h2><span class="meta">${this.alerts.length} events</span></div>
-        ${this.alerts.length
-          ? this.alerts.map((alert) => html`<div class="resource"><div><strong>${alert.target_name}</strong><code>${new Date(alert.scheduled_at_ms).toLocaleString()}</code></div><span class="badge">${alert.kind} · ${alert.delivery}</span></div>`)
+        <div class="panel-head"><h2>Availability transitions</h2><span class="meta">${this.transitions.length} events</span></div>
+        ${this.transitions.length
+          ? this.transitions.map((transition) => html`<div class="resource"><div><strong>${transition.target_name}</strong><code>${new Date(transition.scheduled_at_ms).toLocaleString()}</code></div><span class="badge">${transition.kind}</span></div>`)
           : html`<div class="empty">No availability transitions.</div>`}
       </section>
       <section class="panel" aria-label="Notification channels">

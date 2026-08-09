@@ -1257,6 +1257,46 @@
           }
         }
       }
+    },
+    "/api/v1/transitions": {
+      "get": {
+        "operationId": "list_transitions",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TransitionView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2029,6 +2069,32 @@
             }
           }
         ]
+      },
+      "TransitionView": {
+        "type": "object",
+        "required": [
+          "target_id",
+          "kind",
+          "target_name",
+          "scheduled_at_ms"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "scheduled_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "target_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "target_name": {
+            "type": "string"
+          }
+        }
       }
     },
     "securitySchemes": {

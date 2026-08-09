@@ -84,3 +84,46 @@ test("uses trash icons for secret and Target deletion", async ({ page }) => {
   page.once("dialog", (confirmation) => confirmation.accept());
   await deleteTarget.click();
 });
+
+test("binds a channel and reports a failing Target transition", async ({ page }) => {
+  webhookBody = "";
+  await page.goto("/alerts");
+  await page.getByRole("button", { name: "Add channel" }).click();
+  const channelDialog = page.getByRole("dialog", { name: "Add channel" });
+  await channelDialog.getByLabel("Name").fill("Transition delivery webhook");
+  await channelDialog.getByLabel("Webhook URL").fill(webhookUrl);
+  await channelDialog.getByRole("button", { name: "Create channel" }).click();
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add target" }).click();
+  const targetDialog = page.getByRole("dialog", { name: "Add target" });
+  await targetDialog.getByLabel("Name").fill("Transition delivery target");
+  await targetDialog.getByLabel("URL").fill("http://127.0.0.1:19091/");
+  await targetDialog.getByLabel("Interval (seconds)").fill("1");
+  await targetDialog.getByLabel("Failures before Down").fill("1");
+  await targetDialog.getByLabel("Transition delivery webhook").check();
+  await targetDialog.getByRole("button", { name: "Create target" }).click();
+
+  const target = page.getByRole("button", { name: "Transition delivery target" });
+  await expect(target.locator(".state")).toHaveClass(/down/, { timeout: 15_000 });
+  await expect.poll(() => webhookBody && JSON.parse(webhookBody)).toMatchObject({
+    event: "down",
+    target_name: "Transition delivery target",
+  });
+
+  await page.goto("/alerts");
+  const transition = page.getByRole("region", { name: "Alert history" })
+    .locator(".resource", { hasText: "Transition delivery target" });
+  await expect(transition).toContainText("down");
+
+  await page.goto("/");
+  await target.click();
+  page.once("dialog", (confirmation) => confirmation.accept());
+  await page.getByRole("dialog", { name: "Target details" })
+    .getByRole("button", { name: "Delete target" }).click();
+  await page.goto("/alerts");
+  const channel = page.getByRole("region", { name: "Notification channels" })
+    .locator(".resource", { hasText: "Transition delivery webhook" });
+  page.once("dialog", (confirmation) => confirmation.accept());
+  await channel.getByRole("button", { name: "Delete channel Transition delivery webhook" }).click();
+});

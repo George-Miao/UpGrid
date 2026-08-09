@@ -119,6 +119,7 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(list_join_tokens, create_join_token))
         .routes(routes!(revoke_join_token))
         .routes(routes!(list_alerts))
+        .routes(routes!(list_transitions))
         .routes(routes!(get_cluster))
         .routes(routes!(get_setup))
         .routes(routes!(advance_setup))

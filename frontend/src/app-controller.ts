@@ -16,7 +16,7 @@ export class AppController extends AppState {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const fields = new FormData(form);
-    const input = targetInput(fields);
+    const input = targetInput(fields, fields.getAll("channel_id").map(String));
     this.saving = true;
     try {
       await request<Target>("/api/v1/targets", { method: "POST", body: JSON.stringify(input) });
@@ -51,7 +51,7 @@ export class AppController extends AppState {
         : this.selected.body ? { secret_id: this.selected.body.secret_id } : null,
       body_contains: String(fields.get("body_contains")) || null,
       skip_tls_verification: fields.get("skip_tls_verification") === "on",
-      notification_channel_ids: this.selected.notification_channel_ids,
+      notification_channel_ids: fields.getAll("channel_id").map(String),
     };
     this.saving = true;
     try {

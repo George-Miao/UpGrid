@@ -29,6 +29,14 @@ pub struct Alert {
     pub evaluation: Evaluation,
     pub delivery: AlertDelivery,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AvailabilityTransition {
+    pub kind: AlertKind,
+    pub target_name: String,
+    pub target_url: Url,
+    pub evaluation: Evaluation,
+}
 use serde::{Deserialize, Serialize};
 use url::Url;
 

@@ -204,4 +204,62 @@ mod tests {
 
         fs::remove_dir_all(directory).unwrap();
     }
+
+    #[test]
+    fn named_version_is_migrated_without_losing_node_names() {
+        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("raft-state.postcard");
+        let node_id = Uuid::now_v7();
+        let mut application = ApplicationState::default();
+        application
+            .apply(Command::SetNodeName {
+                node_id,
+                name: "green-anchor".to_owned(),
+            })
+            .unwrap();
+        let previous = NamedPersistedStateMachine {
+            state_machine: NamedStateMachineData {
+                last_applied_log: None,
+                last_membership: StoredMembership::default(),
+                application: application.into(),
+            },
+            current_snapshot: None,
+            snapshot_idx: 0,
+        };
+        let mut encoded = NAMED_STATE_MAGIC.to_vec();
+        encoded.extend_from_slice(&postcard::to_stdvec(&previous).unwrap());
+        fs::write(&path, encoded).unwrap();
+
+        let state_machine = StateMachine::open(&path).unwrap();
+        assert_eq!(
+            state_machine.application_state().node_names.get(&node_id),
+            Some(&"green-anchor".to_owned())
+        );
+        assert!(state_machine.application_state().transitions.is_empty());
+
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn named_snapshot_is_migrated_without_losing_node_names() {
+        let node_id = Uuid::now_v7();
+        let mut application = ApplicationState::default();
+        application
+            .apply(Command::SetNodeName {
+                node_id,
+                name: "swift-falcon".to_owned(),
+            })
+            .unwrap();
+        let previous: crate::domain::NamedApplicationState = application.into();
+        let mut encoded = NAMED_SNAPSHOT_MAGIC.to_vec();
+        encoded.extend_from_slice(&postcard::to_stdvec(&previous).unwrap());
+
+        let migrated = decode_application(&encoded).unwrap();
+        assert_eq!(
+            migrated.node_names.get(&node_id),
+            Some(&"swift-falcon".to_owned())
+        );
+        assert!(migrated.transitions.is_empty());
+    }
 }

@@ -341,10 +341,20 @@ impl ApplicationState {
         target_state
             .history
             .retain(|_, item| item.recorded_at_ms >= cutoff);
+        self.transitions
+            .retain(|_, item| item.evaluation.recorded_at_ms >= cutoff);
         let availability = target_state.availability;
 
         let mut alert_ids = Vec::new();
         if let Some(kind) = transition {
+            self.transitions
+                .entry(evaluation.id)
+                .or_insert_with(|| AvailabilityTransition {
+                    kind,
+                    target_name: target_name.clone(),
+                    target_url: target_url.clone(),
+                    evaluation: evaluation.clone(),
+                });
             for channel_id in channel_ids {
                 let id = AlertId {
                     target_id: evaluation.id.target_id,
@@ -411,7 +421,8 @@ impl ApplicationState {
 use uuid::Uuid;
 
 use super::{
-    Alert, AlertDelivery, AlertId, AlertKind, ApplicationState, AvailabilityState, Command,
-    CommandResult, DEFAULT_OPERATION_RETENTION_MS, DomainError, Evaluation, EvaluationAssignment,
-    MAX_DIAGNOSTIC_BYTES, NotificationChannel, ProcessedOperation, Secret, Target, TargetState,
+    Alert, AlertDelivery, AlertId, AlertKind, ApplicationState, AvailabilityState,
+    AvailabilityTransition, Command, CommandResult, DEFAULT_OPERATION_RETENTION_MS, DomainError,
+    Evaluation, EvaluationAssignment, MAX_DIAGNOSTIC_BYTES, NotificationChannel,
+    ProcessedOperation, Secret, Target, TargetState,
 };

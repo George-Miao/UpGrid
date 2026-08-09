@@ -120,6 +120,37 @@ fn availability_transitions_create_one_alert_per_channel() {
         }
     );
     assert_eq!(state.alerts.len(), 2);
+    assert_eq!(state.transitions.len(), 2);
+}
+
+#[test]
+fn availability_transition_is_recorded_without_a_notification_channel() {
+    let (mut state, target_id, _) = state_with_target();
+    state
+        .targets
+        .get_mut(&target_id)
+        .unwrap()
+        .target
+        .notification_channels
+        .clear();
+
+    for scheduled_at_ms in [1_000, 2_000, 3_000] {
+        state
+            .apply(Command::RecordEvaluation(evaluation(
+                target_id,
+                scheduled_at_ms,
+                false,
+            )))
+            .unwrap();
+    }
+
+    assert!(state.alerts.is_empty());
+    assert_eq!(state.transitions.len(), 1);
+    let transition = &state.transitions[&EvaluationId {
+        target_id,
+        scheduled_at_ms: 3_000,
+    }];
+    assert_eq!(transition.kind, AlertKind::Down);
 }
 
 #[test]

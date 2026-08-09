@@ -3,7 +3,8 @@ import closeIcon from "@iconify-icons/lucide/x";
 import deleteIcon from "@iconify-icons/lucide/trash-2";
 import pauseIcon from "@iconify-icons/lucide/pause";
 import playIcon from "@iconify-icons/lucide/play";
-import { type ClusterMember, type Target } from "./api.ts";
+import { type Channel, type ClusterMember, type Target } from "./api.ts";
+import { renderChannelFields } from "./target-form-view.ts";
 
 interface Actions {
   backdrop: (event: MouseEvent) => void;
@@ -20,6 +21,7 @@ export function renderTargetDetail(
   saving: boolean,
   dirty: boolean,
   members: ClusterMember[],
+  channels: Channel[],
   actions: Actions,
 ) {
   const statuses = target.accepted_statuses
@@ -48,6 +50,7 @@ export function renderTargetDetail(
         <div class="row"><label>Failures before Down<input name="failures" type="number" min="1" .value=${String(target.failure_threshold)} required /></label><label>Maximum redirects<input name="max_redirects" type="number" min="0" .value=${String(target.max_redirects)} ?disabled=${!target.follow_redirects} required /></label></div>
         <label>Body must contain<input name="body_contains" .value=${target.body_contains ?? ""} /></label>
         <div class="row"><label class="check"><input name="follow_redirects" type="checkbox" .checked=${target.follow_redirects} @change=${actions.redirects} />Follow redirects</label><label class="check"><input name="skip_tls_verification" type="checkbox" .checked=${target.skip_tls_verification} />Skip TLS verification</label></div>
+        ${renderChannelFields(channels, target.notification_channel_ids)}
         <div class="dialog-actions">
           <div class="danger-actions">
             <button class="button danger icon-button" type="button" aria-label="Delete target" title="Delete target" @click=${actions.delete}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>

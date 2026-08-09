@@ -1,3 +1,5 @@
+use std::cmp::Reverse;
+
 use super::*;
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -12,6 +14,14 @@ pub(super) enum TestChannelRequest {
         #[serde(default)]
         headers: BTreeMap<String, String>,
     },
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub(super) struct TransitionView {
+    target_id: Uuid,
+    kind: String,
+    target_name: String,
+    scheduled_at_ms: u64,
 }
 
 #[utoipa::path(
@@ -283,6 +293,37 @@ pub(super) async fn list_alerts(
         })
         .collect();
     Ok(Json(alerts))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/transitions",
+    responses(
+        (status = 200, body = [TransitionView]),
+        (status = 401, body = ErrorBody),
+        (status = 503, body = ErrorBody),
+    )
+)]
+pub(super) async fn list_transitions(
+    State(state): State<WebState>,
+) -> Result<Json<Vec<TransitionView>>, ApiError> {
+    let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
+    let mut transitions = snapshot
+        .transitions
+        .values()
+        .map(|transition| TransitionView {
+            target_id: transition.evaluation.id.target_id.0,
+            kind: match transition.kind {
+                AlertKind::Down => "down",
+                AlertKind::Recovered => "recovered",
+            }
+            .to_owned(),
+            target_name: transition.target_name.clone(),
+            scheduled_at_ms: transition.evaluation.id.scheduled_at_ms,
+        })
+        .collect::<Vec<_>>();
+    transitions.sort_by_key(|transition| Reverse(transition.scheduled_at_ms));
+    Ok(Json(transitions))
 }
 
 #[utoipa::path(

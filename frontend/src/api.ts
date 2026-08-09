@@ -51,6 +51,13 @@ export interface Alert {
   delivery: "pending" | "delivered" | "failed";
 }
 
+export interface Transition {
+  target_id: string;
+  kind: "down" | "recovered";
+  target_name: string;
+  scheduled_at_ms: number;
+}
+
 export interface Secret {
   id: string;
   name: string;

@@ -11,6 +11,7 @@ import {
   type Secret,
   type Setup,
   type Target,
+  type Transition,
   request,
 } from "./api.ts";
 
@@ -39,6 +40,7 @@ export class AppState extends LitElement {
   @state() protected targets: Target[] = [];
   @state() protected channels: Channel[] = [];
   @state() protected alerts: Alert[] = [];
+  @state() protected transitions: Transition[] = [];
   @state() protected secrets: Secret[] = [];
   @state() protected cluster?: Cluster;
   @state() protected joinTokens: JoinToken[] = [];
@@ -144,11 +146,12 @@ export class AppState extends LitElement {
 
   protected async refresh(): Promise<void> {
     try {
-      [this.targets, this.channels, this.alerts, this.secrets, this.cluster, this.joinTokens] =
+      [this.targets, this.channels, this.alerts, this.transitions, this.secrets, this.cluster, this.joinTokens] =
         await Promise.all([
           request<Target[]>("/api/v1/targets"),
           request<Channel[]>("/api/v1/channels"),
           request<Alert[]>("/api/v1/alerts"),
+          request<Transition[]>("/api/v1/transitions"),
           request<Secret[]>("/api/v1/secrets"),
           request<Cluster>("/api/v1/cluster"),
           request<JoinToken[]>("/api/v1/join-tokens"),
