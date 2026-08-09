@@ -119,9 +119,11 @@ test("edits, inspects, and deletes a target", async ({ page }) => {
   await expect(save).toBeEnabled();
   await name.fill("Target lifecycle");
   await expect(save).toBeDisabled();
-  const history = details.getByRole("list", { name: "Recent evaluation latency" });
+  const history = details.getByRole("list", { name: /Recent evaluation latency, 0 to/ });
   await expect(history).toBeVisible();
   await expect(history.getByRole("listitem").first()).toBeVisible();
+  await expect(details.locator(".chart-scale span")).toHaveCount(3);
+  await expect(details.locator(".chart-scale").getByText("0 ms")).toBeVisible();
   await name.fill("Renamed lifecycle target");
   await expect(save).toBeEnabled();
   await details.getByLabel("Failures before Down").fill("5");

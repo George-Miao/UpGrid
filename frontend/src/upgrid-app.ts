@@ -174,8 +174,14 @@ export class UpgridApp extends LitElement {
     .bulk-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
     .bulk, .bulk-actions .button { animation: reveal 160ms ease-out; }
     @keyframes reveal { from { opacity: 0; transform: translateY(-3px); } }
-    dialog { width: min(580px, calc(100% - 28px)); border: 1px solid var(--line); border-radius: 17px; background: var(--panel); color: var(--text); padding: 0; box-shadow: 0 28px 90px var(--dialog-shadow); }
-    dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(5px); }
+    dialog { width: min(580px, calc(100% - 28px)); border: 1px solid var(--line); border-radius: 17px; background: var(--panel); color: var(--text); padding: 0; box-shadow: 0 28px 90px var(--dialog-shadow); opacity: 0; transform: translateY(8px) scale(.985); transition: opacity 170ms ease, transform 170ms ease, overlay 170ms allow-discrete, display 170ms allow-discrete; }
+    dialog[open] { opacity: 1; transform: translateY(0) scale(1); }
+    dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(5px); opacity: 0; transition: opacity 170ms ease, overlay 170ms allow-discrete, display 170ms allow-discrete; }
+    dialog[open]::backdrop { opacity: 1; }
+    @starting-style {
+      dialog[open] { opacity: 0; transform: translateY(8px) scale(.985); }
+      dialog[open]::backdrop { opacity: 0; }
+    }
     .dialog-head { position: relative; padding: 20px 58px 15px 22px; border-bottom: 1px solid var(--line); }
     .dialog-head h2 { margin: 0; font-size: 18px; }
     .dialog-head p { margin: 4px 0 0; color: var(--muted); }
@@ -200,12 +206,14 @@ export class UpgridApp extends LitElement {
     .history-head, .chart-legend, .chart-legend span, .chart-axis { display: flex; align-items: center; }
     .history-head { justify-content: space-between; margin-bottom: 12px; }
     .history-head h3 { margin: 0; font-size: 14px; }
+    .chart-plot { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 7px; }
+    .chart-scale { display: flex; height: 140px; flex-direction: column; justify-content: space-between; padding: 1px 0 7px; color: var(--muted); font-size: 9px; text-align: right; }
     .history-chart { display: flex; height: 140px; align-items: flex-end; gap: 3px; padding: 14px 10px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--input-bg); }
     .history-bar { flex: 1; min-width: 3px; max-width: 16px; border-radius: 3px 3px 1px 1px; opacity: .82; transform-origin: bottom; transition: opacity 120ms ease, transform 120ms ease; }
     .history-bar:hover { opacity: 1; transform: scaleX(1.15); }
     .history-bar.up { background: var(--green); }
     .history-bar.down { background: var(--red); }
-    .chart-axis { justify-content: space-between; margin-top: 5px; color: var(--muted); font-size: 10px; }
+    .chart-axis { justify-content: space-between; margin: 5px 0 0 45px; color: var(--muted); font-size: 10px; }
     .chart-legend { justify-content: flex-end; gap: 12px; margin-top: 9px; color: var(--muted); font-size: 10px; }
     .chart-legend span { gap: 5px; }
     .chart-legend i { width: 7px; height: 7px; border-radius: 2px; }
@@ -255,7 +263,7 @@ export class UpgridApp extends LitElement {
         --join-bg: #eef8f2;
     }
     @media (prefers-reduced-motion: reduce) {
-      :host, nav a, .button, .metric, .panel, .target-wrap, .target, .dot, .state, .mini-bar, .history-bar, input, select { transition-duration: 0s; }
+      :host, nav a, .button, .metric, .panel, .target-wrap, .target, .dot, .state, .mini-bar, .history-bar, dialog, dialog::backdrop, input, select { transition-duration: 0s; }
       .bulk, .bulk-actions .button { animation-duration: 0s; }
     }
     @media (max-width: 720px) {
@@ -867,6 +875,9 @@ export class UpgridApp extends LitElement {
       hour: "2-digit",
       minute: "2-digit",
     });
+    const chartLatency = (latency: number) => latency >= 1_000
+      ? `${(latency / 1_000).toFixed(latency >= 10_000 ? 0 : 1)} s`
+      : `${Math.round(latency)} ms`;
     return html`
       <dialog id="detail-dialog" aria-labelledby="target-detail-title" @click=${this.dismissOnBackdrop}>
         <div class="dialog-head">
@@ -905,13 +916,16 @@ export class UpgridApp extends LitElement {
           <div class="history-head"><h3>Evaluation history</h3>${history.length ? html`<span class="meta">Latest ${history.length}</span>` : nothing}</div>
           ${history.length
             ? html`
-                <div class="history-chart" role="list" aria-label="Recent evaluation latency">
-                  ${history.map((item) => {
-                    const result = item.succeeded ? "Passed" : "Failed";
-                    const status = item.status_code === null ? "network error" : `HTTP ${item.status_code}`;
-                    const label = `${result} at ${new Date(item.recorded_at_ms).toLocaleString()}: ${item.latency_ms} ms, ${status}`;
-                    return html`<span class="history-bar ${item.succeeded ? "up" : "down"}" role="listitem" aria-label=${label} title=${label} style=${`height: ${Math.max(8, item.latency_ms / maxLatency * 100)}%`}></span>`;
-                  })}
+                <div class="chart-plot">
+                  <div class="chart-scale" aria-hidden="true"><span>${chartLatency(maxLatency)}</span><span>${chartLatency(maxLatency / 2)}</span><span>0 ms</span></div>
+                  <div class="history-chart" role="list" aria-label=${`Recent evaluation latency, 0 to ${chartLatency(maxLatency)}`}>
+                    ${history.map((item) => {
+                      const result = item.succeeded ? "Passed" : "Failed";
+                      const status = item.status_code === null ? "network error" : `HTTP ${item.status_code}`;
+                      const label = `${result} at ${new Date(item.recorded_at_ms).toLocaleString()}: ${item.latency_ms} ms, ${status}`;
+                      return html`<span class="history-bar ${item.succeeded ? "up" : "down"}" role="listitem" aria-label=${label} title=${label} style=${`height: ${Math.max(8, item.latency_ms / maxLatency * 100)}%`}></span>`;
+                    })}
+                  </div>
                 </div>
                 <div class="chart-axis"><span>${chartTime(history[0].recorded_at_ms)}</span><span>${chartTime(history.at(-1)!.recorded_at_ms)}</span></div>
                 <div class="chart-legend"><span><i class="up"></i>Passed</span><span><i class="down"></i>Failed</span><span>Height = latency</span></div>
