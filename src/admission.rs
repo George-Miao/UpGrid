@@ -35,7 +35,6 @@ impl JoinLink {
         .map_err(|_| Error::InvalidPayload)?;
         let invitation = URL_SAFE_NO_PAD.encode(payload);
         let mut url = remote.clone();
-        url.set_scheme("ups").map_err(|_| Error::InvalidScheme)?;
         url.set_path(&format!("/{invitation}"));
 
         Ok(Self {
@@ -48,7 +47,7 @@ impl JoinLink {
 
     pub fn parse(value: &str) -> Result<Self, Error> {
         let url = Url::parse(value).map_err(|_| Error::InvalidUrl)?;
-        if url.scheme() != "ups" {
+        if url.scheme() != "up" {
             return Err(Error::InvalidScheme);
         }
         if !url.username().is_empty()
@@ -75,7 +74,6 @@ impl JoinLink {
         }
         let cipher = Cipher::parse(&payload.deployment_key).map_err(|_| Error::InvalidPayload)?;
         let mut remote = url.clone();
-        remote.set_scheme("up").map_err(|_| Error::InvalidScheme)?;
         remote.set_path("");
         parse_remote(remote.as_str())?;
 
@@ -145,7 +143,7 @@ impl Display for Error {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidUrl => formatter.write_str("join link is not a valid URL"),
-            Self::InvalidScheme => formatter.write_str("join link must use the `ups` scheme"),
+            Self::InvalidScheme => formatter.write_str("join link must use the `up` scheme"),
             Self::InvalidShape => formatter.write_str("join link has an invalid shape"),
             Self::InvalidPayload => formatter.write_str("join link payload is invalid"),
             Self::UnsupportedVersion(version) => {
@@ -177,7 +175,7 @@ mod tests {
         let encoded = link.to_string();
         let parsed = JoinLink::parse(&encoded).unwrap();
 
-        assert!(encoded.starts_with("ups://127.0.0.1:11451/"));
+        assert!(encoded.starts_with("up://127.0.0.1:11451/"));
         assert_eq!(parsed.remote().as_str(), "up://127.0.0.1:11451");
         assert_eq!(parsed.token(), "single-use-token");
         assert_eq!(parsed.cipher().encoded(), cipher().encoded());
@@ -187,11 +185,11 @@ mod tests {
     #[test]
     fn join_link_rejects_wrong_scheme_and_visible_parameters() {
         assert_eq!(
-            JoinLink::parse("up://127.0.0.1:11451/not-an-invite").unwrap_err(),
+            JoinLink::parse("ups://127.0.0.1:11451/not-an-invite").unwrap_err(),
             Error::InvalidScheme
         );
         assert_eq!(
-            JoinLink::parse("ups://127.0.0.1:11451/invite?leak=true").unwrap_err(),
+            JoinLink::parse("up://127.0.0.1:11451/invite?leak=true").unwrap_err(),
             Error::InvalidShape
         );
     }

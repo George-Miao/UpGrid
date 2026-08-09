@@ -45,7 +45,7 @@ cargo run -- --bind 127.0.0.1:8082 --raft-url up://127.0.0.1:11453 \
   --username admin --password change-me
 ```
 
-The opaque `ups://` link carries both a single-use admission token and the deployment material needed for mutual TLS and replicated Secret decryption. Treat it as a password, never log or archive it, and create a separate link for every Node. The joining process stores the deployment key with private permissions before connecting; the leader atomically consumes the token through Raft. The `up://` hostname advertised by each Node must be reachable by every other Node. On restart, a Node resumes membership from its data directory and no longer needs `--join`.
+The opaque `up://` link carries both a single-use admission token and the deployment material needed for mutual TLS and replicated Secret decryption. Treat it as a password, never log or archive it, and create a separate link for every Node. The `up://` hostname advertised by each Node must be reachable by every other Node. The joining process stores the deployment key with private permissions before connecting; the leader atomically consumes the token through Raft. On restart, a Node resumes membership from its data directory and no longer needs `--join`.
 
 ## Verify
 

@@ -100,7 +100,7 @@ fn print_help() {
          Options:\n  \
            --bind ADDRESS       API address [default: 127.0.0.1:8080]\n  \
            --raft-url URL       advertised Raft URL [default: up://127.0.0.1:11451]\n  \
-           --join JOIN_LINK     join with a single-use ups:// invitation\n  \
+           --join JOIN_LINK     join with a single-use up:// invitation\n  \
            --data-dir PATH      persistent data directory [default: upgrid-data]\n  \
            --username USER      Basic Auth username [default: admin]\n  \
            --password PASSWORD  Basic Auth password [default: upgrid]\n  \
@@ -160,7 +160,7 @@ pub fn load_or_create_cipher(
         }
         (None, None) if joining => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "joining a Cluster requires a valid ups:// invitation",
+            "joining a Cluster requires a valid up:// invitation",
         )
         .into()),
         (None, None) => {

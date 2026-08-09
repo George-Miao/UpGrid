@@ -161,7 +161,7 @@ test("configures notification resources and creates a join command", async ({ pa
 
   await page.getByRole("button", { name: "Add node" }).first().click();
   const join = page.getByRole("dialog", { name: "Join a node" });
-  await expect(join.getByText(/upgrid --join 'ups:\/\//)).toBeVisible();
+  await expect(join.getByText(/upgrid --join 'up:\/\//)).toBeVisible();
 });
 
 test("pauses and resumes cluster-wide evaluations", async ({ page }) => {

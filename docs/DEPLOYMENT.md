@@ -33,7 +33,7 @@ Do not expose the UpGrid listener directly to an untrusted network: HTTP Basic c
 
 ## Node Admission
 
-An authenticated operator creates an invitation from the WebUI's **Add node** action or `POST /api/v1/join-links`. The response is an opaque bearer URL used directly as `upgrid --join 'ups://…'`. Each link admits at most one Node and defaults to a ten-minute membership window. Because it also transports long-lived deployment material, keep the link confidential and discard every copy after use or expiry. Normal restarts use the persisted data directory and do not require another invitation.
+An authenticated operator creates an invitation from the WebUI's **Add node** action or `POST /api/v1/join-links`. The response is an opaque bearer URL used directly as `upgrid --join 'up://…'`. Each link admits at most one Node and defaults to a ten-minute membership window. Because it also transports long-lived deployment material, keep the link confidential and discard every copy after use or expiry. Normal restarts use the persisted data directory and do not require another invitation.
 
 ## Operational Checks
 
