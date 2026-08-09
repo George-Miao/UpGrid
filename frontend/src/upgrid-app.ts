@@ -127,7 +127,8 @@ export class UpgridApp extends LitElement {
     .button { border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease; }
     .button:hover { border-color: var(--button-hover-border); }
     .button:active { transform: translateY(1px); }
-    .button:disabled { cursor: wait; opacity: .65; }
+    .button:disabled { cursor: not-allowed; opacity: .65; }
+    .button[aria-busy="true"] { cursor: wait; }
     .icon-button { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; }
     iconify-icon { display: inline-block; width: 18px; height: 18px; font-size: 18px; }
     .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
@@ -153,11 +154,17 @@ export class UpgridApp extends LitElement {
     .state { width: 10px; height: 10px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px currentColor; }
     .state.up { color: var(--green); background: var(--green); }
     .state.down { color: var(--red); background: var(--red); }
+    .state.paused { color: var(--muted); background: var(--muted); box-shadow: none; }
     .target h3 { margin: 0 0 3px; font-size: 14px; }
     .meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .latency { text-align: right; }
     .latency strong { display: block; font-weight: 500; }
     .latency span { color: var(--muted); font-size: 11px; }
+    .target-side { display: flex; align-items: center; gap: 20px; }
+    .mini-chart { display: flex; width: 88px; height: 32px; align-items: flex-end; gap: 2px; }
+    .mini-bar { flex: 1; min-width: 2px; max-width: 7px; border-radius: 2px 2px 1px 1px; opacity: .75; }
+    .mini-bar.up { background: var(--green); }
+    .mini-bar.down { background: var(--red); }
     .empty { padding: 54px 20px; color: var(--muted); text-align: center; }
     .notice { margin: 0 0 16px; border: 1px solid var(--notice-border); border-radius: 10px; background: var(--notice-bg); color: var(--notice-text); padding: 10px 12px; }
     .toolbar { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
@@ -255,7 +262,8 @@ export class UpgridApp extends LitElement {
       .toolbar input { grid-column: 1 / -1; }
       .heading { align-items: flex-start; gap: 16px; }
       .target { grid-template-columns: auto minmax(0, 1fr); }
-      .latency { grid-column: 2; text-align: left; }
+      .target-side { grid-column: 2; justify-self: start; }
+      .latency { text-align: left; }
     }
   `;
 
@@ -730,6 +738,9 @@ export class UpgridApp extends LitElement {
   }
 
   private renderOverview(visibleTargets: Target[], up: number, down: number, pending: number) {
+    const selectedTargets = this.targets.filter((target) => this.selectedIds.has(target.id));
+    const canPauseSelected = selectedTargets.some((target) => !target.paused);
+    const canResumeSelected = selectedTargets.some((target) => target.paused);
     return html`
       <section class="heading" id="overview">
         <div><span class="eyebrow">Cluster status</span><h1>Overview</h1></div>
@@ -748,7 +759,7 @@ export class UpgridApp extends LitElement {
           <select aria-label="Filter targets" .value=${this.statusFilter} @change=${(event: Event) => (this.statusFilter = (event.target as HTMLSelectElement).value)}><option value="all">All states</option><option value="up">Up</option><option value="down">Down</option><option value="unknown">Unknown</option><option value="paused">Paused</option></select>
           <select aria-label="Sort targets" .value=${this.sort} @change=${(event: Event) => (this.sort = (event.target as HTMLSelectElement).value)}><option value="name">Sort by name</option><option value="status">Sort by status</option></select>
         </div>
-        ${this.selectedIds.size ? html`<div class="bulk"><span class="meta">${this.selectedIds.size} selected</span><button class="button secondary" @click=${() => this.bulkPause(true)}>Pause selected</button><button class="button secondary" @click=${() => this.bulkPause(false)}>Resume selected</button><button class="button danger" @click=${this.bulkDelete}>Delete selected</button></div>` : nothing}
+        ${this.selectedIds.size ? html`<div class="bulk"><span class="meta">${this.selectedIds.size} selected</span>${canPauseSelected ? html`<button class="button warning icon-button" aria-label="Pause selected" title="Pause selected" @click=${() => this.bulkPause(true)}><iconify-icon .icon=${pauseIcon} aria-hidden="true"></iconify-icon></button>` : nothing}${canResumeSelected ? html`<button class="button success icon-button" aria-label="Resume selected" title="Resume selected" @click=${() => this.bulkPause(false)}><iconify-icon .icon=${playIcon} aria-hidden="true"></iconify-icon></button>` : nothing}<button class="button danger" @click=${this.bulkDelete}>Delete selected</button></div>` : nothing}
         ${visibleTargets.length
           ? visibleTargets.map((target) => this.renderTarget(target))
           : html`<div class="empty">${this.targets.length ? "No Targets match these filters." : "No targets yet. Add the first one to begin monitoring."}</div>`}
@@ -800,18 +811,25 @@ export class UpgridApp extends LitElement {
 
   private renderTarget(target: Target) {
     const latest = target.latest_evaluation;
+    const history = target.history.slice(0, 16).reverse();
+    const maxLatency = Math.max(1, ...history.map((item) => item.latency_ms));
     return html`
       <div class="target-wrap">
         <input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} .checked=${this.selectedIds.has(target.id)} @change=${(event: Event) => this.toggleSelected(target.id, (event.target as HTMLInputElement).checked)} />
         <button class="target" aria-label=${target.name} @click=${() => this.openTarget(target)}>
-          <i class="state ${target.availability}" aria-label=${target.availability}></i>
+          <i class="state ${target.paused ? "paused" : target.availability}" aria-label=${target.paused ? "paused" : target.availability}></i>
           <div>
             <h3>${target.name}</h3>
             <div class="meta">${target.paused ? "Paused · " : ""}${target.method} · ${target.url} · every ${target.interval_seconds}s</div>
           </div>
-          <div class="latency">
-            <strong>${latest ? `${latest.latency_ms} ms` : "—"}</strong>
-            <span>${latest ? (latest.status_code ?? "network error") : "waiting"}</span>
+          <div class="target-side">
+            ${history.length
+              ? html`<div class="mini-chart" aria-hidden="true">${history.map((item) => html`<i class="mini-bar ${item.succeeded ? "up" : "down"}" style=${`height: ${Math.max(12, item.latency_ms / maxLatency * 100)}%`}></i>`)}</div>`
+              : nothing}
+            <div class="latency">
+              <strong>${latest ? `${latest.latency_ms} ms` : "—"}</strong>
+              <span>${latest ? (latest.status_code ?? "network error") : "waiting"}</span>
+            </div>
           </div>
         </button>
       </div>
@@ -861,7 +879,7 @@ export class UpgridApp extends LitElement {
               <button class="button danger icon-button" type="button" aria-label="Delete target" title="Delete target" @click=${this.deleteTarget}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
               <button class=${`button ${target.paused ? "success" : "warning"} icon-button`} type="button" aria-label=${target.paused ? "Resume evaluations" : "Pause evaluations"} title=${target.paused ? "Resume evaluations" : "Pause evaluations"} @click=${() => this.setPaused(!target.paused)}><iconify-icon .icon=${target.paused ? playIcon : pauseIcon} aria-hidden="true"></iconify-icon></button>
             </div>
-            <button class="button" type="submit" ?disabled=${this.saving || !this.detailDirty}>Save changes</button>
+            <button class="button" type="submit" aria-busy=${this.saving ? "true" : "false"} ?disabled=${this.saving || !this.detailDirty}>Save changes</button>
           </div>
         </form>
         <section class="history">

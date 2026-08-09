@@ -91,6 +91,8 @@ test("edits, inspects, and deletes a target", async ({ page }) => {
 
   const target = page.getByRole("button", { name: "Target lifecycle" });
   await expect(target).not.toContainText("waiting", { timeout: 15_000 });
+  await expect(target.locator(".mini-chart")).toBeVisible();
+  await expect(target.locator(".mini-bar").first()).toBeVisible();
   await target.click();
   await expect(page.getByRole("heading", { name: "Target details" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Evaluation history" })).toBeVisible();
@@ -106,6 +108,7 @@ test("edits, inspects, and deletes a target", async ({ page }) => {
   await expect(details.locator(".danger-actions").getByRole("button")).toHaveCount(2);
   const save = details.getByRole("button", { name: "Save changes" });
   await expect(save).toBeDisabled();
+  await expect(save).toHaveCSS("cursor", "not-allowed");
   const history = details.getByRole("list", { name: "Recent evaluation latency" });
   await expect(history).toBeVisible();
   await expect(history.getByRole("listitem").first()).toBeVisible();
@@ -159,7 +162,9 @@ test("pauses and resumes cluster-wide evaluations", async ({ page }) => {
 
   await page.getByRole("button", { name: "Pausing target" }).click();
   await page.getByRole("button", { name: "Pause evaluations" }).click();
-  await expect(page.getByRole("button", { name: "Pausing target" })).toContainText("Paused");
+  const pausedTarget = page.getByRole("button", { name: "Pausing target" });
+  await expect(pausedTarget).toContainText("Paused");
+  await expect(pausedTarget.locator(".state")).toHaveClass(/paused/);
 
   await page.getByRole("button", { name: "Pausing target" }).click();
   const resume = page.getByRole("button", { name: "Resume evaluations" });
@@ -193,8 +198,20 @@ test("filters and bulk-pauses selected targets", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Search alpha" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Search beta" })).not.toBeVisible();
   await page.getByLabel("Select Search alpha").check();
-  await page.getByRole("button", { name: "Pause selected" }).click();
+  const pauseSelected = page.getByRole("button", { name: "Pause selected" });
+  await expect(pauseSelected).toHaveClass(/warning/);
+  await expect(pauseSelected.locator("iconify-icon")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Resume selected" })).toHaveCount(0);
+  await pauseSelected.click();
   await expect(page.getByRole("button", { name: "Search alpha" })).toContainText("Paused");
+
+  await page.getByLabel("Select Search alpha").check();
+  await expect(page.getByRole("button", { name: "Pause selected" })).toHaveCount(0);
+  const resumeSelected = page.getByRole("button", { name: "Resume selected" });
+  await expect(resumeSelected).toHaveClass(/success/);
+  await expect(resumeSelected.locator("iconify-icon")).toBeVisible();
+  await resumeSelected.click();
+  await expect(page.getByRole("button", { name: "Search alpha" })).not.toContainText("Paused");
 });
 
 test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
