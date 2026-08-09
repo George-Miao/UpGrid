@@ -45,6 +45,14 @@ pub enum Command {
         node_id: Uuid,
         name: String,
     },
+    SetNotificationChannelDefault {
+        channel_id: NotificationChannelId,
+        is_default: bool,
+    },
+    SetTargetDefaultNotifications {
+        target_id: TargetId,
+        enabled: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -73,6 +81,8 @@ pub enum CommandResult {
     NotificationChannelDeleted(NotificationChannelId),
     JoinTokenRevoked,
     NodeNameSet(Uuid),
+    NotificationChannelDefaultSet(NotificationChannelId),
+    TargetDefaultNotificationsSet(TargetId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

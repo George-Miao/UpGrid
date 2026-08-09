@@ -16,7 +16,11 @@ export class AppController extends AppState {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const fields = new FormData(form);
-    const input = targetInput(fields, fields.getAll("channel_id").map(String));
+    const input = targetInput(
+      fields,
+      fields.getAll("channel_id").map(String),
+      fields.get("use_default_channels") === "on",
+    );
     this.saving = true;
     try {
       await request<Target>("/api/v1/targets", { method: "POST", body: JSON.stringify(input) });
@@ -52,6 +56,7 @@ export class AppController extends AppState {
       body_contains: String(fields.get("body_contains")) || null,
       skip_tls_verification: fields.get("skip_tls_verification") === "on",
       notification_channel_ids: fields.getAll("channel_id").map(String),
+      use_default_channels: fields.get("use_default_channels") === "on",
     };
     this.saving = true;
     try {
@@ -133,6 +138,18 @@ export class AppController extends AppState {
   protected openChannelDialog(): void {
     this.channelTestMessage = "";
     this.showDialog("channel-dialog");
+  }
+
+  protected async setChannelDefault(channel: Channel, isDefault: boolean): Promise<void> {
+    try {
+      await request<Channel>(`/api/v1/channels/${channel.id}/default`, {
+        method: "PUT",
+        body: JSON.stringify({ default: isDefault }),
+      });
+      await this.refresh();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    }
   }
 
   protected async testChannel(event: MouseEvent): Promise<void> {

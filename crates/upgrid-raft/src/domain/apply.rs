@@ -38,6 +38,7 @@ impl ApplicationState {
                     .ok_or(DomainError::TargetNotFound(target_id))?;
                 self.assignments
                     .retain(|evaluation_id, _| evaluation_id.target_id != target_id);
+                self.default_notifications_disabled.remove(&target_id);
                 Ok(CommandResult::TargetDeleted(target_id))
             }
             Command::AssignEvaluation(assignment) => self.assign_evaluation(assignment),
@@ -76,6 +77,7 @@ impl ApplicationState {
                 self.notification_channels
                     .remove(&channel_id)
                     .ok_or(DomainError::NotificationChannelNotFound(channel_id))?;
+                self.default_notification_channels.remove(&channel_id);
                 Ok(CommandResult::NotificationChannelDeleted(channel_id))
             }
             Command::DeleteSecret(secret_id) => {
@@ -156,6 +158,31 @@ impl ApplicationState {
                 }
                 self.node_names.insert(node_id, name.to_owned());
                 Ok(CommandResult::NodeNameSet(node_id))
+            }
+            Command::SetNotificationChannelDefault {
+                channel_id,
+                is_default,
+            } => {
+                if !self.notification_channels.contains_key(&channel_id) {
+                    return Err(DomainError::NotificationChannelNotFound(channel_id));
+                }
+                if is_default {
+                    self.default_notification_channels.insert(channel_id);
+                } else {
+                    self.default_notification_channels.remove(&channel_id);
+                }
+                Ok(CommandResult::NotificationChannelDefaultSet(channel_id))
+            }
+            Command::SetTargetDefaultNotifications { target_id, enabled } => {
+                if !self.targets.contains_key(&target_id) {
+                    return Err(DomainError::TargetNotFound(target_id));
+                }
+                if enabled {
+                    self.default_notifications_disabled.remove(&target_id);
+                } else {
+                    self.default_notifications_disabled.insert(target_id);
+                }
+                Ok(CommandResult::TargetDefaultNotificationsSet(target_id))
             }
             Command::RecordEvaluation(evaluation) => self.record_evaluation(evaluation),
             Command::MarkAlertDelivered {
@@ -323,12 +350,13 @@ impl ApplicationState {
             _ => None,
         };
 
-        let channel_ids = target_state
-            .target
-            .notification_channels
-            .iter()
-            .copied()
-            .collect::<Vec<_>>();
+        let mut channel_ids = target_state.target.notification_channels.clone();
+        if !self
+            .default_notifications_disabled
+            .contains(&evaluation.id.target_id)
+        {
+            channel_ids.extend(self.default_notification_channels.iter().copied());
+        }
         let target_name = target_state.target.name.clone();
         let target_url = target_state.target.http.url.clone();
         target_state.latest_evaluation = Some(evaluation.clone());

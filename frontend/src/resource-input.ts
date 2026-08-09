@@ -9,18 +9,21 @@ export function channelInput(fields: FormData, kind: ChannelKind) {
         name: fields.get("name"),
         bot_token: fields.get("bot_token"),
         chat_id: fields.get("chat_id"),
+        default: fields.get("default") === "on",
       }
     : {
         type: "webhook",
         name: fields.get("name"),
         url: fields.get("url"),
         headers: {},
+        default: fields.get("default") === "on",
       };
 }
 
 export function targetInput(
   fields: FormData,
   notificationChannelIds: string[] = [],
+  useDefaultChannels = true,
 ): TargetInput {
   return {
     name: String(fields.get("name")),
@@ -37,5 +40,6 @@ export function targetInput(
     body_contains: null,
     skip_tls_verification: false,
     notification_channel_ids: notificationChannelIds,
+    use_default_channels: useDefaultChannels,
   };
 }

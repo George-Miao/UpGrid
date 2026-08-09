@@ -201,6 +201,7 @@ export class UpgridSetup extends LitElement {
         ${this.channelKind === "webhook"
           ? html`<label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/upgrid" required /></label>`
           : html`<label>Bot token<input name="bot_token" type="password" autocomplete="off" required /></label><label>Chat ID<input name="chat_id" required /></label>`}
+        <label><span><input name="default" type="checkbox" checked /> Default channel</span></label>
         <div class="actions"><button class="secondary" type="button" @click=${this.next} ?disabled=${this.saving}>Skip</button><button type="submit" ?disabled=${this.saving}>Create and continue</button></div>
       </form></div>`;
   }

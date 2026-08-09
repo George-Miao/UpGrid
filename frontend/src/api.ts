@@ -28,6 +28,7 @@ export interface Target {
   latest_evaluation: Evaluation | null;
   history: Evaluation[];
   notification_channel_ids: string[];
+  use_default_channels: boolean;
   paused: boolean;
 }
 
@@ -40,6 +41,7 @@ export interface Channel {
   name: string;
   kind: "telegram" | "webhook";
   destination: string;
+  default: boolean;
 }
 
 export interface Alert {
@@ -116,6 +118,7 @@ export interface TargetInput {
   body_contains: string | null;
   skip_tls_verification: boolean;
   notification_channel_ids: string[];
+  use_default_channels: boolean;
 }
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {

@@ -3,6 +3,8 @@ pub struct ApplicationState {
     pub targets: BTreeMap<TargetId, TargetState>,
     pub secrets: BTreeMap<SecretId, Secret>,
     pub notification_channels: BTreeMap<NotificationChannelId, NotificationChannel>,
+    pub default_notification_channels: BTreeSet<NotificationChannelId>,
+    pub default_notifications_disabled: BTreeSet<TargetId>,
     pub alerts: BTreeMap<AlertId, Alert>,
     pub transitions: BTreeMap<EvaluationId, AvailabilityTransition>,
     pub history_retention_ms: u64,
@@ -75,6 +77,22 @@ pub(crate) struct NamedApplicationState {
     node_names: BTreeMap<Uuid, String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct TransitionApplicationState {
+    targets: BTreeMap<TargetId, TargetState>,
+    secrets: BTreeMap<SecretId, Secret>,
+    notification_channels: BTreeMap<NotificationChannelId, NotificationChannel>,
+    alerts: BTreeMap<AlertId, Alert>,
+    transitions: BTreeMap<EvaluationId, AvailabilityTransition>,
+    history_retention_ms: u64,
+    processed_operations: BTreeMap<Uuid, ProcessedOperation>,
+    latest_operation_at_ms: u64,
+    assignments: BTreeMap<EvaluationId, EvaluationAssignment>,
+    join_tokens: BTreeMap<JoinTokenHash, u64>,
+    join_token_uses: BTreeMap<JoinTokenHash, u64>,
+    node_names: BTreeMap<Uuid, String>,
+}
+
 #[cfg(test)]
 impl From<ApplicationState> for LegacyApplicationState {
     fn from(current: ApplicationState) -> Self {
@@ -96,6 +114,8 @@ impl From<LegacyApplicationState> for ApplicationState {
             targets: legacy.targets,
             secrets: legacy.secrets,
             notification_channels: legacy.notification_channels,
+            default_notification_channels: BTreeSet::new(),
+            default_notifications_disabled: BTreeSet::new(),
             alerts: legacy.alerts,
             transitions: BTreeMap::new(),
             history_retention_ms: legacy.history_retention_ms,
@@ -115,6 +135,8 @@ impl From<PreviousApplicationState> for ApplicationState {
             targets: previous.targets,
             secrets: previous.secrets,
             notification_channels: previous.notification_channels,
+            default_notification_channels: BTreeSet::new(),
+            default_notifications_disabled: BTreeSet::new(),
             alerts: previous.alerts,
             transitions: BTreeMap::new(),
             history_retention_ms: previous.history_retention_ms,
@@ -134,6 +156,8 @@ impl From<TokenApplicationState> for ApplicationState {
             targets: previous.targets,
             secrets: previous.secrets,
             notification_channels: previous.notification_channels,
+            default_notification_channels: BTreeSet::new(),
+            default_notifications_disabled: BTreeSet::new(),
             alerts: previous.alerts,
             transitions: BTreeMap::new(),
             history_retention_ms: previous.history_retention_ms,
@@ -153,6 +177,8 @@ impl From<NamedApplicationState> for ApplicationState {
             targets: previous.targets,
             secrets: previous.secrets,
             notification_channels: previous.notification_channels,
+            default_notification_channels: BTreeSet::new(),
+            default_notifications_disabled: BTreeSet::new(),
             alerts: previous.alerts,
             transitions: BTreeMap::new(),
             history_retention_ms: previous.history_retention_ms,
@@ -162,6 +188,47 @@ impl From<NamedApplicationState> for ApplicationState {
             join_tokens: previous.join_tokens,
             join_token_uses: previous.join_token_uses,
             node_names: previous.node_names,
+        }
+    }
+}
+
+impl From<TransitionApplicationState> for ApplicationState {
+    fn from(previous: TransitionApplicationState) -> Self {
+        Self {
+            targets: previous.targets,
+            secrets: previous.secrets,
+            notification_channels: previous.notification_channels,
+            default_notification_channels: BTreeSet::new(),
+            default_notifications_disabled: BTreeSet::new(),
+            alerts: previous.alerts,
+            transitions: previous.transitions,
+            history_retention_ms: previous.history_retention_ms,
+            processed_operations: previous.processed_operations,
+            latest_operation_at_ms: previous.latest_operation_at_ms,
+            assignments: previous.assignments,
+            join_tokens: previous.join_tokens,
+            join_token_uses: previous.join_token_uses,
+            node_names: previous.node_names,
+        }
+    }
+}
+
+#[cfg(test)]
+impl From<ApplicationState> for TransitionApplicationState {
+    fn from(current: ApplicationState) -> Self {
+        Self {
+            targets: current.targets,
+            secrets: current.secrets,
+            notification_channels: current.notification_channels,
+            alerts: current.alerts,
+            transitions: current.transitions,
+            history_retention_ms: current.history_retention_ms,
+            processed_operations: current.processed_operations,
+            latest_operation_at_ms: current.latest_operation_at_ms,
+            assignments: current.assignments,
+            join_tokens: current.join_tokens,
+            join_token_uses: current.join_token_uses,
+            node_names: current.node_names,
         }
     }
 }
@@ -224,6 +291,8 @@ impl Default for ApplicationState {
             targets: BTreeMap::new(),
             secrets: BTreeMap::new(),
             notification_channels: BTreeMap::new(),
+            default_notification_channels: BTreeSet::new(),
+            default_notifications_disabled: BTreeSet::new(),
             alerts: BTreeMap::new(),
             transitions: BTreeMap::new(),
             assignments: BTreeMap::new(),
@@ -236,7 +305,7 @@ impl Default for ApplicationState {
         }
     }
 }
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

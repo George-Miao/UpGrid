@@ -24,6 +24,12 @@ pub(super) struct TransitionView {
     scheduled_at_ms: u64,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub(super) struct SetChannelDefaultRequest {
+    #[serde(rename = "default")]
+    is_default: bool,
+}
+
 #[utoipa::path(
     get,
     path = "/api/v1/channels",
@@ -41,7 +47,12 @@ pub(super) async fn list_channels(
         snapshot
             .notification_channels
             .values()
-            .map(ChannelView::from)
+            .map(|channel| {
+                ChannelView::from_channel(
+                    channel,
+                    snapshot.default_notification_channels.contains(&channel.id),
+                )
+            })
             .collect(),
     ))
 }
@@ -63,11 +74,12 @@ pub(super) async fn create_channel(
     Json(input): Json<PutChannelRequest>,
 ) -> Result<(StatusCode, Json<ChannelView>), ApiError> {
     let id = NotificationChannelId(Uuid::now_v7());
-    let channel = match input {
+    let (channel, is_default) = match input {
         PutChannelRequest::Telegram {
             name,
             bot_token,
             chat_id,
+            is_default,
         } => {
             let secret_id = SecretId(Uuid::now_v7());
             state
@@ -81,41 +93,98 @@ pub(super) async fn create_channel(
                         .map_err(ApiError::bad_request)?,
                 }))
                 .await?;
+            (
+                NotificationChannel {
+                    id,
+                    name,
+                    kind: NotificationChannelKind::Telegram {
+                        bot_token: secret_id,
+                        chat_id,
+                    },
+                },
+                is_default,
+            )
+        }
+        PutChannelRequest::Webhook {
+            name,
+            url,
+            headers,
+            is_default,
+        } => (
             NotificationChannel {
                 id,
                 name,
-                kind: NotificationChannelKind::Telegram {
-                    bot_token: secret_id,
-                    chat_id,
+                kind: NotificationChannelKind::Webhook {
+                    url: Url::parse(&url).map_err(ApiError::bad_request)?,
+                    headers: headers
+                        .into_iter()
+                        .map(|(key, value)| (key, ConfigValue::from(value)))
+                        .collect(),
                 },
-            }
-        }
-        PutChannelRequest::Webhook { name, url, headers } => NotificationChannel {
-            id,
-            name,
-            kind: NotificationChannelKind::Webhook {
-                url: Url::parse(&url).map_err(ApiError::bad_request)?,
-                headers: headers
-                    .into_iter()
-                    .map(|(key, value)| (key, ConfigValue::from(value)))
-                    .collect(),
             },
-        },
+            is_default,
+        ),
     };
     state
         .cluster
         .apply(Command::PutNotificationChannel(channel))
         .await?;
+    if is_default {
+        state
+            .cluster
+            .apply(Command::SetNotificationChannelDefault {
+                channel_id: id,
+                is_default: true,
+            })
+            .await?;
+    }
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
     Ok((
         StatusCode::CREATED,
-        Json(ChannelView::from(
+        Json(ChannelView::from_channel(
             snapshot
                 .notification_channels
                 .get(&id)
                 .expect("created channel exists"),
+            snapshot.default_notification_channels.contains(&id),
         )),
     ))
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/v1/channels/{id}/default",
+    params(("id" = Uuid, Path)),
+    request_body = SetChannelDefaultRequest,
+    responses(
+        (status = 200, body = ChannelView),
+        (status = 401, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 503, body = ErrorBody),
+    )
+)]
+pub(super) async fn set_channel_default(
+    State(state): State<WebState>,
+    Path(id): Path<Uuid>,
+    Json(input): Json<SetChannelDefaultRequest>,
+) -> Result<Json<ChannelView>, ApiError> {
+    let id = NotificationChannelId(id);
+    state
+        .cluster
+        .apply(Command::SetNotificationChannelDefault {
+            channel_id: id,
+            is_default: input.is_default,
+        })
+        .await?;
+    let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
+    let channel = snapshot
+        .notification_channels
+        .get(&id)
+        .ok_or_else(|| ApiError::not_found(format!("channel not found: {}", id.0)))?;
+    Ok(Json(ChannelView::from_channel(
+        channel,
+        snapshot.default_notification_channels.contains(&id),
+    )))
 }
 
 #[utoipa::path(

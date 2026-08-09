@@ -345,6 +345,19 @@ test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Alerts" })).toHaveCount(0);
 });
 
+test("keeps primary navigation visible on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  const navigation = page.getByRole("navigation", { name: "Primary" });
+  await expect(navigation).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "Overview" })).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "Alerts" })).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "Cluster" })).toBeVisible();
+  await navigation.getByRole("link", { name: "Alerts" }).click();
+  await expect(page).toHaveURL(/\/alerts$/);
+});
+
 test("copying a join command confirms success", async ({ page }) => {
   await page.goto("/cluster");
 

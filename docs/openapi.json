@@ -271,6 +271,74 @@
         }
       }
     },
+    "/api/v1/channels/{id}/default": {
+      "put": {
+        "operationId": "set_channel_default",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetChannelDefaultRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/cluster": {
       "get": {
         "operationId": "get_cluster",
@@ -1342,9 +1410,13 @@
           "id",
           "name",
           "kind",
-          "destination"
+          "destination",
+          "default"
         ],
         "properties": {
+          "default": {
+            "type": "boolean"
+          },
           "destination": {
             "type": "string"
           },
@@ -1659,6 +1731,9 @@
               "chat_id": {
                 "type": "string"
               },
+              "default": {
+                "type": "boolean"
+              },
               "name": {
                 "type": "string"
               },
@@ -1678,6 +1753,9 @@
               "type"
             ],
             "properties": {
+              "default": {
+                "type": "boolean"
+              },
               "headers": {
                 "type": "object",
                 "additionalProperties": {
@@ -1798,6 +1876,9 @@
           },
           "url": {
             "type": "string"
+          },
+          "use_default_channels": {
+            "type": "boolean"
           }
         }
       },
@@ -1814,6 +1895,17 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "SetChannelDefaultRequest": {
+        "type": "object",
+        "required": [
+          "default"
+        ],
+        "properties": {
+          "default": {
+            "type": "boolean"
           }
         }
       },
@@ -1904,6 +1996,7 @@
           "timeout_seconds",
           "failure_threshold",
           "notification_channel_ids",
+          "use_default_channels",
           "availability",
           "consecutive_failures",
           "history",
@@ -2014,6 +2107,9 @@
           },
           "url": {
             "type": "string"
+          },
+          "use_default_channels": {
+            "type": "boolean"
           }
         }
       },

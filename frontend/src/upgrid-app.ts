@@ -8,6 +8,7 @@ import "iconify-icon";
 import "./setup-flow.ts";
 import { type Target } from "./api.ts";
 import { AppController } from "./app-controller.ts";
+import { renderAlertsPage } from "./alerts-view.ts";
 import { type Section, sectionPaths, themeIcons } from "./app-state.ts";
 import { renderTargetDetail } from "./target-detail-view.ts";
 import { renderTargetForm } from "./target-form-view.ts";
@@ -239,8 +240,8 @@ export class UpgridApp extends AppController {
     }
     @media (max-width: 720px) {
       .shell { padding: 20px 14px 60px; }
-      header { grid-template-columns: minmax(0, 1fr) auto; }
-      nav { display: none; }
+      header { grid-template-columns: minmax(0, 1fr) auto; row-gap: 16px; }
+      header > nav { display: flex; grid-column: 1 / -1; grid-row: 2; justify-self: center; }
       .overview-top { grid-template-columns: 1fr; }
       .page-columns { grid-template-columns: 1fr; }
       .toolbar { grid-template-columns: 1fr 1fr; }
@@ -314,7 +315,11 @@ export class UpgridApp extends AppController {
         ${this.activeSection === "overview"
           ? this.renderOverview(visibleTargets, up, down, pending)
           : this.activeSection === "alerts"
-            ? this.renderAlertsPage()
+            ? renderAlertsPage(this.transitions, this.channels, {
+                create: () => this.openChannelDialog(),
+                remove: (channel) => void this.deleteResource("channels", channel.id, channel.name),
+                setDefault: (channel, isDefault) => void this.setChannelDefault(channel, isDefault),
+              })
             : this.renderClusterPage()}
       </main>
       ${renderTargetForm(this.channels, this.saving, {
@@ -347,6 +352,7 @@ export class UpgridApp extends AppController {
           ${this.channelKind === "webhook"
             ? html`<label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/upgrid" data-test-required required /></label>`
             : html`<label>Bot token<input name="bot_token" type="password" autocomplete="off" data-test-required required /></label><label>Chat ID<input name="chat_id" data-test-required required /></label>`}
+          <label class="switch"><span>Default channel</span><input name="default" type="checkbox" role="switch" /></label>
           <div class="dialog-actions">${this.channelTestMessage ? html`<span class="meta" role="status" style="margin-right:auto">${this.channelTestMessage}</span>` : nothing}<button class="button secondary" type="button" @click=${() => this.closeDialog("channel-dialog")}>Cancel</button><button class="button secondary" type="button" aria-busy=${this.testingChannel} ?disabled=${this.testingChannel || this.saving} @click=${this.testChannel}>${this.testingChannel ? "Sending…" : "Send test"}</button><button class="button" type="submit" ?disabled=${this.saving || this.testingChannel}>Create channel</button></div>
         </form>
       </dialog>
@@ -400,26 +406,6 @@ export class UpgridApp extends AppController {
           ? visibleTargets.map((target) => this.renderTarget(target))
           : html`<div class="empty">${this.targets.length ? "No Targets match these filters." : "No targets yet. Add the first one to begin monitoring."}</div>`}
       </section>
-    `;
-  }
-
-  private renderAlertsPage() {
-    return html`
-      <section class="heading" id="alerts">
-        <div><span class="eyebrow">Delivery history</span><h1>Alerts</h1></div><button class="button" @click=${this.openChannelDialog}>Add channel</button>
-      </section>
-      <div class="page-columns">
-      <section class="panel" aria-label="Alert history">
-        <div class="panel-head"><h2>Availability transitions</h2><span class="meta">${this.transitions.length} events</span></div>
-        ${this.transitions.length
-          ? this.transitions.map((transition) => html`<div class="resource"><div><strong>${transition.target_name}</strong><code>${new Date(transition.scheduled_at_ms).toLocaleString()}</code></div><span class="badge">${transition.kind}</span></div>`)
-          : html`<div class="empty">No availability transitions.</div>`}
-      </section>
-      <section class="panel" aria-label="Notification channels">
-        <div class="panel-head"><h2>Notification channels</h2><span class="meta">${this.channels.length} configured</span></div>
-        ${this.channels.length ? this.channels.map((channel) => html`<div class="resource"><div><div class="actions"><strong>${channel.name}</strong><span class="badge">${channel.kind}</span></div><code>${channel.destination}</code></div><button class="button danger icon-button" aria-label=${`Delete channel ${channel.name}`} title=${`Delete ${channel.name}`} @click=${() => this.deleteResource("channels", channel.id, channel.name)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div>`) : html`<div class="empty">No notification channels.</div>`}
-      </section>
-      </div>
     `;
   }
 

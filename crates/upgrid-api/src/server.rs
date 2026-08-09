@@ -112,6 +112,7 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(pause_target))
         .routes(routes!(resume_target))
         .routes(routes!(list_channels, create_channel))
+        .routes(routes!(set_channel_default))
         .routes(routes!(test_channel))
         .routes(routes!(delete_channel))
         .routes(routes!(list_secrets, create_secret))

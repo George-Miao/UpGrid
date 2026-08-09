@@ -14,7 +14,11 @@ pub(super) async fn list_targets(
 ) -> Result<Json<Vec<TargetView>>, ApiError> {
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
     Ok(Json(
-        snapshot.targets.values().map(TargetView::from).collect(),
+        snapshot
+            .targets
+            .values()
+            .map(|target| TargetView::from_state(&snapshot, target))
+            .collect(),
     ))
 }
 
@@ -38,7 +42,7 @@ pub(super) async fn get_target(
     snapshot
         .targets
         .get(&id)
-        .map(TargetView::from)
+        .map(|target| TargetView::from_state(&snapshot, target))
         .map(Json)
         .ok_or_else(|| ApiError::not_found(format!("target not found: {}", id.0)))
 }
@@ -61,13 +65,23 @@ pub(super) async fn create_target(
     Json(input): Json<PutTargetRequest>,
 ) -> Result<(StatusCode, Json<TargetView>), ApiError> {
     let id = TargetId(Uuid::now_v7());
+    let use_default_channels = input.use_default_channels;
     let target = target_from_input(id, input)?;
     state.cluster.apply(Command::CreateTarget(target)).await?;
+    if !use_default_channels {
+        state
+            .cluster
+            .apply(Command::SetTargetDefaultNotifications {
+                target_id: id,
+                enabled: false,
+            })
+            .await?;
+    }
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
     let view = snapshot
         .targets
         .get(&id)
-        .map(TargetView::from)
+        .map(|target| TargetView::from_state(&snapshot, target))
         .expect("created target exists");
     Ok((StatusCode::CREATED, Json(view)))
 }
@@ -92,14 +106,22 @@ pub(super) async fn update_target(
     Json(input): Json<PutTargetRequest>,
 ) -> Result<Json<TargetView>, ApiError> {
     let id = TargetId(id);
+    let use_default_channels = input.use_default_channels;
     let target = target_from_input(id, input)?;
     state.cluster.apply(Command::UpdateTarget(target)).await?;
+    state
+        .cluster
+        .apply(Command::SetTargetDefaultNotifications {
+            target_id: id,
+            enabled: use_default_channels,
+        })
+        .await?;
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
     Ok(Json(
         snapshot
             .targets
             .get(&id)
-            .map(TargetView::from)
+            .map(|target| TargetView::from_state(&snapshot, target))
             .expect("updated target exists"),
     ))
 }
@@ -178,7 +200,7 @@ async fn set_target_paused(
     snapshot
         .targets
         .get(&id)
-        .map(TargetView::from)
+        .map(|target| TargetView::from_state(&snapshot, target))
         .map(Json)
         .ok_or_else(|| ApiError::not_found(format!("target not found: {}", id.0)))
 }

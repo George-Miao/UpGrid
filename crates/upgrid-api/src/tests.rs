@@ -40,6 +40,7 @@ mod tests {
             timeout_seconds: 10,
             failure_threshold: 3,
             notification_channel_ids: BTreeSet::new(),
+            use_default_channels: true,
         };
 
         let Ok(target) = target_from_input(TargetId(Uuid::from_u128(1)), input) else {

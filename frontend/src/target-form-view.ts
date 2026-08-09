@@ -1,4 +1,4 @@
-import { html, nothing } from "lit";
+import { html } from "lit";
 import { type Channel } from "./api.ts";
 
 interface Actions {
@@ -7,11 +7,23 @@ interface Actions {
   create: (event: SubmitEvent) => void;
 }
 
-export function renderChannelFields(channels: Channel[], selected: string[] = []) {
-  if (!channels.length) return nothing;
+export function renderChannelFields(
+  channels: Channel[],
+  selected: string[] = [],
+  useDefaults = true,
+) {
   return html`
     <fieldset class="channel-fields">
       <legend>Notification channels</legend>
+      <label class="switch">
+        <span>Use default channels</span>
+        <input
+          name="use_default_channels"
+          type="checkbox"
+          role="switch"
+          .checked=${useDefaults}
+        />
+      </label>
       <div class="channel-options">
         ${channels.map((channel) => html`
           <label class="check">

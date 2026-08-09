@@ -14,7 +14,8 @@ mod tests {
 
     use super::*;
     use crate::domain::{
-        ApplicationState, Command, EvaluationPolicy, HttpTarget, Target, TargetId,
+        AlertKind, ApplicationState, AvailabilityTransition, Command, Evaluation, EvaluationId,
+        EvaluationPolicy, HttpEvaluationMetadata, HttpTarget, Target, TargetId,
     };
     use crate::raft::TC;
 
@@ -261,5 +262,57 @@ mod tests {
             Some(&"swift-falcon".to_owned())
         );
         assert!(migrated.transitions.is_empty());
+    }
+
+    #[test]
+    fn transition_version_is_migrated_without_losing_transitions() {
+        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("raft-state.postcard");
+        let target_id = TargetId(Uuid::now_v7());
+        let evaluation = Evaluation {
+            id: EvaluationId {
+                target_id,
+                scheduled_at_ms: 1_000,
+            },
+            recorded_at_ms: 1_100,
+            executor_node_id: Uuid::now_v7(),
+            succeeded: false,
+            http: HttpEvaluationMetadata {
+                status_code: Some(502),
+                latency_ms: 10,
+                received_bytes: 0,
+                final_url: Url::parse("https://example.com").unwrap(),
+            },
+            diagnostic: Some("bad gateway".to_owned()),
+        };
+        let mut application = ApplicationState::default();
+        application.transitions.insert(
+            evaluation.id,
+            AvailabilityTransition {
+                kind: AlertKind::Down,
+                target_name: "Example".to_owned(),
+                target_url: Url::parse("https://example.com").unwrap(),
+                evaluation: evaluation.clone(),
+            },
+        );
+        let previous = TransitionPersistedStateMachine {
+            state_machine: TransitionStateMachineData {
+                last_applied_log: None,
+                last_membership: StoredMembership::default(),
+                application: application.into(),
+            },
+            current_snapshot: None,
+            snapshot_idx: 0,
+        };
+        let mut encoded = TRANSITION_STATE_MAGIC.to_vec();
+        encoded.extend_from_slice(&postcard::to_stdvec(&previous).unwrap());
+        fs::write(&path, encoded).unwrap();
+
+        let migrated = StateMachine::open(&path).unwrap().application_state();
+        assert_eq!(migrated.transitions[&evaluation.id].evaluation, evaluation);
+        assert!(migrated.default_notification_channels.is_empty());
+        assert!(migrated.default_notifications_disabled.is_empty());
+        fs::remove_dir_all(directory).unwrap();
     }
 }

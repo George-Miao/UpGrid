@@ -154,6 +154,93 @@ fn availability_transition_is_recorded_without_a_notification_channel() {
 }
 
 #[test]
+fn default_channels_apply_unless_target_opts_out() {
+    let (mut state, target_id, channel_id) = state_with_target();
+    state
+        .targets
+        .get_mut(&target_id)
+        .unwrap()
+        .target
+        .notification_channels
+        .clear();
+    state
+        .apply(Command::SetNotificationChannelDefault {
+            channel_id,
+            is_default: true,
+        })
+        .unwrap();
+
+    for scheduled_at_ms in [1_000, 2_000, 3_000] {
+        state
+            .apply(Command::RecordEvaluation(evaluation(
+                target_id,
+                scheduled_at_ms,
+                false,
+            )))
+            .unwrap();
+    }
+    assert_eq!(state.alerts.len(), 1);
+    assert_eq!(
+        state.alerts.values().next().unwrap().id.channel_id,
+        channel_id
+    );
+
+    let (mut opted_out, target_id, channel_id) = state_with_target();
+    opted_out
+        .targets
+        .get_mut(&target_id)
+        .unwrap()
+        .target
+        .notification_channels
+        .clear();
+    opted_out
+        .apply(Command::SetNotificationChannelDefault {
+            channel_id,
+            is_default: true,
+        })
+        .unwrap();
+    opted_out
+        .apply(Command::SetTargetDefaultNotifications {
+            target_id,
+            enabled: false,
+        })
+        .unwrap();
+    for scheduled_at_ms in [1_000, 2_000, 3_000] {
+        opted_out
+            .apply(Command::RecordEvaluation(evaluation(
+                target_id,
+                scheduled_at_ms,
+                false,
+            )))
+            .unwrap();
+    }
+    assert!(opted_out.alerts.is_empty());
+    assert_eq!(opted_out.transitions.len(), 1);
+}
+
+#[test]
+fn explicit_default_channel_is_not_duplicated() {
+    let (mut state, target_id, channel_id) = state_with_target();
+    state
+        .apply(Command::SetNotificationChannelDefault {
+            channel_id,
+            is_default: true,
+        })
+        .unwrap();
+
+    for scheduled_at_ms in [1_000, 2_000, 3_000] {
+        state
+            .apply(Command::RecordEvaluation(evaluation(
+                target_id,
+                scheduled_at_ms,
+                false,
+            )))
+            .unwrap();
+    }
+    assert_eq!(state.alerts.len(), 1);
+}
+
+#[test]
 fn duplicate_and_deleted_target_results_are_discarded() {
     let (mut state, target_id, _) = state_with_target();
     let item = evaluation(target_id, 1_000, true);
