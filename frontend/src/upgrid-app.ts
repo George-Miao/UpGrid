@@ -193,8 +193,9 @@ export class UpgridApp extends AppController {
     .switch input::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
     .switch input:checked { border-color: var(--button-border); background: var(--button-bg); }
     .switch input:checked::after { background: var(--button-text); transform: translateX(18px); }
-    footer { display: flex; flex: 0 0 auto; width: calc(100% - 48px); max-width: 1152px; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; margin: 0 auto; border-top: 1px solid var(--line); padding: 20px 0 24px; color: var(--muted); font-size: 12px; }
-    footer a { display: inline-flex; align-items: center; gap: 5px; border-radius: 4px; color: inherit; text-decoration: none; transition: color 160ms ease; }
+    footer { display: flex; flex: 0 0 auto; width: calc(100% - 48px); max-width: 1152px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; margin: 0 auto; border-top: 1px solid var(--line); padding: 20px 0 24px; color: var(--muted); font-size: 12px; }
+    .footer-links, .footer-powered { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; text-align: center; }
+    footer a { display: inline-flex; align-items: center; gap: 5px; border-radius: 4px; color: var(--green); text-decoration: underline; text-underline-offset: 3px; transition: color 160ms ease; }
     footer a:hover { color: var(--text); }
     .history { margin: 0 22px 22px; border-top: 1px solid var(--line); padding-top: 18px; }
     .history-head, .chart-legend, .chart-legend span, .chart-axis { display: flex; align-items: center; }

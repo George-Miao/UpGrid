@@ -94,3 +94,7 @@ The Lit frontend lives in `frontend/`; the Starlight documentation site lives in
 ## Project status
 
 The self-contained MVP is complete and development now follows small, agile iterations. UpGrid is suitable for evaluation and self-hosted experimentation; authentication and Cluster membership operations are still being hardened. Current follow-up work is tracked in [TODO.md](TODO.md).
+
+## Acknowledgements
+
+Proudly powered by [Compio](https://compio.rs/) and [OpenRaft](https://github.com/databendlabs/openraft).

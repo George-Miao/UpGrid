@@ -65,8 +65,14 @@ test("shows project footer links with icons", async ({ page }) => {
   await expect(footer.getByRole("link", { name: "A Project by Pop" })).toHaveAttribute("href", "https://miao.dev");
   const github = footer.getByRole("link", { name: "GitHub" });
   const website = footer.getByRole("link", { name: "upgrid.rs" });
+  const compio = footer.getByRole("link", { name: "Compio" });
+  const openraft = footer.getByRole("link", { name: "OpenRaft" });
   await expect(github).toHaveAttribute("href", "https://github.com/George-Miao/UpGrid");
   await expect(website).toHaveAttribute("href", "https://upgrid.rs");
+  await expect(compio).toHaveAttribute("href", "https://compio.rs/");
+  await expect(openraft).toHaveAttribute("href", "https://github.com/databendlabs/openraft");
+  await expect(footer).toContainText("Proudly powered by Compio and OpenRaft");
+  await expect(compio).toHaveCSS("text-decoration-line", "underline");
   await expect(github.locator("iconify-icon")).toBeVisible();
   await expect(website.locator("iconify-icon")).toBeVisible();
   const bounds = await footer.boundingBox();
