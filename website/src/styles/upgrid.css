@@ -39,6 +39,21 @@
   filter: drop-shadow(0 1.5rem 3rem rgb(18 100 66 / 25%));
 }
 
+.webui-showcase {
+  display: block;
+  width: min(100%, 96rem);
+  height: auto;
+  margin: 1.5rem auto 4rem;
+  filter: drop-shadow(0 1.5rem 3rem rgb(9 40 28 / 18%));
+}
+
+:root[data-theme='dark'] .webui-showcase {
+  background: radial-gradient(circle at 70% 70%, rgb(88 226 156 / 12%), transparent 58%);
+  filter:
+    drop-shadow(0 0 1px rgb(88 226 156 / 35%))
+    drop-shadow(0 1.5rem 3rem rgb(0 0 0 / 55%));
+}
+
 .card { border-radius: 1rem; }
 code { border-radius: 0.35rem; }
 

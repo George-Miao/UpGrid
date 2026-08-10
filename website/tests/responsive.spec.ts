@@ -1,5 +1,20 @@
 import { expect, test } from '@playwright/test';
 
+test('keeps the WebUI showcase within the mobile viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  const showcase = page.getByAltText(/overview dashboard in bright and dark themes/i);
+  await expect(showcase).toBeVisible();
+  await expect(showcase).toHaveJSProperty('complete', true);
+
+  const bounds = await showcase.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test('keeps configuration table values intact on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/reference/configuration/');

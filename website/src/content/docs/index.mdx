@@ -17,6 +17,19 @@ hero:
 ---
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import webuiShowcase from '../../assets/webui-showcase.png';
+
+## An elegant WebUI on every Node
+
+See service health, recent latency, Cluster status, and operational controls in one responsive dashboard.
+
+<Image
+	class="webui-showcase"
+	src={webuiShowcase}
+	alt="UpGrid overview dashboard in bright and dark themes, showing service status cards and monitored Targets"
+	loading="eager"
+/>
 
 ## Monitoring without a control-plane dependency
 
