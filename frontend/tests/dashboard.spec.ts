@@ -58,6 +58,19 @@ test("fills the viewport without browser-default padding", async ({ page }) => {
   await expect(page.locator("upgrid-app")).toHaveCSS("min-height", "720px");
 });
 
+test("shows project footer links with icons", async ({ page }) => {
+  await page.goto("/");
+  const footer = page.getByRole("contentinfo", { name: "Project information" });
+  await expect(footer.getByRole("link", { name: "A Project by Pop" }))
+    .toHaveAttribute("href", "https://miao.dev");
+  const github = footer.getByRole("link", { name: "GitHub" });
+  const website = footer.getByRole("link", { name: "upgrid.rs" });
+  await expect(github).toHaveAttribute("href", "https://github.com/George-Miao/UpGrid");
+  await expect(website).toHaveAttribute("href", "https://upgrid.rs");
+  await expect(github.locator("iconify-icon")).toBeVisible();
+  await expect(website.locator("iconify-icon")).toBeVisible();
+});
+
 test("disables maximum redirects when redirects are not followed", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Add target" }).click();

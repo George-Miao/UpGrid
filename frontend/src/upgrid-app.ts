@@ -9,10 +9,10 @@ import "./setup-flow.ts";
 import { type Target } from "./api.ts";
 import { AppController } from "./app-controller.ts";
 import { renderAlertsPage } from "./alerts-view.ts";
-import { type Section, sectionPaths, themeIcons } from "./app-state.ts";
+import { type Section, sectionPaths, serviceHealth, themeIcons } from "./app-state.ts";
+import { renderFooter } from "./footer-view.ts";
 import { renderTargetDetail } from "./target-detail-view.ts";
 import { renderTargetForm } from "./target-form-view.ts";
-
 @customElement("upgrid-app")
 export class UpgridApp extends AppController {
   static styles = css`
@@ -57,7 +57,7 @@ export class UpgridApp extends AppController {
       --warning-text: #ffd778;
       --warning-border: #9c7625;
       --join-bg: #0b110e;
-      display: block;
+      display: flex; flex-direction: column;
       min-height: 100vh;
       background: var(--page-background);
       color: var(--text);
@@ -66,8 +66,8 @@ export class UpgridApp extends AppController {
     }
     * { box-sizing: border-box; }
     button, input, select { font: inherit; }
-    .shell { max-width: 1200px; margin: auto; padding: 28px 24px 72px; }
-    .setup-shell { display: grid; min-height: 100vh; grid-template-rows: auto minmax(0, 1fr); padding-top: 20px; padding-bottom: 20px; }
+    .shell { flex: 1 0 auto; width: 100%; max-width: 1200px; margin: auto; padding: 28px 24px 48px; }
+    .setup-shell { display: grid; grid-template-rows: auto minmax(0, 1fr); padding-top: 20px; padding-bottom: 20px; }
     .setup-shell header { margin-bottom: 18px; } .setup-shell upgrid-setup { align-self: center; }
     header { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; margin-bottom: 34px; }
     .brand, .actions, .live, nav { display: flex; align-items: center; }
@@ -85,7 +85,9 @@ export class UpgridApp extends AppController {
     .actions { gap: 12px; }
     .live { gap: 7px; }
     .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); transition: background-color 160ms ease, box-shadow 160ms ease; }
-    .dot.on { background: var(--green); box-shadow: 0 0 10px var(--green); }
+    .dot.up { background: var(--green); box-shadow: 0 0 10px var(--green); }
+    .dot.degraded { background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+    .dot.down { background: var(--red); box-shadow: 0 0 10px var(--red); }
     .heading { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 30px; }
     .heading h1 { margin: 2px 0 0; font-size: clamp(27px, 4vw, 38px); line-height: 1.1; letter-spacing: -.035em; }
     .eyebrow { text-transform: uppercase; letter-spacing: .16em; }
@@ -103,6 +105,7 @@ export class UpgridApp extends AppController {
     .metric { border-radius: 14px; padding: 17px 18px; }
     .metric span { display: block; color: var(--muted); font-size: 11px; letter-spacing: .11em; text-transform: uppercase; }
     .metric strong { display: block; margin-top: 5px; font-size: 29px; font-weight: 560; }
+    .metric.down.active span, .metric.down.active strong { color: var(--red); }
     .panel { border-radius: 16px; overflow: hidden; }
     .resource { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 20px; border-bottom: 1px solid var(--divider); }
     .resource:last-child { border-bottom: 0; }
@@ -166,7 +169,7 @@ export class UpgridApp extends AppController {
     label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
     input, select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font-size: 16px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease; }
     input:focus, select:focus { border-color: var(--focus); }
-    button:focus-visible, nav a:focus-visible, .target:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+    button:focus-visible, a:focus-visible, .target:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
     input:disabled { cursor: not-allowed; opacity: .5; }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
     .danger-actions { display: flex; gap: 8px; margin-right: auto; }
@@ -190,6 +193,9 @@ export class UpgridApp extends AppController {
     .switch input::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
     .switch input:checked { border-color: var(--button-border); background: var(--button-bg); }
     .switch input:checked::after { background: var(--button-text); transform: translateX(18px); }
+    footer { display: flex; flex: 0 0 auto; width: calc(100% - 48px); max-width: 1152px; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; margin: 0 auto; border-top: 1px solid var(--line); padding: 20px 0 24px; color: var(--muted); font-size: 12px; }
+    footer a { display: inline-flex; align-items: center; gap: 5px; border-radius: 4px; color: inherit; text-decoration: none; transition: color 160ms ease; }
+    footer a:hover { color: var(--text); }
     .history { margin: 0 22px 22px; border-top: 1px solid var(--line); padding-top: 18px; }
     .history-head, .chart-legend, .chart-legend span, .chart-axis { display: flex; align-items: center; }
     .history-head { justify-content: space-between; margin-bottom: 12px; }
@@ -270,11 +276,11 @@ export class UpgridApp extends AppController {
       .channel-actions { justify-content: space-between; margin-top: 10px; }
     }
   `;
-
   protected render() {
     const up = this.targets.filter((target) => target.availability === "up").length;
     const down = this.targets.filter((target) => target.availability === "down").length;
     const pending = this.alerts.filter((alert) => alert.delivery === "pending").length;
+    const health = serviceHealth(this.targets, this.live);
     const sections: Section[] = ["overview", "alerts", "cluster"];
     const visibleTargets = this.targets
       .filter((target) =>
@@ -298,14 +304,14 @@ export class UpgridApp extends AppController {
           <header>
             <div class="brand">
               <img src="/favicon.svg" alt="" />
-              <div><div class="brand-line"><strong>UpGrid</strong><div class="live"><i class="dot ${this.live ? "on" : ""}"></i>${this.live ? "ready" : "connecting"}</div></div><span>Distributed service monitoring</span></div>
+              <div><div class="brand-line"><strong>UpGrid</strong><div class="live"><i class="dot ${this.live ? "up" : ""}"></i>${this.live ? "ready" : "connecting"}</div></div><span>Distributed service monitoring</span></div>
             </div>
             <div></div>
             <div class="actions"><button class="button secondary icon-button" aria-label=${`Theme: ${this.theme[0].toUpperCase()}${this.theme.slice(1)}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button></div>
           </header>
           ${this.error ? html`<div class="notice" role="alert">${this.error}</div>` : nothing}
           <upgrid-setup .setup=${this.setup} @setup-changed=${this.setupChanged}></upgrid-setup>
-        </main>`;
+        </main>${renderFooter()}`;
     }
     return html`
       <main class="shell">
@@ -313,7 +319,7 @@ export class UpgridApp extends AppController {
           <div class="brand">
             <img src="/favicon.svg" alt="" />
             <div>
-              <div class="brand-line"><strong>UpGrid</strong><div class="live"><i class="dot ${this.live ? "on" : ""}"></i>${this.live ? "live" : "connecting"}</div></div>
+              <div class="brand-line"><strong>UpGrid</strong><div class="live"><i class="dot ${health.tone}"></i>${health.label}</div></div>
               <span>Distributed service monitoring</span>
             </div>
           </div>
@@ -339,7 +345,7 @@ export class UpgridApp extends AppController {
                 setDefault: (channel, isDefault) => void this.setChannelDefault(channel, isDefault),
               })
             : this.renderClusterPage()}
-      </main>
+      </main>${renderFooter()}
       ${renderTargetForm(this.channels, this.saving, {
         backdrop: (event) => this.dismissOnBackdrop(event),
         close: () => this.closeTargetDialog(),
@@ -390,7 +396,6 @@ export class UpgridApp extends AppController {
       </dialog>
     `;
   }
-
   private renderOverview(visibleTargets: Target[], up: number, down: number, pending: number) {
     const selectedTargets = this.targets.filter((target) => this.selectedIds.has(target.id));
     const canPauseSelected = selectedTargets.some((target) => !target.paused);
@@ -405,7 +410,7 @@ export class UpgridApp extends AppController {
           <div class="metric"><span>Targets</span><strong>${this.targets.length}</strong></div>
           <div class="metric"><span>Pending alerts</span><strong>${pending}</strong></div>
           <div class="metric"><span>Up</span><strong>${up}</strong></div>
-          <div class="metric"><span>Down</span><strong>${down}</strong></div>
+          <div class=${`metric down ${down ? "active" : ""}`}><span>Down</span><strong>${down}</strong></div>
         </section>
         <section class="panel" aria-label="Secrets">
           <div class="panel-head"><h2>Secrets</h2><button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div>
@@ -487,7 +492,6 @@ export class UpgridApp extends AppController {
       </div>
     `;
   }
-
 }
 declare global {
   interface HTMLElementTagNameMap {

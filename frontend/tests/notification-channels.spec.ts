@@ -144,6 +144,9 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
 
   const target = page.getByRole("button", { name: targetName });
   await expect(target.locator(".state")).toHaveClass(/down/, { timeout: 15_000 });
+  const downMetric = page.getByRole("region", { name: "Target summary" }).locator(".metric.down");
+  await expect(downMetric).toHaveClass(/active/);
+  await expect(downMetric.locator("strong")).toHaveCSS("color", "rgb(197, 52, 52)");
   await expect.poll(() => webhookBody && JSON.parse(webhookBody)).toMatchObject({
     event: "down",
     target_name: targetName,

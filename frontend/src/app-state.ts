@@ -26,6 +26,19 @@ export const sectionPaths = {
 } as const;
 export type Section = keyof typeof sectionPaths;
 
+export function serviceHealth(targets: Target[], connected: boolean) {
+  if (!connected) return { tone: "pending", label: "connecting" };
+  const monitored = targets.filter((target) => !target.paused);
+  if (!monitored.length) return { tone: "pending", label: "ready" };
+  const affected = monitored.filter((target) =>
+    target.availability === "down" || target.consecutive_failures > 0
+  ).length;
+  if (!affected) return { tone: "up", label: "up" };
+  return affected === monitored.length
+    ? { tone: "down", label: "down" }
+    : { tone: "degraded", label: "partially down" };
+}
+
 function sectionFromPath(): Section {
   return (Object.entries(sectionPaths).find(([, path]) => path === window.location.pathname)?.[0]
     ?? "overview") as Section;
