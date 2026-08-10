@@ -7,7 +7,6 @@ use openraft::alias::{NodeIdOf, NodeOf};
 use openraft::declare_raft_types;
 use openraft_rt_compio::CompioRuntime;
 use serde::{Deserialize, Serialize};
-use url::Url;
 use uuid::Uuid;
 
 use crate::UpgridNode;
@@ -60,22 +59,14 @@ pub struct Identity {
 
 impl Identity {
     #[cfg(test)]
-    pub fn new<U, E>(url: U) -> crate::Result<Self>
-    where
-        U: TryInto<Url, Error = E>,
-        E: std::error::Error + Send + Sync + 'static,
-    {
+    pub fn new(url: impl AsRef<str>) -> crate::Result<Self> {
         Self::with_id(Uuid::now_v7(), url)
     }
 
-    pub fn with_id<U, E>(id: Uuid, url: U) -> crate::Result<Self>
-    where
-        U: TryInto<Url, Error = E>,
-        E: std::error::Error + Send + Sync + 'static,
-    {
+    pub fn with_id(id: Uuid, url: impl AsRef<str>) -> crate::Result<Self> {
         Ok(Self {
             id,
-            node: UpgridNode::new(url)?,
+            node: UpgridNode::parse(url.as_ref())?,
         })
     }
 }

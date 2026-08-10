@@ -3,8 +3,10 @@ use std::sync::{Arc, Mutex};
 use std::{fs, io};
 
 use serde::{Deserialize, Serialize};
+use snafu::ResultExt;
 
-use crate::{AppResult, durable};
+use crate::error::{ReadSnafu, WriteSnafu};
+use crate::{Error, Result, durable};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -33,16 +35,15 @@ impl OobePhase {
         }
     }
 
-    fn parse(value: &str) -> io::Result<Self> {
+    fn parse(value: &str) -> Result<Self> {
         match value.trim() {
             "cluster" => Ok(Self::Cluster),
             "channel" => Ok(Self::Channel),
             "target" => Ok(Self::Target),
             "complete" => Ok(Self::Complete),
-            _ => Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "invalid OOBE phase",
-            )),
+            phase => Err(Error::OobePhaseInvalid {
+                phase: phase.to_owned(),
+            }),
         }
     }
 }
@@ -65,12 +66,12 @@ pub struct Oobe {
 }
 
 impl Oobe {
-    pub fn open(data_dir: &Path) -> AppResult<Self> {
+    pub fn open(data_dir: &Path) -> Result<Self> {
         let path = data_dir.join("oobe-state");
         let phase = match fs::read_to_string(&path) {
             Ok(value) => OobePhase::parse(&value)?,
             Err(error) if error.kind() == io::ErrorKind::NotFound => OobePhase::Cluster,
-            Err(error) => return Err(error.into()),
+            Err(source) => return Err(source).context(ReadSnafu { path }),
         };
         Ok(Self {
             path,
@@ -82,13 +83,15 @@ impl Oobe {
         *self.phase.lock().unwrap_or_else(|error| error.into_inner())
     }
 
-    pub fn set(&self, phase: OobePhase) -> AppResult<()> {
-        durable::replace(&self.path, phase.to_string().as_bytes())?;
+    pub fn set(&self, phase: OobePhase) -> Result<()> {
+        durable::replace(&self.path, phase.to_string().as_bytes()).context(WriteSnafu {
+            path: self.path.clone(),
+        })?;
         *self.phase.lock().unwrap_or_else(|error| error.into_inner()) = phase;
         Ok(())
     }
 
-    pub fn advance(&self) -> AppResult<OobePhase> {
+    pub fn advance(&self) -> Result<OobePhase> {
         let next = self.phase().next();
         self.set(next)?;
         Ok(next)

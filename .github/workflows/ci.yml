@@ -27,6 +27,7 @@ jobs:
       - run: git diff --exit-code -- frontend/dist
       - run: cargo fmt --all -- --check
       - run: scripts/check-rust-source-size.sh
+      - run: scripts/check-rust-error-types.sh
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo test --workspace --no-run
       - run: cargo test published_openapi_matches_routes

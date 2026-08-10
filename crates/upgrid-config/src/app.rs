@@ -8,18 +8,18 @@ use clap::Parser as _;
 use figment::Figment;
 use figment::providers::{Env, Format, Serialized, Toml};
 use serde::{Deserialize, Serialize};
+use snafu::ResultExt;
 use uuid::Uuid;
 
 use crate::cli::Cli;
-use crate::{Cipher, JoinLink, durable};
+use crate::error::{CliOutputSnafu, LoadSnafu, NodeIdSnafu, ReadSnafu, WriteSnafu};
+use crate::{Cipher, Error, JoinLink, Result, durable};
 
 #[derive(Clone)]
 pub enum JoinIntent {
     Valid(Box<JoinLink>),
     Invalid,
 }
-
-pub type AppResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 #[derive(Clone)]
 pub struct Config {
@@ -78,7 +78,7 @@ pub enum Action {
 }
 
 impl Action {
-    pub fn from_env_and_args() -> AppResult<Option<Self>> {
+    pub fn from_env_and_args() -> Result<Option<Self>> {
         let cli = match Cli::try_parse() {
             Ok(cli) => cli,
             Err(error)
@@ -87,10 +87,10 @@ impl Action {
                     clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
                 ) =>
             {
-                error.print()?;
+                error.print().context(CliOutputSnafu)?;
                 return Ok(None);
             }
-            Err(error) => return Err(error.into()),
+            Err(source) => return Err(Error::Cli { source }),
         };
         if cli.print_openapi {
             return Ok(Some(Self::PrintOpenApi));
@@ -99,11 +99,11 @@ impl Action {
     }
 }
 
-fn load(cli: Cli) -> AppResult<Config> {
+fn load(cli: Cli) -> Result<Config> {
     load_with(cli, true)
 }
 
-fn load_with(cli: Cli, environment: bool) -> AppResult<Config> {
+fn load_with(cli: Cli, environment: bool) -> Result<Config> {
     let mut figment = Figment::from(Serialized::defaults(RawConfig::default()));
     if let Some(path) = cli.config.or_else(|| {
         environment
@@ -137,26 +137,22 @@ fn load_with(cli: Cli, environment: bool) -> AppResult<Config> {
     if cli.new_cluster {
         figment = figment.merge(("new_cluster", true));
     }
-    RawConfig::try_into(figment.extract()?)
+    RawConfig::try_into(figment.extract().context(LoadSnafu)?)
 }
 
 impl TryFrom<RawConfig> for Config {
-    type Error = Box<dyn std::error::Error + Send + Sync>;
+    type Error = Error;
 
     fn try_from(raw: RawConfig) -> Result<Self, Self::Error> {
         if raw.new_cluster && raw.join.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "new_cluster and join cannot be configured together",
-            )
-            .into());
+            return Err(Error::InvalidConfiguration {
+                message: "new_cluster and join cannot be configured together",
+            });
         }
         if raw.tls_cert.is_some() != raw.tls_key.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "tls_cert and tls_key must be configured together",
-            )
-            .into());
+            return Err(Error::InvalidConfiguration {
+                message: "tls_cert and tls_key must be configured together",
+            });
         }
         let history_retention_ms = raw
             .history_retention_hours
@@ -182,15 +178,12 @@ impl TryFrom<RawConfig> for Config {
     }
 }
 
-fn history_retention_ms(hours: u64) -> io::Result<u64> {
+fn history_retention_ms(hours: u64) -> Result<u64> {
     hours
         .checked_mul(60 * 60 * 1_000)
         .filter(|value| *value > 0)
-        .ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "history retention is zero or too large",
-            )
+        .ok_or(Error::InvalidConfiguration {
+            message: "history retention is zero or too large",
         })
 }
 
@@ -198,49 +191,43 @@ pub fn load_or_create_cipher(
     data_dir: &Path,
     configured: Option<&Cipher>,
     joining: bool,
-) -> AppResult<Cipher> {
+) -> Result<Cipher> {
     let path = data_dir.join("deployment-key");
     let stored = match fs::read_to_string(&path) {
         Ok(value) => Some(Cipher::parse(&value)?),
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-        Err(error) => return Err(error.into()),
+        Err(source) => return Err(source).context(ReadSnafu { path }),
     };
     match (stored, configured) {
         (Some(stored), Some(configured)) if stored.encoded() != configured.encoded() => {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "configured deployment key does not match the data directory",
-            )
-            .into())
+            Err(Error::DeploymentKeyMismatch)
         }
         (Some(stored), _) => Ok(stored),
         (None, Some(configured)) => {
-            durable::replace_private(&path, configured.encoded().as_bytes())?;
+            durable::replace_private(&path, configured.encoded().as_bytes())
+                .context(WriteSnafu { path })?;
             Ok(configured.clone())
         }
-        (None, None) if joining => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "joining a Cluster requires a valid up:// invitation",
-        )
-        .into()),
+        (None, None) if joining => Err(Error::JoinLinkRequired),
         (None, None) => {
             let generated = Cipher::generate()?;
-            durable::replace_private(&path, generated.encoded().as_bytes())?;
+            durable::replace_private(&path, generated.encoded().as_bytes())
+                .context(WriteSnafu { path })?;
             Ok(generated)
         }
     }
 }
 
-pub fn load_or_create_node_id(data_dir: &Path) -> AppResult<Uuid> {
+pub fn load_or_create_node_id(data_dir: &Path) -> Result<Uuid> {
     let path = data_dir.join("node-id");
     match fs::read_to_string(&path) {
-        Ok(value) => Ok(Uuid::parse_str(value.trim())?),
+        Ok(value) => Uuid::parse_str(value.trim()).context(NodeIdSnafu { path }),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             let id = Uuid::now_v7();
-            durable::replace(&path, id.to_string().as_bytes())?;
+            durable::replace(&path, id.to_string().as_bytes()).context(WriteSnafu { path })?;
             Ok(id)
         }
-        Err(error) => Err(error.into()),
+        Err(source) => Err(source).context(ReadSnafu { path }),
     }
 }
 
@@ -324,6 +311,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::result_large_err)] // Required by Figment's fixed Jail callback signature.
     fn environment_can_select_a_new_cluster() {
         figment::Jail::expect_with(|jail| {
             jail.set_env("UPGRID_NEW_CLUSTER", "true");

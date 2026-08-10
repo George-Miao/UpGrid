@@ -16,7 +16,6 @@ use tarpc::context::Context;
 use tracing::{debug, info};
 use upgrid_config::Cipher;
 use upgrid_transport::{RpcTransport, secure_endpoint};
-use url::Url;
 
 use crate::UpgridNode;
 use crate::error::*;
@@ -54,11 +53,7 @@ impl Node {
     }
 
     #[cfg(test)]
-    pub async fn new<U, E>(advertise_url: U) -> Result<Self>
-    where
-        U: TryInto<Url, Error = E>,
-        E: std::error::Error + Send + Sync + 'static,
-    {
+    pub async fn new(advertise_url: impl AsRef<str>) -> Result<Self> {
         let id = Identity::new(advertise_url)?;
         Self::with_identity(id).await
     }
@@ -128,12 +123,8 @@ impl Node {
         })
     }
 
-    pub async fn join<U, E>(&self, remote: U, token: &str) -> Result<()>
-    where
-        U: TryInto<Url, Error = E>,
-        E: std::error::Error + Send + Sync + 'static,
-    {
-        let remote = UpgridNode::new(remote)?;
+    pub async fn join(&self, remote: impl AsRef<str>, token: &str) -> Result<()> {
+        let remote = UpgridNode::parse(remote.as_ref())?;
         debug!(%remote, "requesting Cluster membership");
 
         let client = self.rpc.client(&remote).await?;
@@ -348,7 +339,7 @@ impl Node {
         if node_id == self.id.id {
             return Ok(());
         }
-        let node = UpgridNode::new(url).map_err(|error| error.to_string())?;
+        let node = UpgridNode::parse(url).map_err(|error| error.to_string())?;
         let result = timeout(Duration::from_secs(2), async {
             let client = self
                 .rpc

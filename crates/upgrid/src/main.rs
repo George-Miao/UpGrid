@@ -7,13 +7,16 @@ use tracing_subscriber::Layer;
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use upgrid_config::{Action, AppResult};
+use upgrid_config::Action;
 use upgrid_raft::domain::{Command, DEFAULT_HISTORY_RETENTION_MS};
 use upgrid_raft::{Handle, Req};
 
 mod bootstrap;
+mod error;
 mod scheduler;
 mod worker;
+
+use crate::error::{Error, Result};
 
 #[compio::main]
 async fn main() {
@@ -44,7 +47,7 @@ fn log_filter(level: LevelFilter) -> Targets {
         .with_target("rustls", LevelFilter::WARN)
 }
 
-async fn run() -> AppResult<()> {
+async fn run() -> Result<()> {
     let Some(action) = Action::from_env_and_args()? else {
         return Ok(());
     };
@@ -81,7 +84,7 @@ async fn run() -> AppResult<()> {
             },
         })
         .await
-        .map_err(std::io::Error::other)?;
+        .map_err(|reason| Error::ClusterWrite { reason })?;
     }
     if let Some(retention_ms) = config
         .history_retention_ms
@@ -93,7 +96,7 @@ async fn run() -> AppResult<()> {
             command: Command::SetHistoryRetention { retention_ms },
         })
         .await
-        .map_err(std::io::Error::other)?;
+        .map_err(|reason| Error::ClusterWrite { reason })?;
     }
     if config.username == "admin" && config.password == "upgrid" {
         tracing::warn!(
@@ -113,7 +116,7 @@ async fn run() -> AppResult<()> {
     )?;
     worker::start(cluster.clone(), cipher.clone());
     receiver.run(node).await;
-    Err(std::io::Error::other("cluster request channel stopped").into())
+    Err(Error::ClusterStopped)
 }
 
 #[cfg(test)]

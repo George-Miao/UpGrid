@@ -3597,6 +3597,7 @@ dependencies = [
  "cyper",
  "http",
  "rustls",
+ "snafu",
  "tracing",
  "tracing-subscriber",
  "upgrid-api",
@@ -3619,6 +3620,7 @@ dependencies = [
  "futures-core",
  "serde",
  "serde_json",
+ "snafu",
  "tokio",
  "tracing",
  "upgrid-config",
@@ -3640,6 +3642,7 @@ dependencies = [
  "postcard",
  "ring",
  "serde",
+ "snafu",
  "url",
  "uuid",
 ]

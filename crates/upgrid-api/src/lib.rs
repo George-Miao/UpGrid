@@ -14,9 +14,7 @@ use axum::{Json, Router};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use serde::{Deserialize, Serialize};
-use upgrid_config::{
-    AppResult, Cipher, Config, JoinLink, Oobe, OobePhase, generate_join_token, now_ms,
-};
+use upgrid_config::{Cipher, Config, JoinLink, Oobe, OobePhase, generate_join_token, now_ms};
 use upgrid_raft::domain::{
     AlertDelivery, AlertKind, ApplicationState, AvailabilityState, Command, ConfigValue,
     DomainError, EvaluationPolicy, HttpTarget, NodeTargetState, NotificationChannel,
@@ -33,6 +31,7 @@ use utoipa_axum::routes;
 use uuid::Uuid;
 
 mod assets;
+mod error;
 mod join;
 mod model;
 mod nodes;
@@ -45,6 +44,7 @@ mod targets;
 #[path = "tests.rs"]
 mod api_tests;
 
+pub use error::{Error, Result};
 use model::*;
 pub use server::{openapi_json, start};
 pub use setup::{OobeChoice, wait_for_oobe};

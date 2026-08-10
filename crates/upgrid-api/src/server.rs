@@ -1,9 +1,14 @@
+use snafu::ResultExt;
+
 use super::assets::*;
 use super::join::*;
 use super::nodes::*;
 use super::resources::*;
 use super::targets::*;
 use super::*;
+use crate::error::{
+    BindSnafu, ListenerSnafu, OpenApiSnafu, RuntimeSnafu, ServeSnafu, ThreadSpawnSnafu, TlsSnafu,
+};
 
 pub fn start(
     config: Config,
@@ -12,18 +17,20 @@ pub fn start(
     notifications: upgrid_notification::Tester,
     oobe: Oobe,
     startup_warning: Option<String>,
-) -> AppResult<()> {
-    let listener = std::net::TcpListener::bind(&config.bind)?;
-    listener.set_nonblocking(true)?;
+) -> Result<()> {
+    let listener = std::net::TcpListener::bind(&config.bind).context(BindSnafu {
+        address: config.bind.clone(),
+    })?;
+    listener.set_nonblocking(true).context(ListenerSnafu)?;
     let bind = config.bind.clone();
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_name("upgrid-web-worker")
+        .build()
+        .context(RuntimeSnafu)?;
     std::thread::Builder::new()
         .name("upgrid-web".to_owned())
         .spawn(move || {
-            let runtime = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .thread_name("upgrid-web-worker")
-                .build()
-                .expect("could not create web runtime");
             if let Err(error) = runtime.block_on(serve(
                 listener,
                 config,
@@ -35,7 +42,8 @@ pub fn start(
             )) {
                 tracing::error!(%error, "web API stopped");
             }
-        })?;
+        })
+        .context(ThreadSpawnSnafu)?;
     tracing::debug!(%bind, "web API ready");
     Ok(())
 }
@@ -48,7 +56,7 @@ async fn serve(
     notifications: upgrid_notification::Tester,
     oobe: Oobe,
     startup_warning: Option<String>,
-) -> AppResult<()> {
+) -> Result<()> {
     let tls_cert = config.tls_cert.clone();
     let tls_key = config.tls_key.clone();
     let state = WebState {
@@ -95,13 +103,17 @@ async fn serve(
         .route("/favicon.svg", get(favicon))
         .merge(protected);
     if let (Some(cert), Some(key)) = (tls_cert, tls_key) {
-        let tls = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key).await?;
-        axum_server::from_tcp_rustls(listener, tls)?
+        let tls = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key)
+            .await
+            .context(TlsSnafu)?;
+        axum_server::from_tcp_rustls(listener, tls)
+            .context(ServeSnafu)?
             .serve(app.into_make_service())
-            .await?;
+            .await
+            .context(ServeSnafu)?;
     } else {
-        let listener = tokio::net::TcpListener::from_std(listener)?;
-        axum::serve(listener, app).await?;
+        let listener = tokio::net::TcpListener::from_std(listener).context(ListenerSnafu)?;
+        axum::serve(listener, app).await.context(ServeSnafu)?;
     }
     Ok(())
 }
@@ -131,13 +143,15 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(events))
 }
 
-pub fn openapi_json() -> serde_json::Result<String> {
+pub fn openapi_json() -> Result<String> {
     let (_, mut openapi) = api_routes().split_for_parts();
     configure_openapi(&mut openapi);
-    serde_json::to_string_pretty(&openapi).map(|mut json| {
-        json.push('\n');
-        json
-    })
+    serde_json::to_string_pretty(&openapi)
+        .context(OpenApiSnafu)
+        .map(|mut json| {
+            json.push('\n');
+            json
+        })
 }
 
 fn configure_openapi(openapi: &mut utoipa::openapi::OpenApi) {

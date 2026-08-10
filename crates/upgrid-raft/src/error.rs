@@ -16,9 +16,7 @@ pub enum Error {
     Transport { source: upgrid_transport::Error },
 
     #[snafu(display("failed to parse Node URL: {source}"))]
-    UrlParse {
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
+    UrlParse { source: url::ParseError },
 
     #[snafu(display("invalid Node scheme in {url}; expected `up`"))]
     UrlInvalidScheme { url: Url },

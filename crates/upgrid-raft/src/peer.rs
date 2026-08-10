@@ -18,15 +18,12 @@ pub struct UpgridNode {
 }
 
 impl UpgridNode {
-    pub fn new<U, E>(url: U) -> Result<Self>
-    where
-        U: TryInto<Url, Error = E>,
-        E: std::error::Error + Send + Sync + 'static,
-    {
-        let url = url
-            .try_into()
-            .map_err(|source| Box::new(source) as Box<dyn std::error::Error + Send + Sync>)
-            .context(UrlParseSnafu)?;
+    pub fn parse(value: &str) -> Result<Self> {
+        let url = Url::parse(value).context(UrlParseSnafu)?;
+        Self::new(url)
+    }
+
+    pub fn new(url: Url) -> Result<Self> {
         if url.scheme() != "up" {
             return Err(crate::Error::UrlInvalidScheme { url });
         }

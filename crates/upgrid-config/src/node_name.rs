@@ -1,9 +1,11 @@
 use std::path::Path;
 use std::{fs, io};
 
+use snafu::ResultExt;
 use uuid::Uuid;
 
-use crate::{AppResult, durable};
+use crate::error::{ReadSnafu, WriteSnafu};
+use crate::{Error, Result, durable};
 
 const ADJECTIVES: [&str; 24] = [
     "amber", "brave", "bright", "calm", "clever", "cool", "eager", "fair", "gentle", "happy",
@@ -27,7 +29,7 @@ pub fn load_or_create_node_name(
     data_dir: &Path,
     configured: Option<&str>,
     id: Uuid,
-) -> AppResult<String> {
+) -> Result<String> {
     let path = data_dir.join("node-name");
     if let Some(configured) = configured {
         return store_node_name(data_dir, configured);
@@ -36,27 +38,24 @@ pub fn load_or_create_node_name(
         Ok(name) => validate(&name),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             let name = friendly_node_name(id);
-            durable::replace(&path, name.as_bytes())?;
+            durable::replace(&path, name.as_bytes()).context(WriteSnafu { path })?;
             Ok(name)
         }
-        Err(error) => Err(error.into()),
+        Err(source) => Err(source).context(ReadSnafu { path }),
     }
 }
 
-pub fn store_node_name(data_dir: &Path, name: &str) -> AppResult<String> {
+pub fn store_node_name(data_dir: &Path, name: &str) -> Result<String> {
     let name = validate(name)?;
-    durable::replace(&data_dir.join("node-name"), name.as_bytes())?;
+    let path = data_dir.join("node-name");
+    durable::replace(&path, name.as_bytes()).context(WriteSnafu { path })?;
     Ok(name)
 }
 
-fn validate(name: &str) -> AppResult<String> {
+fn validate(name: &str) -> Result<String> {
     let name = name.trim();
     if name.is_empty() || name.len() > 64 || name.chars().any(char::is_control) {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "node name must contain 1 to 64 printable characters",
-        )
-        .into());
+        return Err(Error::NodeNameInvalid);
     }
     Ok(name.to_owned())
 }

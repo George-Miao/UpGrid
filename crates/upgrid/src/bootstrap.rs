@@ -1,8 +1,11 @@
+use snafu::ResultExt;
 use upgrid_config::{
-    AppResult, Cipher, Config, JoinIntent, Oobe, OobePhase, load_or_create_cipher,
-    load_or_create_node_id, load_or_create_node_name,
+    Cipher, Config, JoinIntent, Oobe, OobePhase, load_or_create_cipher, load_or_create_node_id,
+    load_or_create_node_name,
 };
 use upgrid_raft::{Identity, Node, UpgridNode};
+
+use crate::error::{DataDirectorySnafu, Error, Result};
 
 pub struct Ready {
     pub config: Config,
@@ -14,8 +17,10 @@ pub struct Ready {
     pub bootstrapping: bool,
 }
 
-pub async fn prepare(mut config: Config) -> AppResult<Ready> {
-    std::fs::create_dir_all(&config.data_dir)?;
+pub async fn prepare(mut config: Config) -> Result<Ready> {
+    std::fs::create_dir_all(&config.data_dir).context(DataDirectorySnafu {
+        path: config.data_dir.clone(),
+    })?;
     let node_id = load_or_create_node_id(&config.data_dir)?;
     let mut node_name =
         load_or_create_node_name(&config.data_dir, config.node_name.as_deref(), node_id)?;
@@ -55,11 +60,7 @@ pub async fn prepare(mut config: Config) -> AppResult<Ready> {
             link,
         },
         Some(JoinIntent::Invalid) => {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "configured Join Token is invalid",
-            )
-            .into());
+            return Err(Error::JoinTokenInvalid);
         }
         None if config.new_cluster => upgrid_api::OobeChoice::NewCluster {
             node_name: node_name.clone(),
@@ -82,11 +83,7 @@ pub async fn prepare(mut config: Config) -> AppResult<Ready> {
     let bootstrapping = join.is_none();
     let configured_cipher = match (join.as_ref(), manual_cipher) {
         (Some(link), Some(manual)) if link.cipher().encoded() != manual.encoded() => {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "configured deployment key does not match the Join Token",
-            )
-            .into());
+            return Err(Error::JoinDeploymentKeyMismatch);
         }
         (Some(link), _) => Some(link.cipher().clone()),
         (None, manual) => manual,
@@ -96,7 +93,7 @@ pub async fn prepare(mut config: Config) -> AppResult<Ready> {
     let identity = Identity::with_id(node_id, config.raft_url.as_str())?;
     let node = Node::open(identity, &config.data_dir, &cipher).await?;
     if let Some(link) = join {
-        node.join(link.remote().clone(), link.token()).await?;
+        node.join(link.remote().as_str(), link.token()).await?;
     } else {
         node.start_cluster().await?;
     }

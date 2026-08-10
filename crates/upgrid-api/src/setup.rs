@@ -8,12 +8,15 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
+use snafu::ResultExt;
 use tokio::sync::Notify;
-use upgrid_config::{AppResult, Config, JoinLink, store_node_name};
+use upgrid_config::{Config, JoinLink, store_node_name};
 
 use crate::assets::{favicon, index, webui_script};
+use crate::error::{BindSnafu, ListenerSnafu, RuntimeSnafu, ServeSnafu, TlsSnafu};
 use crate::{
-    ApiError, CreateClusterRequest, ErrorBody, JoinClusterRequest, JoinClusterView, SetupView,
+    ApiError, CreateClusterRequest, Error, ErrorBody, JoinClusterRequest, JoinClusterView, Result,
+    SetupView,
 };
 
 #[derive(Clone)]
@@ -36,9 +39,11 @@ pub enum OobeChoice {
     },
 }
 
-pub fn wait_for_oobe(config: &Config, node_name: &str) -> AppResult<OobeChoice> {
-    let listener = std::net::TcpListener::bind(&config.bind)?;
-    listener.set_nonblocking(true)?;
+pub fn wait_for_oobe(config: &Config, node_name: &str) -> Result<OobeChoice> {
+    let listener = std::net::TcpListener::bind(&config.bind).context(BindSnafu {
+        address: config.bind.clone(),
+    })?;
+    listener.set_nonblocking(true).context(ListenerSnafu)?;
     let result = Arc::new(Mutex::new(None));
     let accepted = Arc::new(Notify::new());
     let state = SetupState {
@@ -67,34 +72,41 @@ pub fn wait_for_oobe(config: &Config, node_name: &str) -> AppResult<OobeChoice> 
         .with_state(state);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
-        .build()?;
+        .build()
+        .context(RuntimeSnafu)?;
     let tls_cert = config.tls_cert.clone();
     let tls_key = config.tls_key.clone();
     tracing::info!(bind = %config.bind, "WebUI ready for Cluster setup");
     runtime.block_on(async move {
         if let (Some(cert), Some(key)) = (tls_cert, tls_key) {
-            let tls = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key).await?;
+            let tls = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key)
+                .await
+                .context(TlsSnafu)?;
             let handle = axum_server::Handle::new();
             let shutdown = handle.clone();
             tokio::spawn(async move {
                 accepted.notified().await;
                 shutdown.graceful_shutdown(Some(std::time::Duration::from_secs(5)));
             });
-            axum_server::from_tcp_rustls(listener, tls)?
+            axum_server::from_tcp_rustls(listener, tls)
+                .context(ServeSnafu)?
                 .handle(handle)
                 .serve(app.into_make_service())
-                .await?;
+                .await
+                .context(ServeSnafu)?;
         } else {
-            let listener = tokio::net::TcpListener::from_std(listener)?;
+            let listener = tokio::net::TcpListener::from_std(listener).context(ListenerSnafu)?;
             axum::serve(listener, app)
                 .with_graceful_shutdown(async move { accepted.notified().await })
-                .await?;
+                .await
+                .context(ServeSnafu)?;
         }
-        result
+        let choice = result
             .lock()
-            .map_err(|_| std::io::Error::other("Cluster setup state was poisoned"))?
+            .map_err(|_| Error::SetupStatePoisoned)?
             .take()
-            .ok_or_else(|| std::io::Error::other("OOBE stopped without a Cluster choice").into())
+            .ok_or(Error::SetupStopped)?;
+        Ok(choice)
     })
 }
 
