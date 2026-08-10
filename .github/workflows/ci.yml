@@ -3,34 +3,142 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches:
+      - main
+    tags:
+      - "*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  verify:
+  rust:
+    name: Rust
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
-      - uses: pnpm/action-setup@v4
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Check source policies
+        run: |
+          scripts/check-rust-source-size.sh
+          scripts/check-rust-error-types.sh
+
+      - name: Check workspace
+        run: cargo check --workspace --all-targets --all-features
+
+      - name: Lint workspace
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Compile tests
+        run: cargo test --workspace --no-run
+
+      - name: Test generated OpenAPI
+        run: cargo test -p upgrid-api published_openapi_matches_routes
+
+      - name: Test API TLS
+        run: scripts/test-api-tls.sh
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: 11.18.0
-      - uses: actions/setup-node@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
-      - run: pnpm --dir frontend install --frozen-lockfile
-      - run: pnpm --dir frontend build
-      - run: git diff --exit-code -- frontend/dist
-      - run: cargo fmt --all -- --check
-      - run: scripts/check-rust-source-size.sh
-      - run: scripts/check-rust-error-types.sh
-      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-      - run: cargo test --workspace --no-run
-      - run: cargo test published_openapi_matches_routes
-      - run: scripts/test-api-tls.sh
-      - run: pnpm --dir frontend exec playwright install --with-deps chromium
-      - run: scripts/test-webui.sh
+
+      - name: Install dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm --dir frontend format:check
+
+      - name: Lint
+        run: pnpm --dir frontend lint
+
+      - name: Check types
+        run: pnpm --dir frontend check
+
+      - name: Build
+        run: pnpm --dir frontend build
+
+      - name: Check embedded assets
+        run: git diff --exit-code -- frontend/dist
+
+      - name: Install Chromium
+        run: pnpm --dir frontend exec playwright install --with-deps chromium
+
+      - name: Test
+        run: scripts/test-webui.sh
+
+  website:
+    name: Website
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.18.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: website/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm --dir website install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm --dir website format:check
+
+      - name: Lint
+        run: pnpm --dir website lint
+
+      - name: Check types
+        run: pnpm --dir website check
+
+      - name: Build
+        run: pnpm --dir website build
+
+      - name: Install Chromium
+        run: pnpm --dir website exec playwright install --with-deps chromium
+
+      - name: Test
+        run: pnpm --dir website test

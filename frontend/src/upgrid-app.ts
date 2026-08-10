@@ -6,7 +6,7 @@ import deleteIcon from "@iconify-icons/lucide/trash-2";
 import closeIcon from "@iconify-icons/lucide/x";
 import "iconify-icon";
 import "./setup-flow.ts";
-import { type Target } from "./api.ts";
+import type { Target } from "./api.ts";
 import { AppController } from "./app-controller.ts";
 import { renderAlertsPage } from "./alerts-view.ts";
 import { type Section, sectionPaths, serviceHealth, themeIcons } from "./app-state.ts";
@@ -283,21 +283,9 @@ export class UpgridApp extends AppController {
     const health = serviceHealth(this.targets, this.live);
     const sections: Section[] = ["overview", "alerts", "cluster"];
     const visibleTargets = this.targets
-      .filter((target) =>
-        `${target.name} ${target.url}`.toLowerCase().includes(this.search.toLowerCase()),
-      )
-      .filter((target) =>
-        this.statusFilter === "all"
-          ? true
-          : this.statusFilter === "paused"
-            ? target.paused
-            : target.availability === this.statusFilter,
-      )
-      .sort((left, right) =>
-        this.sort === "status"
-          ? left.availability.localeCompare(right.availability) || left.name.localeCompare(right.name)
-          : left.name.localeCompare(right.name),
-      );
+      .filter((target) => `${target.name} ${target.url}`.toLowerCase().includes(this.search.toLowerCase()))
+      .filter((target) => (this.statusFilter === "all" ? true : this.statusFilter === "paused" ? target.paused : target.availability === this.statusFilter))
+      .sort((left, right) => (this.sort === "status" ? left.availability.localeCompare(right.availability) || left.name.localeCompare(right.name) : left.name.localeCompare(right.name)));
     if (this.setupMode && this.setup) {
       return html`
         <main class="shell setup-shell">
@@ -324,42 +312,44 @@ export class UpgridApp extends AppController {
             </div>
           </div>
           <nav aria-label="Primary">
-            ${sections.map(
-              (section) => html`<a class=${this.activeSection === section ? "active" : ""} href=${sectionPaths[section]} @click=${(event: MouseEvent) => this.navigate(event, section)}>${section[0].toUpperCase()}${section.slice(1)}</a>`,
-            )}
+            ${sections.map((section) => html`<a class=${this.activeSection === section ? "active" : ""} href=${sectionPaths[section]} @click=${(event: MouseEvent) => this.navigate(event, section)}>${section[0].toUpperCase()}${section.slice(1)}</a>`)}
           </nav>
           <div class="actions">
             <button class="button secondary icon-button" aria-label=${`Theme: ${this.theme[0].toUpperCase()}${this.theme.slice(1)}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button>
           </div>
         </header>
         ${this.error ? html`<div class="notice" role="alert">${this.error}</div>` : nothing}
-        ${this.setup?.warning && !this.warningDismissed
-          ? html`<div class="notice" role="status">${this.setup.warning}<button class="button secondary" style="float: right; margin: -6px" @click=${this.dismissWarning}>Dismiss</button></div>`
-          : nothing}
-        ${this.activeSection === "overview"
-          ? this.renderOverview(visibleTargets, up, down, pending)
-          : this.activeSection === "alerts"
-            ? renderAlertsPage(this.transitions, this.channels, {
-                create: () => this.openChannelDialog(),
-                remove: (channel) => void this.deleteResource("channels", channel.id, channel.name),
-                setDefault: (channel, isDefault) => void this.setChannelDefault(channel, isDefault),
-              })
-            : this.renderClusterPage()}
+        ${this.setup?.warning && !this.warningDismissed ? html`<div class="notice" role="status">${this.setup.warning}<button class="button secondary" style="float: right; margin: -6px" @click=${this.dismissWarning}>Dismiss</button></div>` : nothing}
+        ${
+          this.activeSection === "overview"
+            ? this.renderOverview(visibleTargets, up, down, pending)
+            : this.activeSection === "alerts"
+              ? renderAlertsPage(this.transitions, this.channels, {
+                  create: () => this.openChannelDialog(),
+                  remove: (channel) => void this.deleteResource("channels", channel.id, channel.name),
+                  setDefault: (channel, isDefault) => void this.setChannelDefault(channel, isDefault),
+                })
+              : this.renderClusterPage()
+        }
       </main>${renderFooter()}
       ${renderTargetForm(this.channels, this.saving, {
         backdrop: (event) => this.dismissOnBackdrop(event),
         close: () => this.closeTargetDialog(),
         create: (event) => void this.createTarget(event),
       })}
-      ${this.selected ? renderTargetDetail(this.selected, this.saving, this.detailDirty, this.cluster?.members ?? [], this.channels, {
-        backdrop: (event) => this.dismissOnBackdrop(event),
-        close: () => this.closeDetailDialog(),
-        update: (event) => void this.updateTarget(event),
-        changed: (event) => this.updateDetailDirty(event),
-        redirects: (event) => this.toggleMaxRedirects(event),
-        delete: () => void this.deleteTarget(),
-        pause: (paused) => void this.setPaused(paused),
-      }) : nothing}
+      ${
+        this.selected
+          ? renderTargetDetail(this.selected, this.saving, this.detailDirty, this.cluster?.members ?? [], this.channels, {
+              backdrop: (event) => this.dismissOnBackdrop(event),
+              close: () => this.closeDetailDialog(),
+              update: (event) => void this.updateTarget(event),
+              changed: (event) => this.updateDetailDirty(event),
+              redirects: (event) => this.toggleMaxRedirects(event),
+              delete: () => void this.deleteTarget(),
+              pause: (paused) => void this.setPaused(paused),
+            })
+          : nothing
+      }
       <dialog id="secret-dialog" aria-labelledby="secret-title" @click=${this.dismissOnBackdrop}>
         <div class="dialog-head"><h2 id="secret-title">Add secret</h2><p>The plaintext is encrypted before replication and never returned.</p></div>
         <form @submit=${this.createSecret}>
@@ -371,11 +361,16 @@ export class UpgridApp extends AppController {
       <dialog id="channel-dialog" aria-labelledby="channel-title" @click=${this.dismissOnBackdrop}>
         <div class="dialog-head"><h2 id="channel-title">Add channel</h2><p>Send transitions through Telegram or a generic webhook.</p></div>
         <form @submit=${this.createChannel}>
-          <label>Type<select name="type" @change=${(event: Event) => { this.channelKind = (event.target as HTMLSelectElement).value as "webhook" | "telegram"; this.channelTestMessage = ""; }}><option value="webhook">Webhook</option><option value="telegram">Telegram</option></select></label>
+          <label>Type<select name="type" @change=${(event: Event) => {
+            this.channelKind = (event.target as HTMLSelectElement).value as "webhook" | "telegram";
+            this.channelTestMessage = "";
+          }}><option value="webhook">Webhook</option><option value="telegram">Telegram</option></select></label>
           <label>Name<input name="name" placeholder="On-call" required /></label>
-          ${this.channelKind === "webhook"
-            ? html`<label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/upgrid" data-test-required required /></label>`
-            : html`<label>Bot token<input name="bot_token" type="password" autocomplete="off" data-test-required required /></label><label>Chat ID<input name="chat_id" data-test-required required /></label>`}
+          ${
+            this.channelKind === "webhook"
+              ? html`<label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/upgrid" data-test-required required /></label>`
+              : html`<label>Bot token<input name="bot_token" type="password" autocomplete="off" data-test-required required /></label><label>Chat ID<input name="chat_id" data-test-required required /></label>`
+          }
           <label class="switch"><span>Default channel</span><input name="default" type="checkbox" role="switch" /></label>
           <div class="dialog-actions">${this.channelTestMessage ? html`<span class="meta" role="status" style="margin-right:auto">${this.channelTestMessage}</span>` : nothing}<button class="button secondary" type="button" @click=${() => this.closeDialog("channel-dialog")}>Cancel</button><button class="button secondary" type="button" aria-busy=${this.testingChannel} ?disabled=${this.testingChannel || this.saving} @click=${this.testChannel}>${this.testingChannel ? "Sending…" : "Send test"}</button><button class="button" type="submit" ?disabled=${this.saving || this.testingChannel}>Create channel</button></div>
         </form>
@@ -425,9 +420,7 @@ export class UpgridApp extends AppController {
           <select aria-label="Sort targets" .value=${this.sort} @change=${(event: Event) => (this.sort = (event.target as HTMLSelectElement).value)}><option value="name">Sort by name</option><option value="status">Sort by status</option></select>
         </div>
         ${this.selectedIds.size ? html`<div class="bulk"><span class="meta">${this.selectedIds.size} selected</span><div class="bulk-actions"><button class="button secondary icon-button" aria-label="Unselect all" title="Unselect all" @click=${() => (this.selectedIds = new Set())}><iconify-icon .icon=${closeIcon} aria-hidden="true"></iconify-icon></button>${canPauseSelected ? html`<button class="button warning icon-button" aria-label="Pause selected" title="Pause selected" @click=${() => this.bulkPause(true)}><iconify-icon .icon=${pauseIcon} aria-hidden="true"></iconify-icon></button>` : nothing}${canResumeSelected ? html`<button class="button success icon-button" aria-label="Resume selected" title="Resume selected" @click=${() => this.bulkPause(false)}><iconify-icon .icon=${playIcon} aria-hidden="true"></iconify-icon></button>` : nothing}<button class="button danger icon-button" aria-label="Delete selected" title="Delete selected" @click=${this.bulkDelete}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div></div>` : nothing}
-        ${visibleTargets.length
-          ? visibleTargets.map((target) => this.renderTarget(target))
-          : html`<div class="empty">${this.targets.length ? "No Targets match these filters." : "No targets yet. Add the first one to begin monitoring."}</div>`}
+        ${visibleTargets.length ? visibleTargets.map((target) => this.renderTarget(target)) : html`<div class="empty">${this.targets.length ? "No Targets match these filters." : "No targets yet. Add the first one to begin monitoring."}</div>`}
       </section>
     `;
   }
@@ -444,20 +437,22 @@ export class UpgridApp extends AppController {
       <section class="panel" aria-label="Cluster topology">
         <div class="panel-head"><h2>Nodes</h2><span class="meta">${this.cluster?.members.length ?? 0} members</span></div>
         ${this.cluster?.members.map((member) => html`<div class="resource"><div><strong>${member.name}</strong><code>${member.raft_url}</code></div><div class="actions">${member.local ? html`<span class="badge">This node</span>` : nothing}${member.leader ? html`<span class="badge">Leader</span>` : nothing}</div></div>`)}
-        ${this.cluster?.members.length
-          ? nothing
-          : html`<div class="empty">Cluster topology unavailable.</div>`}
+        ${this.cluster?.members.length ? nothing : html`<div class="empty">Cluster topology unavailable.</div>`}
       </section>
       <section class="panel" aria-label="Join tokens">
         <div class="panel-head"><h2>Join Tokens</h2><span class="meta">${this.joinTokens.length} stored</span></div>
-        ${this.joinTokens.length
-          ? this.joinTokens.map((token) => html`
+        ${
+          this.joinTokens.length
+            ? this.joinTokens.map(
+                (token) => html`
               <div class="resource">
                 <div><strong>${token.id.slice(0, 12)}…</strong><code>Expires ${new Date(token.expires_at_ms).toLocaleString()} · ${token.remaining_uses === null ? "unlimited uses" : `${token.remaining_uses} uses left`}</code></div>
                 <button class="button danger" aria-label=${`Revoke Join Token ${token.id.slice(0, 12)}`} @click=${() => this.revokeJoinToken(token)}>Revoke</button>
               </div>
-            `)
-          : html`<div class="empty">No Join Tokens.</div>`}
+            `,
+              )
+            : html`<div class="empty">No Join Tokens.</div>`
+        }
       </section>
       </div>
     `;
@@ -470,9 +465,11 @@ export class UpgridApp extends AppController {
     const state = target.paused ? "paused" : target.availability === "down" ? "down" : target.consecutive_failures > 0 ? "suspicious" : target.availability;
     return html`
       <div class="target-wrap">
-        ${target.kind === "http"
-          ? html`<input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} .checked=${this.selectedIds.has(target.id)} @change=${(event: Event) => this.toggleSelected(target.id, (event.target as HTMLInputElement).checked)} />`
-          : html`<input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} disabled />`}
+        ${
+          target.kind === "http"
+            ? html`<input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} .checked=${this.selectedIds.has(target.id)} @change=${(event: Event) => this.toggleSelected(target.id, (event.target as HTMLInputElement).checked)} />`
+            : html`<input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} disabled />`
+        }
         <button class=${`target ${target.kind === "node" ? "node-target" : ""}`} aria-label=${target.name} @click=${() => this.openTarget(target)}>
           <i class="state ${state}" aria-label=${state}></i>
           <div>
@@ -480,9 +477,7 @@ export class UpgridApp extends AppController {
             <div class="meta">${target.paused ? "Paused · " : ""}${target.method} · ${target.url} · every ${target.interval_seconds}s</div>
           </div>
           <div class="target-side">
-            ${history.length
-              ? html`<div class="mini-chart" aria-hidden="true">${history.map((item) => html`<i class="mini-bar ${item.succeeded ? "up" : "down"}" style=${`height: ${Math.max(12, item.latency_ms / maxLatency * 100)}%`}></i>`)}</div>`
-              : nothing}
+            ${history.length ? html`<div class="mini-chart" aria-hidden="true">${history.map((item) => html`<i class="mini-bar ${item.succeeded ? "up" : "down"}" style=${`height: ${Math.max(12, (item.latency_ms / maxLatency) * 100)}%`}></i>`)}</div>` : nothing}
             <div class="latency">
               <strong>${latest ? `${latest.latency_ms} ms` : "—"}</strong>
               <span>${latest ? (target.kind === "node" ? (latest.succeeded ? "reachable" : "unreachable") : (latest.status_code ?? "network error")) : "waiting"}</span>

@@ -62,8 +62,7 @@ test("shows project footer links with icons", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1200 });
   await page.goto("/");
   const footer = page.getByRole("contentinfo", { name: "Project information" });
-  await expect(footer.getByRole("link", { name: "A Project by Pop" }))
-    .toHaveAttribute("href", "https://miao.dev");
+  await expect(footer.getByRole("link", { name: "A Project by Pop" })).toHaveAttribute("href", "https://miao.dev");
   const github = footer.getByRole("link", { name: "GitHub" });
   const website = footer.getByRole("link", { name: "upgrid.rs" });
   await expect(github).toHaveAttribute("href", "https://github.com/George-Miao/UpGrid");
@@ -151,9 +150,7 @@ test("edits, inspects, and deletes a target", async ({ page }) => {
   await expect(history.getByRole("listitem").first()).toBeVisible();
   const topology = await (await page.request.get("/api/v1/cluster")).json();
   const evaluation = await history.getByRole("listitem").first().getAttribute("aria-label");
-  expect(topology.members.some(
-    (member: { name: string }) => evaluation?.includes(`Executed by ${member.name}`),
-  )).toBe(true);
+  expect(topology.members.some((member: { name: string }) => evaluation?.includes(`Executed by ${member.name}`))).toBe(true);
   await expect(details.locator(".chart-scale span")).toHaveCount(3);
   await expect(details.locator(".chart-scale").getByText("0 ms", { exact: true })).toBeVisible();
   await name.fill("Renamed lifecycle target");
@@ -183,13 +180,11 @@ test("configures notification resources and creates a join command", async ({ pa
   await channel.getByLabel("Name").fill("Operations webhook");
   await channel.getByLabel("Webhook URL").fill("https://example.com/upgrid-hook");
   await channel.getByRole("button", { name: "Create channel" }).click();
-  await expect(page.getByRole("region", { name: "Notification channels" })
-    .getByText("Operations webhook", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Notification channels" }).getByText("Operations webhook", { exact: true })).toBeVisible();
 
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete channel Operations webhook" }).click();
-  await expect(page.getByRole("region", { name: "Notification channels" })
-    .getByText("Operations webhook", { exact: true })).not.toBeVisible();
+  await expect(page.getByRole("region", { name: "Notification channels" }).getByText("Operations webhook", { exact: true })).not.toBeVisible();
   await page.getByRole("link", { name: "Overview" }).click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete secret Webhook token" }).click();
@@ -284,9 +279,7 @@ test("filters and bulk-pauses selected targets", async ({ page }) => {
   await page.getByLabel("Select Search alpha").check();
   const pauseSelected = page.getByRole("button", { name: "Pause selected" });
   await expect(page.getByRole("button", { name: "Unselect all" }).locator("iconify-icon")).toBeVisible();
-  const actionsMargin = await page.locator(".bulk-actions").evaluate((element) =>
-    Number.parseFloat(getComputedStyle(element).marginLeft),
-  );
+  const actionsMargin = await page.locator(".bulk-actions").evaluate((element) => Number.parseFloat(getComputedStyle(element).marginLeft));
   expect(actionsMargin).toBeGreaterThan(0);
   await expect(pauseSelected).toHaveClass(/warning/);
   await expect(pauseSelected.locator("iconify-icon")).toBeVisible();
@@ -314,19 +307,14 @@ test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
   const summary = page.getByRole("region", { name: "Target summary" });
   const secrets = page.getByRole("region", { name: "Secrets" });
   const targets = page.getByRole("region", { name: "Targets" });
-  const [summaryBox, secretsBox, targetsBox] = await Promise.all([
-    summary.boundingBox(), secrets.boundingBox(), targets.boundingBox(),
-  ]);
+  const [summaryBox, secretsBox, targetsBox] = await Promise.all([summary.boundingBox(), secrets.boundingBox(), targets.boundingBox()]);
   expect(summaryBox).not.toBeNull();
   expect(secretsBox).not.toBeNull();
   expect(targetsBox).not.toBeNull();
   expect(summaryBox!.x).toBeLessThan(secretsBox!.x);
   expect(Math.abs(summaryBox!.y - secretsBox!.y)).toBeLessThan(2);
   expect(Math.abs(summaryBox!.width - secretsBox!.width)).toBeLessThan(2);
-  expect(targetsBox!.y).toBeGreaterThanOrEqual(Math.max(
-    summaryBox!.y + summaryBox!.height,
-    secretsBox!.y + secretsBox!.height,
-  ));
+  expect(targetsBox!.y).toBeGreaterThanOrEqual(Math.max(summaryBox!.y + summaryBox!.height, secretsBox!.y + secretsBox!.height));
   await expect(page.getByRole("region", { name: "Notification channels" })).toHaveCount(0);
 
   await expect(page.getByRole("link", { name: "Targets" })).toHaveCount(0);
@@ -336,18 +324,12 @@ test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Alerts" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Targets" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Notification channels" })).toBeVisible();
-  const [historyBox, channelsBox] = await Promise.all([
-    page.getByRole("region", { name: "Alert history" }).boundingBox(),
-    page.getByRole("region", { name: "Notification channels" }).boundingBox(),
-  ]);
+  const [historyBox, channelsBox] = await Promise.all([page.getByRole("region", { name: "Alert history" }).boundingBox(), page.getByRole("region", { name: "Notification channels" }).boundingBox()]);
   expect(historyBox).not.toBeNull();
   expect(channelsBox).not.toBeNull();
   expect(historyBox!.x).toBeLessThan(channelsBox!.x);
   expect(Math.abs(historyBox!.y - channelsBox!.y)).toBeLessThan(2);
-  const [historyHead, channelsHead] = await Promise.all([
-    page.getByRole("region", { name: "Alert history" }).locator(".panel-head").boundingBox(),
-    page.getByRole("region", { name: "Notification channels" }).locator(".panel-head").boundingBox(),
-  ]);
+  const [historyHead, channelsHead] = await Promise.all([page.getByRole("region", { name: "Alert history" }).locator(".panel-head").boundingBox(), page.getByRole("region", { name: "Notification channels" }).locator(".panel-head").boundingBox()]);
   expect(Math.abs(historyHead!.height - channelsHead!.height)).toBeLessThan(1);
   await expect(page.getByRole("region", { name: "Notification channels" }).getByRole("button", { name: "Add channel" })).toHaveCount(0);
 
@@ -355,10 +337,7 @@ test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
   await expect(page).toHaveURL(/\/cluster$/);
   await expect(page.getByRole("link", { name: "Cluster" })).toHaveClass(/active/);
   await expect(page.getByRole("region", { name: "Cluster topology" })).toBeInViewport();
-  const [nodesBox, tokensBox] = await Promise.all([
-    page.getByRole("region", { name: "Cluster topology" }).boundingBox(),
-    page.getByRole("region", { name: "Join tokens" }).boundingBox(),
-  ]);
+  const [nodesBox, tokensBox] = await Promise.all([page.getByRole("region", { name: "Cluster topology" }).boundingBox(), page.getByRole("region", { name: "Join tokens" }).boundingBox()]);
   expect(nodesBox).not.toBeNull();
   expect(tokensBox).not.toBeNull();
   expect(nodesBox!.x).toBeLessThan(tokensBox!.x);
@@ -392,14 +371,7 @@ test("aligns compact Target rows on mobile", async ({ page }) => {
 
   const row = page.locator(".target-wrap", { has: page.getByText("Node", { exact: true }) }).first();
   await expect(row.locator(".mini-chart")).toBeVisible({ timeout: 15_000 });
-  const [bounds, checkbox, title, state, chart, latency] = await Promise.all([
-    row.boundingBox(),
-    row.locator(".select-target").boundingBox(),
-    row.locator("h3").boundingBox(),
-    row.locator(".state").boundingBox(),
-    row.locator(".mini-chart").boundingBox(),
-    row.locator(".latency").boundingBox(),
-  ]);
+  const [bounds, checkbox, title, state, chart, latency] = await Promise.all([row.boundingBox(), row.locator(".select-target").boundingBox(), row.locator("h3").boundingBox(), row.locator(".state").boundingBox(), row.locator(".mini-chart").boundingBox(), row.locator(".latency").boundingBox()]);
   for (const box of [bounds, checkbox, title, state, chart, latency]) expect(box).not.toBeNull();
   expect(Math.abs(checkbox!.y + checkbox!.height / 2 - (title!.y + title!.height / 2))).toBeLessThan(8);
   expect(Math.abs(state!.y + state!.height / 2 - (title!.y + title!.height / 2))).toBeLessThan(8);
@@ -417,10 +389,7 @@ test("renames a Node Target and shows its evaluation history", async ({ page }) 
   await expect(node.getByText(/RPC · up:\/\//)).toBeVisible();
   await expect(node.locator(".state")).toHaveClass(/up/, { timeout: 15_000 });
   await expect(node.locator('input[type="checkbox"]')).toBeDisabled();
-  const [name, badge] = await Promise.all([
-    node.locator("h3").boundingBox(),
-    node.getByText("Node", { exact: true }).boundingBox(),
-  ]);
+  const [name, badge] = await Promise.all([node.locator("h3").boundingBox(), node.getByText("Node", { exact: true }).boundingBox()]);
   expect(name).not.toBeNull();
   expect(badge).not.toBeNull();
   expect(badge!.x).toBeGreaterThan(name!.x + name!.width);
@@ -432,17 +401,14 @@ test("renames a Node Target and shows its evaluation history", async ({ page }) 
   const details = page.getByRole("dialog", { name: "Node details" });
   await expect(details.getByLabel("RPC URL")).toBeDisabled();
   await expect(details.getByRole("button", { name: "Save changes" })).toBeDisabled();
-  await expect(details.getByRole("listitem").first())
-    .toHaveAttribute("aria-label", /reachable.*Executed by/);
+  await expect(details.getByRole("listitem").first()).toHaveAttribute("aria-label", /reachable.*Executed by/);
   await details.getByRole("textbox", { name: "Name", exact: true }).fill(renamed);
   await details.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("button", { name: renamed })).toBeVisible();
 
   await page.getByRole("button", { name: renamed }).click();
-  await page.getByRole("dialog", { name: "Node details" })
-    .getByRole("textbox", { name: "Name", exact: true }).fill(originalName);
-  await page.getByRole("dialog", { name: "Node details" })
-    .getByRole("button", { name: "Save changes" }).click();
+  await page.getByRole("dialog", { name: "Node details" }).getByRole("textbox", { name: "Name", exact: true }).fill(originalName);
+  await page.getByRole("dialog", { name: "Node details" }).getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("button", { name: originalName })).toBeVisible();
 });
 
@@ -475,9 +441,7 @@ test("target hover highlights the checkbox and content as one row", async ({ pag
   await addTarget.getByRole("button", { name: "Create target" }).click();
   const target = page.getByRole("button", { name: "Hover target" });
   await target.hover();
-  await expect
-    .poll(() => target.evaluate((element) => getComputedStyle(element).backgroundColor))
-    .not.toBe("rgba(0, 0, 0, 0)");
+  await expect.poll(() => target.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
   const backgrounds = await target.evaluate((element) => ({
     button: getComputedStyle(element).backgroundColor,
     row: getComputedStyle(element.parentElement!).backgroundColor,
@@ -494,13 +458,7 @@ test("keeps the first-run Cluster choice compact", async ({ page }) => {
   await expect(setup.getByRole("textbox", { name: "Node name" })).toHaveCount(1);
 
   const divider = setup.getByText("Or", { exact: true });
-  const [create, separator, join, token, joinButton] = await Promise.all([
-    setup.locator(".cluster-create").boundingBox(),
-    divider.boundingBox(),
-    setup.locator(".cluster-join").boundingBox(),
-    setup.getByLabel("Join Token").boundingBox(),
-    setup.getByRole("button", { name: "Join Cluster" }).boundingBox(),
-  ]);
+  const [create, separator, join, token, joinButton] = await Promise.all([setup.locator(".cluster-create").boundingBox(), divider.boundingBox(), setup.locator(".cluster-join").boundingBox(), setup.getByLabel("Join Token").boundingBox(), setup.getByRole("button", { name: "Join Cluster" }).boundingBox()]);
   expect(create).not.toBeNull();
   expect(separator).not.toBeNull();
   expect(join).not.toBeNull();
@@ -512,11 +470,7 @@ test("keeps the first-run Cluster choice compact", async ({ page }) => {
   expect(token!.x + token!.width).toBeLessThanOrEqual(joinButton!.x - 9);
   expect(Math.abs(token!.height - joinButton!.height)).toBeLessThan(1);
 
-  const [shell, header, flow] = await Promise.all([
-    page.locator(".setup-shell").boundingBox(),
-    page.locator(".setup-shell header").boundingBox(),
-    setup.boundingBox(),
-  ]);
+  const [shell, header, flow] = await Promise.all([page.locator(".setup-shell").boundingBox(), page.locator(".setup-shell header").boundingBox(), setup.boundingBox()]);
   expect(shell).not.toBeNull();
   expect(header).not.toBeNull();
   expect(flow).not.toBeNull();

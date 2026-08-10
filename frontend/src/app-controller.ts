@@ -1,13 +1,4 @@
-import {
-  type Channel,
-  type JoinLink,
-  type JoinToken,
-  type Secret,
-  type Setup,
-  type Target,
-  type TargetInput,
-  request,
-} from "./api.ts";
+import { type Channel, type JoinLink, type JoinToken, type Secret, type Setup, type Target, type TargetInput, request } from "./api.ts";
 import { AppState } from "./app-state.ts";
 import { channelInput, targetInput } from "./resource-input.ts";
 
@@ -16,11 +7,7 @@ export class AppController extends AppState {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const fields = new FormData(form);
-    const input = targetInput(
-      fields,
-      fields.getAll("channel_id").map(String),
-      fields.get("use_default_channels") === "on",
-    );
+    const input = targetInput(fields, fields.getAll("channel_id").map(String), fields.get("use_default_channels") === "on");
     this.saving = true;
     try {
       await request<Target>("/api/v1/targets", { method: "POST", body: JSON.stringify(input) });
@@ -44,19 +31,22 @@ export class AppController extends AppState {
       const follow = fields.get("follow_redirects") === "on";
       path = `/api/v1/targets/${this.selected.id}`;
       input = {
-        name: String(fields.get("name")), url: String(fields.get("url")), method: String(fields.get("method")),
-        accepted_statuses: String(fields.get("statuses")).split(",").map((part) => {
-          const [start, end] = part.trim().split("-").map(Number);
-          return { start, end: end || start };
-        }),
-        follow_redirects: follow, max_redirects: follow ? Number(fields.get("max_redirects")) : 0,
-        interval_seconds: Number(fields.get("interval")), timeout_seconds: Number(fields.get("timeout")),
+        name: String(fields.get("name")),
+        url: String(fields.get("url")),
+        method: String(fields.get("method")),
+        accepted_statuses: String(fields.get("statuses"))
+          .split(",")
+          .map((part) => {
+            const [start, end] = part.trim().split("-").map(Number);
+            return { start, end: end || start };
+          }),
+        follow_redirects: follow,
+        max_redirects: follow ? Number(fields.get("max_redirects")) : 0,
+        interval_seconds: Number(fields.get("interval")),
+        timeout_seconds: Number(fields.get("timeout")),
         failure_threshold: Number(fields.get("failures")),
-        headers: Object.fromEntries(Object.entries(this.selected.headers).map(([name, value]) => [
-          name, value.kind === "literal" ? value.value : { secret_id: value.secret_id },
-        ])),
-        body: this.selected.body?.kind === "literal" ? this.selected.body.value
-          : this.selected.body ? { secret_id: this.selected.body.secret_id } : null,
+        headers: Object.fromEntries(Object.entries(this.selected.headers).map(([name, value]) => [name, value.kind === "literal" ? value.value : { secret_id: value.secret_id }])),
+        body: this.selected.body?.kind === "literal" ? this.selected.body.value : this.selected.body ? { secret_id: this.selected.body.secret_id } : null,
         body_contains: String(fields.get("body_contains")) || null,
         skip_tls_verification: fields.get("skip_tls_verification") === "on",
         notification_channel_ids: fields.getAll("channel_id").map(String),
@@ -109,7 +99,10 @@ export class AppController extends AppState {
     const fields = new FormData(form);
     this.saving = true;
     try {
-      await request<Secret>("/api/v1/secrets", { method: "POST", body: JSON.stringify({ name: fields.get("name"), value: fields.get("value") }) });
+      await request<Secret>("/api/v1/secrets", {
+        method: "POST",
+        body: JSON.stringify({ name: fields.get("name"), value: fields.get("value") }),
+      });
       form.reset();
       this.closeDialog("secret-dialog");
       await this.refresh();

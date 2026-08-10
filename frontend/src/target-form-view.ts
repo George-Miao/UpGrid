@@ -1,5 +1,5 @@
 import { html } from "lit";
-import { type Channel } from "./api.ts";
+import type { Channel } from "./api.ts";
 
 interface Actions {
   backdrop: (event: MouseEvent) => void;
@@ -7,19 +7,14 @@ interface Actions {
   create: (event: SubmitEvent) => void;
 }
 
-export function renderChannelFields(
-  channels: Channel[],
-  selected: string[] = [],
-  useDefaults = true,
-) {
+export function renderChannelFields(channels: Channel[], selected: string[] = [], useDefaults = true) {
   const updateDefaults = (event: Event) => {
     const toggle = event.currentTarget as HTMLInputElement;
     const fieldset = toggle.closest("fieldset");
-    fieldset?.querySelectorAll<HTMLInputElement>('input[data-default="true"]')
-      .forEach((input) => {
-        input.disabled = toggle.checked;
-        input.checked = toggle.checked || input.dataset.explicit === "true";
-      });
+    fieldset?.querySelectorAll<HTMLInputElement>('input[data-default="true"]').forEach((input) => {
+      input.disabled = toggle.checked;
+      input.checked = toggle.checked || input.dataset.explicit === "true";
+    });
     toggle.form?.dispatchEvent(new Event("input", { bubbles: true }));
   };
   return html`
@@ -62,11 +57,7 @@ export function renderChannelFields(
     </fieldset>`;
 }
 
-export function renderTargetForm(
-  channels: Channel[],
-  saving: boolean,
-  actions: Actions,
-) {
+export function renderTargetForm(channels: Channel[], saving: boolean, actions: Actions) {
   return html`
     <dialog id="target-dialog" aria-labelledby="add-target-title" @click=${actions.backdrop}>
       <div class="dialog-head"><h2 id="add-target-title">Add target</h2><p>Start monitoring a service.</p></div>

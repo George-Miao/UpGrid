@@ -5,10 +5,7 @@ for (const path of ["/", "/alerts", "/cluster"]) {
     await page.goto(path);
     const heading = page.locator("section.heading");
     const content = heading.locator("+ *");
-    const [headingBox, contentBox] = await Promise.all([
-      heading.boundingBox(),
-      content.boundingBox(),
-    ]);
+    const [headingBox, contentBox] = await Promise.all([heading.boundingBox(), content.boundingBox()]);
 
     expect(headingBox).not.toBeNull();
     expect(contentBox).not.toBeNull();

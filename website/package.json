@@ -7,6 +7,10 @@
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
+    "check": "astro check",
+    "lint": "biome lint --error-on-warnings src tests *.ts *.mjs",
+    "format": "biome format --write src tests *.ts *.mjs biome.json package.json tsconfig.json",
+    "format:check": "biome format src tests *.ts *.mjs biome.json package.json tsconfig.json",
     "preview": "astro preview",
     "test": "playwright test",
     "astro": "astro"
@@ -17,6 +21,9 @@
     "sharp": "^0.35.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1"
+    "@astrojs/check": "0.9.10",
+    "@biomejs/biome": "2.5.7",
+    "@playwright/test": "^1.62.1",
+    "typescript": "5.9.2"
   }
 }

@@ -6,6 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "check": "tsc --noEmit",
+    "lint": "biome lint --error-on-warnings src tests *.ts",
+    "format": "biome format --write src tests *.ts biome.json package.json tsconfig.json",
+    "format:check": "biome format src tests *.ts biome.json package.json tsconfig.json",
     "test": "playwright test",
     "test:ui": "playwright test --ui"
   },
@@ -16,6 +20,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
+    "@biomejs/biome": "2.5.7",
     "@playwright/test": "^1.55.0",
     "@types/node": "^26.2.0",
     "typescript": "^5.9.2",

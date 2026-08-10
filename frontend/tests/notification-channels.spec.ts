@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import { type AddressInfo } from "node:net";
+import type { AddressInfo } from "node:net";
 import { expect, test } from "@playwright/test";
 
 let server: Server;
@@ -22,9 +22,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await new Promise<void>((resolve, reject) =>
-    server.close((error) => error ? reject(error) : resolve()),
-  );
+  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
 });
 
 test("tests a channel and places its type beside the name", async ({ page }) => {
@@ -38,12 +36,8 @@ test("tests a channel and places its type beside the name", async ({ page }) => 
 
   await dialog.getByLabel("Name").fill("Browser test webhook");
   await dialog.getByRole("button", { name: "Create channel" }).click();
-  const row = page.getByRole("region", { name: "Notification channels" })
-    .locator(".resource", { hasText: "Browser test webhook" });
-  const [name, kind] = await Promise.all([
-    row.locator("strong").boundingBox(),
-    row.getByText("webhook", { exact: true }).boundingBox(),
-  ]);
+  const row = page.getByRole("region", { name: "Notification channels" }).locator(".resource", { hasText: "Browser test webhook" });
+  const [name, kind] = await Promise.all([row.locator("strong").boundingBox(), row.getByText("webhook", { exact: true }).boundingBox()]);
   expect(name).not.toBeNull();
   expect(kind).not.toBeNull();
   expect(kind!.x).toBeGreaterThan(name!.x + name!.width);
@@ -80,8 +74,7 @@ test("uses trash icons for secret and Target deletion", async ({ page }) => {
   await page.getByRole("button", { name: "Unselect all" }).click();
 
   await page.getByRole("button", { name: "Browser delete icon target" }).click();
-  const deleteTarget = page.getByRole("dialog", { name: "Target details" })
-    .getByRole("button", { name: "Delete target" });
+  const deleteTarget = page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Delete target" });
   await expect(deleteTarget.locator("iconify-icon")).toBeVisible();
   page.once("dialog", (confirmation) => confirmation.accept());
   await deleteTarget.click();
@@ -101,9 +94,11 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
   await channelDialog.getByLabel("Webhook URL").fill(webhookUrl);
   await channelDialog.getByRole("switch", { name: "Default channel" }).check();
   await channelDialog.getByRole("button", { name: "Create channel" }).click();
-  await expect(page.getByRole("switch", {
-    name: `Default channel ${channelName}`,
-  })).toBeChecked();
+  await expect(
+    page.getByRole("switch", {
+      name: `Default channel ${channelName}`,
+    }),
+  ).toBeChecked();
 
   await page.goto("/");
   await page.getByRole("button", { name: "Add target" }).click();
@@ -121,15 +116,10 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
   await expect(nameInput).toHaveCSS("min-height", "44px");
   await nameInput.focus();
   await expect(nameInput).toHaveCSS("outline-style", "solid");
-  const [headingBox, sectionBox] = await Promise.all([
-    channelHeading.boundingBox(),
-    channelSection.boundingBox(),
-  ]);
+  const [headingBox, sectionBox] = await Promise.all([channelHeading.boundingBox(), channelSection.boundingBox()]);
   expect(headingBox).not.toBeNull();
   expect(sectionBox).not.toBeNull();
-  expect(Math.abs(
-    headingBox!.x + headingBox!.width / 2 - (sectionBox!.x + sectionBox!.width / 2),
-  )).toBeLessThan(2);
+  expect(Math.abs(headingBox!.x + headingBox!.width / 2 - (sectionBox!.x + sectionBox!.width / 2))).toBeLessThan(2);
   await useDefaults.uncheck();
   await expect(defaultChannel).not.toBeChecked();
   await expect(defaultChannel).toBeEnabled();
@@ -147,14 +137,15 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
   const downMetric = page.getByRole("region", { name: "Target summary" }).locator(".metric.down");
   await expect(downMetric).toHaveClass(/active/);
   await expect(downMetric.locator("strong")).toHaveCSS("color", "rgb(197, 52, 52)");
-  await expect.poll(() => webhookBody && JSON.parse(webhookBody)).toMatchObject({
-    event: "down",
-    target_name: targetName,
-  });
+  await expect
+    .poll(() => webhookBody && JSON.parse(webhookBody))
+    .toMatchObject({
+      event: "down",
+      target_name: targetName,
+    });
 
   await page.goto("/alerts");
-  const transition = page.getByRole("region", { name: "Alert history" })
-    .locator(".resource", { hasText: targetName });
+  const transition = page.getByRole("region", { name: "Alert history" }).locator(".resource", { hasText: targetName });
   await expect(transition).toContainText("down");
   await expect(transition.locator(".state")).toHaveClass(/down/);
   await expect(transition.locator(".badge")).toHaveClass(/down/);
@@ -176,15 +167,12 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
 
   await target.click();
   page.once("dialog", (confirmation) => confirmation.accept());
-  await page.getByRole("dialog", { name: "Target details" })
-    .getByRole("button", { name: "Delete target" }).click();
+  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Delete target" }).click();
   await optedOut.click();
   page.once("dialog", (confirmation) => confirmation.accept());
-  await page.getByRole("dialog", { name: "Target details" })
-    .getByRole("button", { name: "Delete target" }).click();
+  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Delete target" }).click();
   await page.goto("/alerts");
-  const channel = page.getByRole("region", { name: "Notification channels" })
-    .locator(".resource", { hasText: channelName });
+  const channel = page.getByRole("region", { name: "Notification channels" }).locator(".resource", { hasText: channelName });
   page.once("dialog", (confirmation) => confirmation.accept());
   await channel.getByRole("button", { name: `Delete channel ${channelName}` }).click();
 });

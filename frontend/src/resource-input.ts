@@ -1,4 +1,4 @@
-import { type TargetInput } from "./api.ts";
+import type { TargetInput } from "./api.ts";
 
 export type ChannelKind = "webhook" | "telegram";
 
@@ -20,11 +20,7 @@ export function channelInput(fields: FormData, kind: ChannelKind) {
       };
 }
 
-export function targetInput(
-  fields: FormData,
-  notificationChannelIds: string[] = [],
-  useDefaultChannels = true,
-): TargetInput {
+export function targetInput(fields: FormData, notificationChannelIds: string[] = [], useDefaultChannels = true): TargetInput {
   return {
     name: String(fields.get("name")),
     url: String(fields.get("url")),

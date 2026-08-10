@@ -210,7 +210,7 @@
               ${l.map(h=>{const w=h.succeeded?"Passed":"Failed",C=o?h.succeeded?"reachable":"unreachable":h.status_code===null?"network error":`HTTP ${h.status_code}`,$=d.get(h.executor_node_id)??`Node ${h.executor_node_id.slice(0,8)}`,N=`${w} at ${new Date(h.recorded_at_ms).toLocaleString()}: ${h.latency_ms} ms, ${C}. Executed by ${$}`;return u`<span class="history-bar ${h.succeeded?"up":"down"}" role="listitem" aria-label=${N} title=${N} style=${`height: ${Math.max(8,h.latency_ms/c*100)}%`}></span>`})}
             </div>
           </div>
-          <div class="chart-axis"><span>${p(l[0].recorded_at_ms)}</span><span>${p(l.at(-1).recorded_at_ms)}</span></div>
+          <div class="chart-axis"><span>${p(l[0].recorded_at_ms)}</span><span>${p(l[l.length-1].recorded_at_ms)}</span></div>
           <div class="chart-legend"><span><i class="up"></i>Passed</span><span><i class="down"></i>Failed</span><span>Height = latency</span></div>
         `:u`<p class="meta">No evaluations recorded yet.</p>`}
       </section>

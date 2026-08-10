@@ -3,17 +3,7 @@ import { state } from "lit/decorators.js";
 import darkIcon from "@iconify-icons/lucide/moon";
 import systemIcon from "@iconify-icons/lucide/palette";
 import brightIcon from "@iconify-icons/lucide/sun";
-import {
-  type Alert,
-  type Channel,
-  type Cluster,
-  type JoinToken,
-  type Secret,
-  type Setup,
-  type Target,
-  type Transition,
-  request,
-} from "./api.ts";
+import { type Alert, type Channel, type Cluster, type JoinToken, type Secret, type Setup, type Target, type Transition, request } from "./api.ts";
 
 const themes = ["system", "dark", "bright"] as const;
 type Theme = (typeof themes)[number];
@@ -30,18 +20,13 @@ export function serviceHealth(targets: Target[], connected: boolean) {
   if (!connected) return { tone: "pending", label: "connecting" };
   const monitored = targets.filter((target) => !target.paused);
   if (!monitored.length) return { tone: "pending", label: "ready" };
-  const affected = monitored.filter((target) =>
-    target.availability === "down" || target.consecutive_failures > 0
-  ).length;
+  const affected = monitored.filter((target) => target.availability === "down" || target.consecutive_failures > 0).length;
   if (!affected) return { tone: "up", label: "up" };
-  return affected === monitored.length
-    ? { tone: "down", label: "down" }
-    : { tone: "degraded", label: "partially down" };
+  return affected === monitored.length ? { tone: "down", label: "down" } : { tone: "degraded", label: "partially down" };
 }
 
 function sectionFromPath(): Section {
-  return (Object.entries(sectionPaths).find(([, path]) => path === window.location.pathname)?.[0]
-    ?? "overview") as Section;
+  return (Object.entries(sectionPaths).find(([, path]) => path === window.location.pathname)?.[0] ?? "overview") as Section;
 }
 
 function storedTheme(): Theme {
@@ -137,13 +122,9 @@ export class AppState extends LitElement {
   }
 
   protected applyTheme(): void {
-    const resolved = this.theme === "system"
-      ? (this.systemTheme.matches ? "bright" : "dark")
-      : this.theme;
+    const resolved = this.theme === "system" ? (this.systemTheme.matches ? "bright" : "dark") : this.theme;
     this.dataset.theme = resolved;
-    document
-      .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-      ?.setAttribute("content", resolved === "bright" ? "#f4f8f6" : "#0b1110");
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", resolved === "bright" ? "#f4f8f6" : "#0b1110");
   }
 
   protected cycleTheme(): void {
@@ -159,16 +140,15 @@ export class AppState extends LitElement {
 
   protected async refresh(): Promise<void> {
     try {
-      [this.targets, this.channels, this.alerts, this.transitions, this.secrets, this.cluster, this.joinTokens] =
-        await Promise.all([
-          request<Target[]>("/api/v1/targets"),
-          request<Channel[]>("/api/v1/channels"),
-          request<Alert[]>("/api/v1/alerts"),
-          request<Transition[]>("/api/v1/transitions"),
-          request<Secret[]>("/api/v1/secrets"),
-          request<Cluster>("/api/v1/cluster"),
-          request<JoinToken[]>("/api/v1/join-tokens"),
-        ]);
+      [this.targets, this.channels, this.alerts, this.transitions, this.secrets, this.cluster, this.joinTokens] = await Promise.all([
+        request<Target[]>("/api/v1/targets"),
+        request<Channel[]>("/api/v1/channels"),
+        request<Alert[]>("/api/v1/alerts"),
+        request<Transition[]>("/api/v1/transitions"),
+        request<Secret[]>("/api/v1/secrets"),
+        request<Cluster>("/api/v1/cluster"),
+        request<JoinToken[]>("/api/v1/join-tokens"),
+      ]);
       this.error = "";
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);

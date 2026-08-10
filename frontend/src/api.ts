@@ -33,9 +33,7 @@ export interface Target {
   paused: boolean;
 }
 
-export type ConfigValue =
-  | { kind: "literal"; value: string }
-  | { kind: "secret"; secret_id: string };
+export type ConfigValue = { kind: "literal"; value: string } | { kind: "secret"; secret_id: string };
 
 export interface Channel {
   id: string;

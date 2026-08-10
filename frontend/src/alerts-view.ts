@@ -1,6 +1,6 @@
 import { html } from "lit";
 import deleteIcon from "@iconify-icons/lucide/trash-2";
-import { type Channel, type Transition } from "./api.ts";
+import type { Channel, Transition } from "./api.ts";
 
 interface Actions {
   create: () => void;
@@ -8,11 +8,7 @@ interface Actions {
   setDefault: (channel: Channel, isDefault: boolean) => void;
 }
 
-export function renderAlertsPage(
-  transitions: Transition[],
-  channels: Channel[],
-  actions: Actions,
-) {
+export function renderAlertsPage(transitions: Transition[], channels: Channel[], actions: Actions) {
   return html`
     <section class="heading" id="alerts">
       <div><span class="eyebrow">Delivery history</span><h1>Alerts</h1></div>
@@ -21,10 +17,11 @@ export function renderAlertsPage(
     <div class="page-columns">
       <section class="panel" aria-label="Alert history">
         <div class="panel-head"><h2>Availability transitions</h2><span class="meta">${transitions.length} events</span></div>
-        ${transitions.length
-          ? transitions.map((transition) => {
-              const status = transition.kind === "recovered" ? "up" : "down";
-              return html`
+        ${
+          transitions.length
+            ? transitions.map((transition) => {
+                const status = transition.kind === "recovered" ? "up" : "down";
+                return html`
                 <div class="resource">
                   <div class="transition-main">
                     <span class=${`state ${status}`} aria-hidden="true"></span>
@@ -36,13 +33,16 @@ export function renderAlertsPage(
                   <span class=${`badge ${status}`}>${transition.kind}</span>
                 </div>
               `;
-            })
-          : html`<div class="empty">No availability transitions.</div>`}
+              })
+            : html`<div class="empty">No availability transitions.</div>`
+        }
       </section>
       <section class="panel" aria-label="Notification channels">
         <div class="panel-head"><h2>Notification channels</h2><span class="meta">${channels.length} configured</span></div>
-        ${channels.length
-          ? channels.map((channel) => html`
+        ${
+          channels.length
+            ? channels.map(
+                (channel) => html`
               <div class="resource channel-resource">
                 <div class="channel-summary"><div class="channel-title"><strong>${channel.name}</strong><span class="badge">${channel.kind}</span></div><code>${channel.destination}</code></div>
                 <div class="channel-actions">
@@ -50,8 +50,10 @@ export function renderAlertsPage(
                   <button class="button danger icon-button" aria-label=${`Delete channel ${channel.name}`} title=${`Delete ${channel.name}`} @click=${() => actions.remove(channel)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
                 </div>
               </div>
-            `)
-          : html`<div class="empty">No notification channels.</div>`}
+            `,
+              )
+            : html`<div class="empty">No notification channels.</div>`
+        }
       </section>
     </div>
   `;
