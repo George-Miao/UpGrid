@@ -15,7 +15,7 @@ cargo run -- \
   --password change-me
 ```
 
-Open <http://127.0.0.1:8080/> and enter the configured username and password. Data survives restarts in `upgrid-data/`. The generated API description is available at `/openapi.json`; `/healthz` does not require authentication.
+Open [http://127.0.0.1:8080/](http://127.0.0.1:8080/) and enter the configured username and password. Data survives restarts in `upgrid-data/`. The generated API description is available at `/openapi.json`; `/healthz` does not require authentication.
 
 TLS is intentionally not forced on the HTTP API so a reverse proxy can terminate it. Do not expose Basic authentication over an untrusted plaintext connection.
 See [deployment notes](docs/DEPLOYMENT.md) for Caddy and Nginx examples.
@@ -76,7 +76,3 @@ pnpm --dir frontend dev
 Set `UPGRID_API_URL`, `UPGRID_USERNAME`, and `UPGRID_PASSWORD` when the API uses a different address or credentials; Vite proxies `/api` to that Node.
 
 Run `scripts/update-openapi.sh` after changing API routes or schemas. CI compares the generated contract with `docs/openapi.json`. A running reference deployment can exercise the 1,000-Target SLO with `scripts/verify-reference-workload.sh`.
-
-## Release Direction
-
-The immediate release is a runnable MVP: HTTP Targets with configurable methods, intervals, timeouts, failure thresholds and success criteria; Raft persistence and forwarding; SSE updates; Telegram/webhook channels; and the embedded WebUI. After the MVP, work proceeds in short agile iterations driven by operator feedback. See [the roadmap](docs/ROADMAP.md) for hardening and candidate features.
