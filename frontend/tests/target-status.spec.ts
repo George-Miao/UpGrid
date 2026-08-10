@@ -2,10 +2,11 @@ import { expect, test } from "@playwright/test";
 
 test("marks an Up target suspicious while failures accumulate", async ({ page }) => {
   await page.goto("/");
+  const healthUrl = new URL("/healthz", page.url()).href;
   await page.getByRole("button", { name: "Add target" }).click();
   const addTarget = page.getByRole("dialog", { name: "Add target" });
   await addTarget.getByLabel("Name").fill("Suspicious threshold target");
-  await addTarget.getByLabel("URL").fill("http://127.0.0.1:18080/healthz");
+  await addTarget.getByLabel("URL").fill(healthUrl);
   await addTarget.getByLabel("Interval (seconds)").fill("1");
   await addTarget.getByLabel("Failures before Down").fill("100");
   await addTarget.getByRole("button", { name: "Create target" }).click();
