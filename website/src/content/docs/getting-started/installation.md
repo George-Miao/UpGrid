@@ -1,11 +1,11 @@
 ---
 title: Install UpGrid
-description: Build a release binary and prepare persistent storage.
+description: Install the published container or a precompiled Linux binary.
 ---
 
-Every commit on `main` publishes an AMD64 and ARM64 Linux image named `main-<6-character-commit>`. A Git tag publishes the image under that tag and creates a GitHub Release with Linux binaries and SHA-256 checksums. The repository also pins the required nightly Rust toolchain and native dependencies in a Nix development shell for source builds.
+Docker is the preferred way to install UpGrid. Tagged releases also provide precompiled Linux binaries for hosts where a container runtime is not appropriate. Build from source only for development or an unsupported target.
 
-## Run the container image
+## Run with Docker
 
 ```sh
 docker run --name upgrid \
@@ -19,14 +19,34 @@ docker run --name upgrid \
 
 The image listens for HTTP on port `8080`, exposes QUIC/Raft on UDP port `11451`, and stores durable state in `/var/lib/upgrid`. Set `UPGRID_RAFT_URL` to an advertised hostname reachable by every Node before building a multi-Node Cluster.
 
-## Requirements
+See the [environment-variable reference](/reference/configuration/#settings) for every supported `UPGRID_` setting and its default.
+
+## Install a precompiled binary
+
+The [v0.1.0 GitHub Release](https://github.com/George-Miao/UpGrid/releases/tag/v0.1.0) provides dynamically linked Linux binaries for both common server architectures:
+
+- [Linux AMD64](https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/upgrid-v0.1.0-linux-amd64.tar.gz)
+- [Linux ARM64](https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/upgrid-v0.1.0-linux-arm64.tar.gz)
+- [SHA-256 checksums](https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/SHA256SUMS)
+
+Download the archive matching the host, then verify and extract it. This AMD64 example keeps the binary in the current directory:
+
+```sh
+curl --remote-name https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/upgrid-v0.1.0-linux-amd64.tar.gz
+curl --remote-name https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
+tar --extract --gzip --file upgrid-v0.1.0-linux-amd64.tar.gz
+./upgrid --help
+```
+
+Use a durable directory for each Node and ensure its API TCP port and Raft UDP port are reachable where required.
+
+## Build from source
+
+Source builds require:
 
 - Git
 - Nix with flakes enabled
-- A durable directory for each Node
-- A TCP port for the API and a UDP port reachable by the other Cluster Nodes
-
-## Build a release binary from source
 
 ```sh
 git clone https://github.com/George-Miao/UpGrid.git
@@ -35,15 +55,7 @@ nix develop
 cargo build --release
 ```
 
-The binary is written to `target/release/upgrid`. Copy that binary to each host or package it for your service manager.
-
-## Confirm the CLI
-
-```sh
-./target/release/upgrid --help
-```
-
-UpGrid reads built-in defaults, an optional TOML file, `UPGRID_` environment variables, and CLI arguments in that order. See [Configuration](/reference/configuration/) for the complete precedence and available settings.
+The binary is written to `target/release/upgrid`. UpGrid reads built-in defaults, an optional TOML file, environment variables, and CLI arguments in that order; see the full [Configuration reference](/reference/configuration/).
 
 :::caution
 Every Node needs its own data directory. Never clone an existing Node's directory to provision another member.

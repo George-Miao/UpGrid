@@ -6,7 +6,7 @@ description: Use the browser setup flow or create a Cluster non-interactively.
 Start UpGrid with a durable data directory, an API address, and an advertised `up://` Raft address:
 
 ```sh
-./target/release/upgrid \
+upgrid \
   --bind 127.0.0.1:8080 \
   --raft-url up://node-1.internal:11451 \
   --data-dir /var/lib/upgrid \
@@ -22,7 +22,7 @@ Open `http://127.0.0.1:8080/setup` and authenticate with the configured username
 Pass `--new-cluster` to skip the browser decision:
 
 ```sh
-./target/release/upgrid \
+upgrid \
   --new-cluster \
   --bind 127.0.0.1:8080 \
   --raft-url up://node-1.internal:11451 \

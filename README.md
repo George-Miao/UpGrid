@@ -21,7 +21,7 @@ Every Node exposes the same authenticated API and responsive WebUI. Followers tr
 
 ## Quick start
 
-Every `main` commit is published as a multi-architecture image named `main-<6-character-commit>`. Tagged releases use the Git tag instead and include downloadable Linux binaries. Start a single Node with persistent storage using a tag such as `v0.1.0`:
+Docker is the preferred installation method. Every `main` commit is published as a multi-architecture image named `main-<6-character-commit>`, while stable releases use their Git tag. Start a single Node with persistent storage using `v0.1.0`:
 
 ```sh
 docker run --name upgrid \
@@ -37,9 +37,21 @@ Open [http://127.0.0.1:8080/setup](http://127.0.0.1:8080/setup), sign in, review
 
 Set `UPGRID_RAFT_URL` to a hostname reachable by every Node before expanding this container into a multi-Node Cluster.
 
+See the [environment-variable reference](https://upgrid.rs/reference/configuration/#settings) for every container setting and its default.
+
+### Precompiled Linux binaries
+
+When a container runtime is not appropriate, use a published Linux binary from the [v0.1.0 release](https://github.com/George-Miao/UpGrid/releases/tag/v0.1.0):
+
+- [Linux AMD64](https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/upgrid-v0.1.0-linux-amd64.tar.gz)
+- [Linux ARM64](https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/upgrid-v0.1.0-linux-arm64.tar.gz)
+- [SHA-256 checksums](https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/SHA256SUMS)
+
+Download the archive for the host architecture, verify it against `SHA256SUMS`, then extract and run `upgrid`.
+
 ### Build from source
 
-The repository provides a reproducible Nix development shell with the required Rust, Node, and native tooling.
+Source builds are intended for contributors and unsupported targets. The repository provides a reproducible Nix development shell with the required Rust, Node, and native tooling.
 
 ```sh
 git clone https://github.com/George-Miao/UpGrid.git
@@ -57,7 +69,7 @@ State is stored in `upgrid-data/` by default. Use a durable, unique data directo
 Open **Cluster**, choose **Create token**, and configure its expiration and usage limit. Then start a fresh Node with the generated token:
 
 ```sh
-cargo run -p upgrid -- \
+upgrid \
   --join 'up://existing-node.example/opaque-token' \
   --bind 127.0.0.1:8081 \
   --raft-url up://node-2.internal:11451 \

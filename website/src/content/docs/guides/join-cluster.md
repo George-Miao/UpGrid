@@ -20,7 +20,7 @@ The WebUI defaults to one day and one use. Create a separate one-use token for e
 Run the generated command on a host with an empty data directory:
 
 ```sh
-./target/release/upgrid \
+upgrid \
   --join 'up://existing-node.example/opaque-token' \
   --bind 127.0.0.1:8081 \
   --raft-url up://node-2.internal:11451 \
