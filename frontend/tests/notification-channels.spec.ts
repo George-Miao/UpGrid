@@ -110,16 +110,33 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
   const targetDialog = page.getByRole("dialog", { name: "Add target" });
   const defaultChannel = targetDialog.getByRole("checkbox", { name: channelName });
   const useDefaults = targetDialog.getByRole("switch", { name: "Use default channels" });
+  const channelHeading = targetDialog.locator(".channel-fields legend");
+  const channelSection = targetDialog.locator(".channel-fields");
+  const nameInput = targetDialog.getByLabel("Name");
   await expect(defaultChannel).toBeChecked();
   await expect(defaultChannel).toBeDisabled();
-  await expect(targetDialog.locator(".channel-fields legend")).toHaveCSS("font-size", "14px");
+  await expect(channelHeading).toHaveCSS("font-size", "14px");
+  await expect(channelHeading).toHaveCSS("font-weight", "400");
+  await expect(nameInput).toHaveCSS("font-size", "16px");
+  await expect(nameInput).toHaveCSS("min-height", "44px");
+  await nameInput.focus();
+  await expect(nameInput).toHaveCSS("outline-style", "solid");
+  const [headingBox, sectionBox] = await Promise.all([
+    channelHeading.boundingBox(),
+    channelSection.boundingBox(),
+  ]);
+  expect(headingBox).not.toBeNull();
+  expect(sectionBox).not.toBeNull();
+  expect(Math.abs(
+    headingBox!.x + headingBox!.width / 2 - (sectionBox!.x + sectionBox!.width / 2),
+  )).toBeLessThan(2);
   await useDefaults.uncheck();
   await expect(defaultChannel).not.toBeChecked();
   await expect(defaultChannel).toBeEnabled();
   await useDefaults.check();
   await expect(defaultChannel).toBeChecked();
   await expect(defaultChannel).toBeDisabled();
-  await targetDialog.getByLabel("Name").fill(targetName);
+  await nameInput.fill(targetName);
   await targetDialog.getByLabel("URL").fill("http://127.0.0.1:19091/");
   await targetDialog.getByLabel("Interval (seconds)").fill("1");
   await targetDialog.getByLabel("Failures before Down").fill("1");

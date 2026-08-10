@@ -69,7 +69,7 @@ export function renderTargetForm(
 ) {
   return html`
     <dialog id="target-dialog" aria-labelledby="add-target-title" @click=${actions.backdrop}>
-      <div class="dialog-head"><h2 id="add-target-title">Add target</h2><p>Start monitoring an HTTP or HTTPS endpoint.</p></div>
+      <div class="dialog-head"><h2 id="add-target-title">Add target</h2><p>Start monitoring a service.</p></div>
       <form @submit=${actions.create}>
         <label>Name<input name="name" placeholder="Production API" required /></label>
         <label>URL<input name="url" type="url" placeholder="https://example.com/health" required /></label>

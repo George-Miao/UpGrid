@@ -89,7 +89,7 @@ export class UpgridApp extends AppController {
     .heading { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 30px; }
     .heading h1 { margin: 2px 0 0; font-size: clamp(27px, 4vw, 38px); line-height: 1.1; letter-spacing: -.035em; }
     .eyebrow { text-transform: uppercase; letter-spacing: .16em; }
-    .button { border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 120ms ease; }
+    .button { min-height: 44px; border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 120ms ease; }
     .button:hover { border-color: var(--button-hover-border); }
     .button:active { transform: translateY(1px); }
     .button:disabled { cursor: not-allowed; opacity: .65; }
@@ -112,11 +112,16 @@ export class UpgridApp extends AppController {
     .badge.up { border-color: var(--green); color: var(--green); }
     .badge.down { border-color: var(--red); color: var(--red); }
     .transition-main { display: flex; align-items: center; gap: 12px; }
+    .channel-resource { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+    .channel-summary { min-width: 0; }
+    .channel-title, .channel-actions { display: flex; align-items: center; gap: 10px; }
+    .channel-summary code { display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .channel-actions .switch span { font-size: 12px; }
     .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 17px 20px; border-bottom: 1px solid var(--line); }
     .panel-head h2 { margin: 0; font-size: 14px; }
     .target-wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; border-bottom: 1px solid var(--divider); padding-left: 20px; }
     .target-wrap:last-child { border-bottom: 0; }
-    .select-target { width: 15px; height: 15px; accent-color: var(--green); }
+    .select-target { width: 24px; height: 24px; accent-color: var(--green); }
     .target { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px 17px 14px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
     .target-wrap, .target { transition: background-color 150ms ease; }
     .target-wrap:hover, .target-wrap:hover .target { background: var(--row-hover); }
@@ -158,9 +163,10 @@ export class UpgridApp extends AppController {
     .dialog-head p { margin: 4px 0 0; color: var(--muted); }
     form { display: grid; gap: 13px; padding: 20px 22px 22px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
-    label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; letter-spacing: .03em; }
-    input, select { width: 100%; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease; }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
+    input, select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font-size: 16px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease; }
     input:focus, select:focus { border-color: var(--focus); }
+    button:focus-visible, nav a:focus-visible, .target:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
     input:disabled { cursor: not-allowed; opacity: .5; }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
     .danger-actions { display: flex; gap: 8px; margin-right: auto; }
@@ -171,12 +177,16 @@ export class UpgridApp extends AppController {
     .success { background: transparent; color: var(--green); border-color: var(--green); }
     .success:hover { border-color: var(--button-text); }
     .dialog-close { position: absolute; top: 12px; right: 14px; }
-    .check { display: flex; align-items: center; gap: 8px; } .check input { width: auto; }
-    .channel-fields { display: grid; gap: 9px; margin: 4px 0 0; border: 0; border-top: 1px solid var(--line); padding: 14px 0 0; }
-    .channel-fields legend { padding: 0; color: var(--text); font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
-    .channel-options { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+    .check { display: flex; align-items: center; gap: 8px; } .check input { width: 18px; min-height: 18px; height: 18px; flex: none; }
+    .channel-fields { display: grid; gap: 10px; margin: 8px 0 0; border: 0; padding: 0; }
+    .channel-fields legend { display: flex; width: 100%; align-items: center; gap: 12px; margin: 0 0 4px; padding: 0; color: var(--text); font-size: 14px; font-weight: 400; text-align: center; }
+    .channel-fields legend::before, .channel-fields legend::after { height: 1px; flex: 1; background: var(--line); content: ""; }
+    form .badge { font-size: 12px; }
+    .channel-options { display: grid; gap: 6px; }
+    .channel-options .check { min-height: 36px; border-radius: 8px; padding: 5px 8px; background: var(--panel-2); }
+    .channel-options .badge { margin-left: auto; }
     .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .switch input { width: 40px; height: 22px; flex: none; appearance: none; border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
+    .switch input { width: 42px; min-height: 24px; height: 24px; flex: none; appearance: none; border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
     .switch input::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
     .switch input:checked { border-color: var(--button-border); background: var(--button-bg); }
     .switch input:checked::after { background: var(--button-text); transform: translateX(18px); }
@@ -256,6 +266,8 @@ export class UpgridApp extends AppController {
       .target { grid-template-columns: auto minmax(0, 1fr); }
       .target-side { grid-column: 2; justify-self: start; }
       .latency { text-align: left; }
+      .channel-resource { grid-template-columns: 1fr; }
+      .channel-actions { justify-content: space-between; margin-top: 10px; }
     }
   `;
 

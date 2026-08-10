@@ -34,14 +34,15 @@ export class UpgridSetup extends LitElement {
     .cluster-join { display: grid; gap: 10px; }
     .cluster-join-fields { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; }
     .cluster-join-fields label { min-width: 0; }
-    .cluster-join-fields button { height: 41px; white-space: nowrap; }
+    .cluster-join-fields button { height: 44px; white-space: nowrap; }
     form { display: grid; gap: 13px; }
-    label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
-    input, select { width: 100%; min-height: 41px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font: inherit; transition: border-color 160ms ease, opacity 160ms ease; }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
+    input, select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font: inherit; font-size: 16px; transition: border-color 160ms ease, opacity 160ms ease; }
     input:focus, select:focus { border-color: var(--focus); }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
     .actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 5px; }
-    button { display: inline-flex; min-height: 41px; align-items: center; justify-content: center; border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; font: inherit; transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease, transform 120ms ease; }
+    button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; font: inherit; transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease, transform 120ms ease; }
     button:hover { border-color: var(--button-hover-border); }
     button:active { transform: translateY(1px); }
     button:disabled { cursor: not-allowed; opacity: .65; }

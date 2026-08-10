@@ -15,6 +15,7 @@
     "lit": "^3.3.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.55.0",
     "@types/node": "^26.2.0",
     "typescript": "^5.9.2",
