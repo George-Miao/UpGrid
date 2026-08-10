@@ -375,8 +375,37 @@ test("keeps primary navigation visible on mobile", async ({ page }) => {
   await expect(navigation.getByRole("link", { name: "Overview" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Alerts" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Cluster" })).toBeVisible();
+  await page.evaluate(() => {
+    (window as typeof window & { tabScrollCalls: number }).tabScrollCalls = 0;
+    Element.prototype.scrollIntoView = () => {
+      (window as typeof window & { tabScrollCalls: number }).tabScrollCalls += 1;
+    };
+  });
   await navigation.getByRole("link", { name: "Alerts" }).click();
   await expect(page).toHaveURL(/\/alerts$/);
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { tabScrollCalls: number }).tabScrollCalls)).toBe(0);
+});
+
+test("aligns compact Target rows on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  const row = page.locator(".target-wrap", { has: page.getByText("Node", { exact: true }) }).first();
+  await expect(row.locator(".mini-chart")).toBeVisible({ timeout: 15_000 });
+  const [bounds, checkbox, title, state, chart, latency] = await Promise.all([
+    row.boundingBox(),
+    row.locator(".select-target").boundingBox(),
+    row.locator("h3").boundingBox(),
+    row.locator(".state").boundingBox(),
+    row.locator(".mini-chart").boundingBox(),
+    row.locator(".latency").boundingBox(),
+  ]);
+  for (const box of [bounds, checkbox, title, state, chart, latency]) expect(box).not.toBeNull();
+  expect(Math.abs(checkbox!.y + checkbox!.height / 2 - (title!.y + title!.height / 2))).toBeLessThan(8);
+  expect(Math.abs(state!.y + state!.height / 2 - (title!.y + title!.height / 2))).toBeLessThan(8);
+  expect(Math.abs(chart!.y + chart!.height / 2 - (latency!.y + latency!.height / 2))).toBeLessThan(8);
+  expect(bounds!.height).toBeLessThan(130);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
 });
 
 test("renames a Node Target and shows its evaluation history", async ({ page }) => {

@@ -216,9 +216,6 @@ export class AppState extends LitElement {
     event.preventDefault();
     this.activeSection = section;
     window.history.pushState(null, "", sectionPaths[section]);
-    void this.updateComplete.then(() =>
-      this.renderRoot.querySelector<HTMLElement>(`#${section}`)?.scrollIntoView({ behavior: "smooth", block: "start" }),
-    );
   }
 
   protected closeDialog(id: string): void {
