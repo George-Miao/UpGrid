@@ -123,6 +123,8 @@ export class UpgridApp extends AppController {
     .state.down { color: var(--red); background: var(--red); }
     .state.paused { color: var(--muted); background: var(--muted); box-shadow: none; }
     .target h3 { margin: 0 0 3px; font-size: 14px; }
+    .target-title { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+    .target-title h3 { margin: 0; }
     .meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .latency { text-align: right; }
     .latency strong { display: block; font-weight: 500; }
@@ -450,11 +452,11 @@ export class UpgridApp extends AppController {
       <div class="target-wrap">
         ${target.kind === "http"
           ? html`<input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} .checked=${this.selectedIds.has(target.id)} @change=${(event: Event) => this.toggleSelected(target.id, (event.target as HTMLInputElement).checked)} />`
-          : html`<span class="badge">Node</span>`}
+          : html`<input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} disabled />`}
         <button class=${`target ${target.kind === "node" ? "node-target" : ""}`} aria-label=${target.name} @click=${target.kind === "http" ? () => this.openTarget(target) : nothing}>
           <i class="state ${state}" aria-label=${state}></i>
           <div>
-            <h3>${target.name}</h3>
+            <div class="target-title"><h3>${target.name}</h3>${target.kind === "node" ? html`<span class="badge">Node</span>` : nothing}</div>
             <div class="meta">${target.paused ? "Paused · " : ""}${target.method} · ${target.url} · every ${target.interval_seconds}s</div>
           </div>
           <div class="target-side">

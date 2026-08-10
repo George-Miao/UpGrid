@@ -366,7 +366,14 @@ test("lists Cluster members as read-only Node Targets", async ({ page }) => {
   await expect(node.getByText("Node", { exact: true })).toBeVisible();
   await expect(node.getByText(/RPC · up:\/\//)).toBeVisible();
   await expect(node.locator(".state")).toHaveClass(/up/, { timeout: 15_000 });
-  await expect(node.locator('input[type="checkbox"]')).toHaveCount(0);
+  await expect(node.locator('input[type="checkbox"]')).toBeDisabled();
+  const [name, badge] = await Promise.all([
+    node.locator("h3").boundingBox(),
+    node.getByText("Node", { exact: true }).boundingBox(),
+  ]);
+  expect(name).not.toBeNull();
+  expect(badge).not.toBeNull();
+  expect(badge!.x).toBeGreaterThan(name!.x + name!.width);
 });
 
 test("copying a join command confirms success", async ({ page }) => {
