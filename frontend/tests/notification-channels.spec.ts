@@ -81,7 +81,6 @@ test("uses trash icons for secret and Target deletion", async ({ page }) => {
 });
 
 test("default channels deliver unless a Target opts out", async ({ page }) => {
-  test.setTimeout(60_000);
   const suffix = Date.now();
   const channelName = `Default delivery webhook ${suffix}`;
   const targetName = `Default delivery target ${suffix}`;
@@ -169,6 +168,7 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
   await target.click();
   page.once("dialog", (confirmation) => confirmation.accept());
   await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Delete target" }).click();
+  await expect(target).not.toBeVisible();
   await optedOut.click();
   page.once("dialog", (confirmation) => confirmation.accept());
   await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Delete target" }).click();
