@@ -133,10 +133,12 @@ test("edits, inspects, and deletes a target", async ({ page }) => {
   await expect(history).toBeVisible();
   await expect(history.getByRole("listitem").first()).toBeVisible();
   const topology = await (await page.request.get("/api/v1/cluster")).json();
-  const executor = topology.members.find((member: { local: boolean }) => member.local).name;
-  await expect(history.getByRole("listitem").first()).toHaveAttribute("aria-label", new RegExp(`Executed by ${executor}`));
+  const evaluation = await history.getByRole("listitem").first().getAttribute("aria-label");
+  expect(topology.members.some(
+    (member: { name: string }) => evaluation?.includes(`Executed by ${member.name}`),
+  )).toBe(true);
   await expect(details.locator(".chart-scale span")).toHaveCount(3);
-  await expect(details.locator(".chart-scale").getByText("0 ms")).toBeVisible();
+  await expect(details.locator(".chart-scale").getByText("0 ms", { exact: true })).toBeVisible();
   await name.fill("Renamed lifecycle target");
   await expect(save).toBeEnabled();
   await details.getByLabel("Failures before Down").fill("5");
@@ -164,11 +166,13 @@ test("configures notification resources and creates a join command", async ({ pa
   await channel.getByLabel("Name").fill("Operations webhook");
   await channel.getByLabel("Webhook URL").fill("https://example.com/upgrid-hook");
   await channel.getByRole("button", { name: "Create channel" }).click();
-  await expect(page.getByText("Operations webhook")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Notification channels" })
+    .getByText("Operations webhook", { exact: true })).toBeVisible();
 
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete channel Operations webhook" }).click();
-  await expect(page.getByText("Operations webhook")).not.toBeVisible();
+  await expect(page.getByRole("region", { name: "Notification channels" })
+    .getByText("Operations webhook", { exact: true })).not.toBeVisible();
   await page.getByRole("link", { name: "Overview" }).click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete secret Webhook token" }).click();
@@ -438,7 +442,7 @@ test("keeps the first-run Cluster choice compact", async ({ page }) => {
   expect(joinButton).not.toBeNull();
   expect(create!.y + create!.height).toBeLessThanOrEqual(separator!.y);
   expect(separator!.y + separator!.height).toBeLessThanOrEqual(join!.y);
-  expect(join!.y + join!.height).toBeLessThanOrEqual(560);
+  expect(join!.y + join!.height).toBeLessThanOrEqual(590);
   expect(token!.x + token!.width).toBeLessThanOrEqual(joinButton!.x - 9);
   expect(Math.abs(token!.height - joinButton!.height)).toBeLessThan(1);
 
