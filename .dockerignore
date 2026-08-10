@@ -1,0 +1,9 @@
+.git
+.github
+.direnv
+target
+upgrid-data*
+frontend/node_modules
+frontend/playwright-report
+frontend/test-results
+website

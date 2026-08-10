@@ -21,7 +21,25 @@ Every Node exposes the same authenticated API and responsive WebUI. Followers tr
 
 ## Quick start
 
-UpGrid is currently built from source. The repository provides a reproducible Nix development shell with the required Rust, Node, and native tooling.
+Every `main` commit is published as a multi-architecture image named `main-<6-character-commit>`. Tagged releases use the Git tag instead and include downloadable Linux binaries. Start a single Node with persistent storage using a tag such as `v0.1.0`:
+
+```sh
+docker run --name upgrid \
+  --publish 8080:8080 \
+  --publish 11451:11451/udp \
+  --volume upgrid-data:/var/lib/upgrid \
+  --env UPGRID_USERNAME=admin \
+  --env UPGRID_PASSWORD='replace-this-password' \
+  ghcr.io/george-miao/upgrid:v0.1.0
+```
+
+Open [http://127.0.0.1:8080/setup](http://127.0.0.1:8080/setup), sign in, review the generated Node name, and choose **Create new Cluster**. The guided setup can add your first notification Channel and service Target, or skip either step.
+
+Set `UPGRID_RAFT_URL` to a hostname reachable by every Node before expanding this container into a multi-Node Cluster.
+
+### Build from source
+
+The repository provides a reproducible Nix development shell with the required Rust, Node, and native tooling.
 
 ```sh
 git clone https://github.com/George-Miao/UpGrid.git
@@ -31,8 +49,6 @@ cargo run -p upgrid -- \
   --username admin \
   --password 'replace-this-password'
 ```
-
-Open [http://127.0.0.1:8080/setup](http://127.0.0.1:8080/setup), sign in, review the generated Node name, and choose **Create new Cluster**. The guided setup can add your first notification Channel and service Target, or skip either step.
 
 State is stored in `upgrid-data/` by default. Use a durable, unique data directory for each Node.
 
