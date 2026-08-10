@@ -59,6 +59,7 @@ test("fills the viewport without browser-default padding", async ({ page }) => {
 });
 
 test("shows project footer links with icons", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1200 });
   await page.goto("/");
   const footer = page.getByRole("contentinfo", { name: "Project information" });
   await expect(footer.getByRole("link", { name: "A Project by Pop" }))
@@ -69,6 +70,9 @@ test("shows project footer links with icons", async ({ page }) => {
   await expect(website).toHaveAttribute("href", "https://upgrid.rs");
   await expect(github.locator("iconify-icon")).toBeVisible();
   await expect(website.locator("iconify-icon")).toBeVisible();
+  const bounds = await footer.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(Math.abs(bounds!.y + bounds!.height - 1200)).toBeLessThan(2);
 });
 
 test("disables maximum redirects when redirects are not followed", async ({ page }) => {
