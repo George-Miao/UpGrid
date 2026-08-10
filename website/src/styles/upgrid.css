@@ -2,14 +2,15 @@
   --sl-color-accent-low: #123a2b;
   --sl-color-accent: #58e29c;
   --sl-color-accent-high: #c5f9dc;
-  --sl-color-white: #edf7f2;
-  --sl-color-gray-1: #d9e8e1;
-  --sl-color-gray-2: #afc4ba;
-  --sl-color-gray-3: #789087;
-  --sl-color-gray-4: #4d6259;
-  --sl-color-gray-5: #293a33;
-  --sl-color-gray-6: #18241f;
-  --sl-color-black: #090d0c;
+  --sl-color-white: #f5f5f5;
+  --sl-color-gray-1: #e5e5e5;
+  --sl-color-gray-2: #bdbdbd;
+  --sl-color-gray-3: #8f8f8f;
+  --sl-color-gray-4: #616161;
+  --sl-color-gray-5: #383838;
+  --sl-color-gray-6: #242424;
+  --sl-color-gray-7: #171717;
+  --sl-color-black: #0b0b0b;
   --sl-font: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -17,14 +18,14 @@
   --sl-color-accent-low: #d9f2e4;
   --sl-color-accent: #087a49;
   --sl-color-accent-high: #123a2b;
-  --sl-color-white: #16211c;
-  --sl-color-gray-1: #263830;
-  --sl-color-gray-2: #445b51;
-  --sl-color-gray-3: #667b72;
-  --sl-color-gray-4: #9bada5;
-  --sl-color-gray-5: #d3dfd9;
-  --sl-color-gray-6: #eef5f1;
-  --sl-color-gray-7: #f7fbf9;
+  --sl-color-white: #1a1a1a;
+  --sl-color-gray-1: #2d2d2d;
+  --sl-color-gray-2: #4f4f4f;
+  --sl-color-gray-3: #737373;
+  --sl-color-gray-4: #a3a3a3;
+  --sl-color-gray-5: #d4d4d4;
+  --sl-color-gray-6: #eeeeee;
+  --sl-color-gray-7: #f7f7f7;
   --sl-color-black: #ffffff;
 }
 
@@ -44,18 +45,26 @@
   width: min(100%, 96rem);
   height: auto;
   margin: 1.5rem auto 4rem;
-  filter: drop-shadow(0 1.5rem 3rem rgb(9 40 28 / 18%));
-}
-
-:root[data-theme='dark'] .webui-showcase {
-  background: radial-gradient(circle at 70% 70%, rgb(88 226 156 / 12%), transparent 58%);
-  filter:
-    drop-shadow(0 0 1px rgb(88 226 156 / 35%))
-    drop-shadow(0 1.5rem 3rem rgb(0 0 0 / 55%));
 }
 
 .card { border-radius: 1rem; }
 code { border-radius: 0.35rem; }
+
+.sl-link-button.primary {
+  border-color: var(--sl-color-white);
+  background: var(--sl-color-white);
+  color: var(--sl-color-black);
+}
+
+.sl-link-button.primary:hover {
+  border-color: var(--sl-color-gray-1);
+  background: var(--sl-color-gray-1);
+}
+
+:root[data-theme='dark'] .sidebar-content a[aria-current='page'] {
+  background: var(--sl-color-accent-low);
+  color: var(--sl-color-accent-high);
+}
 
 .sl-markdown-content table code:not(:where(.not-content *)) {
   overflow-wrap: normal;

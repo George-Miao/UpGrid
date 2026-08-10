@@ -7,6 +7,15 @@ test('keeps the WebUI showcase within the mobile viewport', async ({ page }) => 
   const showcase = page.getByAltText(/overview dashboard in bright and dark themes/i);
   await expect(showcase).toBeVisible();
   await expect(showcase).toHaveJSProperty('complete', true);
+  const source = await showcase.evaluate((image: HTMLImageElement) => ({
+    height: image.naturalHeight,
+    url: image.currentSrc,
+    width: image.naturalWidth,
+  }));
+
+  expect(source.width).toBeGreaterThanOrEqual(2560);
+  expect(source.height).toBeGreaterThanOrEqual(1440);
+  expect(new URL(source.url).pathname).toMatch(/\.png$/);
 
   const bounds = await showcase.boundingBox();
   expect(bounds).not.toBeNull();

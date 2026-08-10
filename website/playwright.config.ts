@@ -7,7 +7,7 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:4323',
   },
   webServer: {
-    command: 'pnpm build && pnpm preview --host 127.0.0.1 --port 4323',
+    command: 'pnpm build && python3 -m http.server 4323 --directory dist --bind 127.0.0.1',
     url: 'http://127.0.0.1:4323',
     reuseExistingServer: true,
   },
