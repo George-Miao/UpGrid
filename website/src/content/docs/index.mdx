@@ -1,0 +1,44 @@
+---
+title: UpGrid documentation
+description: Deploy and operate a self-contained, distributed service monitor.
+template: splash
+hero:
+  tagline: Self-contained service monitoring, replicated across your own Nodes.
+  image:
+    file: ../../assets/logo.svg
+  actions:
+    - text: Start a Cluster
+      link: /getting-started/installation/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/George-Miao/UpGrid
+      icon: github
+      variant: secondary
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Monitoring without a control-plane dependency
+
+Every UpGrid Node runs the API, WebUI, scheduler, probe worker, notification worker, and a copy of the Raft state. Add a service once and the Cluster coordinates who checks it.
+
+<CardGrid stagger>
+	<Card title="One interface on every Node" icon="document">
+		Use the same authenticated API and WebUI on any healthy member. Followers forward mutations to the leader.
+	</Card>
+	<Card title="Distributed evaluations" icon="rocket">
+		The leader assigns HTTP and HTTPS polls across voting Nodes and commits one result for each interval.
+	</Card>
+	<Card title="Useful alerts" icon="open-book">
+		Notify Telegram chats or webhooks when a service or Cluster Node changes availability.
+	</Card>
+	<Card title="Your infrastructure" icon="setting">
+		Keep data on local persistent storage and terminate API TLS directly or at your reverse proxy.
+	</Card>
+</CardGrid>
+
+## Begin with one Node
+
+Build UpGrid, start a Node, and open its first-run setup page. You can create a single-Node Cluster immediately and invite more Nodes later.
+
+<a class="sl-link-button primary" href="/getting-started/installation/">Install UpGrid →</a>
