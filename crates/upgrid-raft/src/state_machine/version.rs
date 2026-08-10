@@ -1,4 +1,4 @@
-use openraft::{LogId, StoredMembership};
+use openraft::alias::{LogIdOf, StoredMembershipOf};
 use serde::{Deserialize, Serialize};
 
 use super::core::StoredSnapshot;
@@ -12,8 +12,8 @@ macro_rules! version {
     ($data:ident, $persisted:ident, $application:ty) => {
         #[derive(Serialize, Deserialize)]
         pub(super) struct $data {
-            pub(super) last_applied_log: Option<LogId<TC>>,
-            pub(super) last_membership: StoredMembership<TC>,
+            pub(super) last_applied_log: Option<LogIdOf<TC>>,
+            pub(super) last_membership: StoredMembershipOf<TC>,
             pub(super) application: $application,
         }
 

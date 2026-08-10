@@ -1,7 +1,6 @@
 [workspace]
 members = ["crates/*"]
 default-members = ["crates/upgrid"]
-exclude = ["vendor/cyper", "vendor/openraft-rt-compio"]
 resolver = "3"
 
 [workspace.package]
@@ -16,13 +15,13 @@ base64 = "0.22.1"
 clap = { version = "4.6.1", features = ["derive"] }
 compio = { version = "0.19.1", features = ["macros", "runtime", "io", "net", "time", "enable_log"] }
 compio-quic = "0.8.0"
-cyper = { path = "vendor/cyper", version = "0.9.0", default-features = false, features = ["rustls"] }
+cyper = { version = "0.9.0", default-features = false, features = ["rustls"] }
 figment = { version = "0.10.19", features = ["env", "toml"] }
 futures-core = "0.3.31"
 httpdate = "1"
 http = "1"
-openraft = { version = "0.10.0", git = "https://github.com/George-Miao/openraft.git", features = ["serde", "singlethreaded", "type-alias"] }
-openraft-rt-compio = { path = "vendor/openraft-rt-compio", version = "0.10.0" }
+openraft = { version = "0.10.0-alpha.33", git = "https://github.com/databendlabs/openraft.git", branch = "main", default-features = false, features = ["serde", "single-threaded", "type-alias"] }
+openraft-rt-compio = { version = "0.10.0-alpha.33", git = "https://github.com/databendlabs/openraft.git", branch = "main" }
 postcard = { version = "1.1.1", features = ["use-std"], default-features = false }
 quick_cache = "0.6.16"
 rcgen = "0.14.3"
@@ -47,15 +46,3 @@ upgrid-config = { path = "crates/upgrid-config" }
 upgrid-notification = { path = "crates/upgrid-notification" }
 upgrid-raft = { path = "crates/upgrid-raft" }
 upgrid-transport = { path = "crates/upgrid-transport" }
-
-[patch.crates-io]
-compio = { git = "https://github.com/compio-rs/compio.git", branch = "master" }
-compio-buf = { git = "https://github.com/compio-rs/compio.git", branch = "master" }
-compio-driver = { git = "https://github.com/compio-rs/compio.git", branch = "master" }
-compio-fs = { git = "https://github.com/compio-rs/compio.git", branch = "master" }
-compio-io = { git = "https://github.com/compio-rs/compio.git", branch = "master" }
-compio-log = { git = "https://github.com/compio-rs/compio.git", branch = "master" }
-compio-macros = { git = "https://github.com/compio-rs/compio.git", branch = "master" }
-compio-net = { git = "https://github.com/compio-rs/compio.git", branch = "master" }
-compio-quic = { git = "https://github.com/compio-rs/compio.git", branch = "master" }
-compio-runtime = { git = "https://github.com/compio-rs/compio.git", branch = "master" }

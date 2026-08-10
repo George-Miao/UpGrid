@@ -1,17 +1,20 @@
 //! OpenRaft tarpc network adapter.
 
+use std::future::Future;
+use std::io::Cursor;
 use std::time::{Duration, Instant};
 
-use openraft::alias::{NodeIdOf, NodeOf};
+use compio::time::timeout;
+use openraft::alias::{NodeIdOf, NodeOf, SnapshotOf, VoteOf};
 use openraft::error::{
-    InstallSnapshotError, NetworkError, RPCError, RaftError, RemoteError, Timeout, Unreachable,
+    NetworkError, RPCError, ReplicationClosed, StreamingError, Timeout, Unreachable,
 };
 use openraft::network::RPCOption;
+use openraft::network::v2::RaftNetworkV2;
 use openraft::raft::{
-    AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse,
-    VoteRequest, VoteResponse,
+    AppendEntriesRequest, AppendEntriesResponse, SnapshotResponse, VoteRequest, VoteResponse,
 };
-use openraft::{RPCTypes, RaftNetwork, RaftNetworkFactory};
+use openraft::{OptionalSend, RPCTypes, RaftNetworkFactory};
 use tap::Tap;
 use tarpc::client::RpcError;
 use tarpc::context::Context;
@@ -61,15 +64,11 @@ impl TarpcConnector {
         self.rpc.client(&self.target).await
     }
 
-    fn context(&self, option: RPCOption) -> Context {
-        Context::current().tap_mut(|c| c.deadline = Instant::now() + option.hard_ttl())
+    fn context(&self, option: &RPCOption) -> Context {
+        Context::current().tap_mut(|c| c.deadline = Instant::now() + option.soft_ttl())
     }
 
-    fn map_tarpc_err<E: snafu::Error>(
-        &self,
-        action: RPCTypes,
-        error: RpcError,
-    ) -> RPCError<TC, RaftError<TC, E>> {
+    fn map_tarpc_err(&self, action: RPCTypes, timeout: Duration, error: RpcError) -> RPCError<TC> {
         match error {
             error @ (RpcError::Shutdown | RpcError::Send(_) | RpcError::Channel(_)) => {
                 debug!(%error, "connection error");
@@ -83,7 +82,7 @@ impl TarpcConnector {
                     action,
                     id: self.self_id,
                     target: self.target_id,
-                    timeout: Duration::ZERO,
+                    timeout,
                 }
                 .into()
             }
@@ -94,49 +93,89 @@ impl TarpcConnector {
             }
         }
     }
+
+    fn timeout_error(&self, action: RPCTypes, duration: Duration) -> RPCError<TC> {
+        self.rpc.invalidate(&self.target);
+        Timeout {
+            action,
+            id: self.self_id,
+            target: self.target_id,
+            timeout: duration,
+        }
+        .into()
+    }
+
+    fn map_remote_err(&self, error: impl std::error::Error + 'static) -> RPCError<TC> {
+        debug!(%error, "remote Raft error");
+        self.rpc.invalidate(&self.target);
+        Unreachable::new(&error).into()
+    }
 }
 
-impl RaftNetwork<TC> for TarpcConnector {
-    async fn install_snapshot(
+impl RaftNetworkV2<TC> for TarpcConnector {
+    type SnapshotData = Cursor<Vec<u8>>;
+
+    async fn full_snapshot(
         &mut self,
-        rpc: InstallSnapshotRequest<TC>,
+        vote: VoteOf<TC>,
+        snapshot: SnapshotOf<TC, Self::SnapshotData>,
+        _cancel: impl Future<Output = ReplicationClosed> + OptionalSend + 'static,
         option: RPCOption,
-    ) -> Result<InstallSnapshotResponse<TC>, RPCError<TC, RaftError<TC, InstallSnapshotError>>>
-    {
-        self.client()
-            .await
-            .map_err(|e| NetworkError::new(&e))?
-            .install_snapshot(self.context(option), rpc)
-            .await
-            .map_err(|e| self.map_tarpc_err(RPCTypes::InstallSnapshot, e))?
-            .map_err(|e| RemoteError::new_with_node(self.target_id, self.target.clone(), e).into())
+    ) -> Result<SnapshotResponse<TC>, StreamingError<TC>> {
+        let duration = option.soft_ttl();
+        let response = timeout(duration, async {
+            self.client()
+                .await
+                .map_err(|error| NetworkError::new(&error))?
+                .full_snapshot(
+                    self.context(&option),
+                    vote,
+                    snapshot.meta,
+                    snapshot.snapshot.into_inner(),
+                )
+                .await
+                .map_err(|error| self.map_tarpc_err(RPCTypes::InstallSnapshot, duration, error))
+        })
+        .await
+        .map_err(|_| self.timeout_error(RPCTypes::InstallSnapshot, duration))??;
+        response.map_err(|error| self.map_remote_err(error).into())
     }
 
     async fn append_entries(
         &mut self,
         rpc: AppendEntriesRequest<TC>,
         option: RPCOption,
-    ) -> Result<AppendEntriesResponse<TC>, RPCError<TC, RaftError<TC>>> {
-        self.client()
-            .await
-            .map_err(|e| NetworkError::new(&e))?
-            .append_entries(self.context(option), rpc)
-            .await
-            .map_err(|e| self.map_tarpc_err(RPCTypes::AppendEntries, e))?
-            .map_err(|e| RemoteError::new_with_node(self.target_id, self.target.clone(), e).into())
+    ) -> Result<AppendEntriesResponse<TC>, RPCError<TC>> {
+        let duration = option.soft_ttl();
+        let response = timeout(duration, async {
+            self.client()
+                .await
+                .map_err(|error| NetworkError::new(&error))?
+                .append_entries(self.context(&option), rpc)
+                .await
+                .map_err(|error| self.map_tarpc_err(RPCTypes::AppendEntries, duration, error))
+        })
+        .await
+        .map_err(|_| self.timeout_error(RPCTypes::AppendEntries, duration))??;
+        response.map_err(|error| self.map_remote_err(error))
     }
 
     async fn vote(
         &mut self,
         rpc: VoteRequest<TC>,
         option: RPCOption,
-    ) -> Result<VoteResponse<TC>, RPCError<TC, RaftError<TC>>> {
-        self.client()
-            .await
-            .map_err(|e| NetworkError::new(&e))?
-            .vote(self.context(option), rpc)
-            .await
-            .map_err(|e| self.map_tarpc_err(RPCTypes::Vote, e))?
-            .map_err(|e| RemoteError::new_with_node(self.target_id, self.target.clone(), e).into())
+    ) -> Result<VoteResponse<TC>, RPCError<TC>> {
+        let duration = option.soft_ttl();
+        let response = timeout(duration, async {
+            self.client()
+                .await
+                .map_err(|error| NetworkError::new(&error))?
+                .vote(self.context(&option), rpc)
+                .await
+                .map_err(|error| self.map_tarpc_err(RPCTypes::Vote, duration, error))
+        })
+        .await
+        .map_err(|_| self.timeout_error(RPCTypes::Vote, duration))??;
+        response.map_err(|error| self.map_remote_err(error))
     }
 }

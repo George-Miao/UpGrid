@@ -322,20 +322,18 @@ impl Node {
                             continue;
                         }
                     };
-                    if let Some(log_id) = read_log_id {
-                        self.raft
-                            .wait(Some(
-                                deadline
-                                    .saturating_duration_since(Instant::now())
-                                    .min(Duration::from_secs(1)),
-                            ))
-                            .applied_index_at_least(
-                                Some(log_id.index()),
-                                "cluster API read barrier",
-                            )
-                            .await
-                            .map_err(|error| error.to_string())?;
-                    }
+                    self.raft
+                        .wait(Some(
+                            deadline
+                                .saturating_duration_since(Instant::now())
+                                .min(Duration::from_secs(1)),
+                        ))
+                        .applied_index_at_least(
+                            Some(read_log_id.index()),
+                            "cluster API read barrier",
+                        )
+                        .await
+                        .map_err(|error| error.to_string())?;
                     return Ok(self.local_application_state());
                 }
             }

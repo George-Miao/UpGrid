@@ -1,6 +1,7 @@
 //! Concrete OpenRaft types.
 
 use std::fmt::{Display, Formatter};
+use std::rc::Rc;
 
 use openraft::alias::{NodeIdOf, NodeOf};
 use openraft::declare_raft_types;
@@ -11,6 +12,7 @@ use uuid::Uuid;
 
 use crate::UpgridNode;
 use crate::domain::{Command, CommandResult, DomainError};
+use crate::state_machine::StateMachine;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Req {
@@ -47,7 +49,7 @@ declare_raft_types! {
        AsyncRuntime = CompioRuntime,
 }
 
-pub type Raft = openraft::raft::Raft<TC>;
+pub type Raft = openraft::raft::Raft<TC, Rc<StateMachine>>;
 
 /// Identity of a node in the Raft cluster. Contains node ID and its public url.
 #[derive(Debug, Clone, Serialize, Deserialize)]

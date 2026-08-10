@@ -6,11 +6,10 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{fs, io};
 
-use openraft::alias::SnapshotDataOf;
+use openraft::alias::{EntryOf, LogIdOf, SnapshotMetaOf, SnapshotOf, StoredMembershipOf};
 use openraft::storage::{RaftStateMachine, Snapshot};
-use openraft::{
-    Entry, EntryPayload, LogId, RaftSnapshotBuilder, SnapshotMeta, StorageError, StoredMembership,
-};
+use openraft::{EntryPayload, OptionalSend, RaftSnapshotBuilder};
+use openraft_rt_compio::futures::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use upgrid_config::durable;
 
@@ -38,7 +37,7 @@ pub(super) const CHECKPOINT_INTERVAL: u64 = 256;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoredSnapshot {
-    pub meta: SnapshotMeta<TC>,
+    pub meta: SnapshotMetaOf<TC>,
 
     /// The data of the state machine at the time of this snapshot.
     pub data: Vec<u8>,
@@ -47,9 +46,9 @@ pub struct StoredSnapshot {
 /// Data contained in the Raft state machine.
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct StateMachineData {
-    pub last_applied_log: Option<LogId<TC>>,
+    pub last_applied_log: Option<LogIdOf<TC>>,
 
-    pub last_membership: StoredMembership<TC>,
+    pub last_membership: StoredMembershipOf<TC>,
 
     /// Replicated application data.
     pub application: ApplicationState,
@@ -245,10 +244,12 @@ impl StateMachine {
 }
 
 impl RaftSnapshotBuilder<TC> for Rc<StateMachine> {
-    async fn build_snapshot(&mut self) -> Result<Snapshot<TC>, StorageError<TC>> {
+    type SnapshotData = Cursor<Vec<u8>>;
+
+    async fn build_snapshot(&mut self) -> io::Result<SnapshotOf<TC, Self::SnapshotData>> {
         let state_machine = self.state_machine.borrow();
         let encoded = postcard::to_stdvec(&state_machine.application)
-            .map_err(|e| StorageError::read_state_machine(&e))?;
+            .map_err(|error| io::Error::other(error.to_string()))?;
         let mut data = Vec::with_capacity(SNAPSHOT_MAGIC.len() + encoded.len());
         data.extend_from_slice(SNAPSHOT_MAGIC);
         data.extend_from_slice(&encoded);
@@ -258,22 +259,11 @@ impl RaftSnapshotBuilder<TC> for Rc<StateMachine> {
 
         drop(state_machine);
 
-        let snapshot_idx = self.snapshot_idx.fetch_add(1, Ordering::Relaxed) + 1;
-        let snapshot_id = if let Some(last) = last_applied_log {
-            format!(
-                "{}-{}-{}",
-                last.committed_leader_id(),
-                last.index(),
-                snapshot_idx
-            )
-        } else {
-            format!("--{snapshot_idx}",)
-        };
+        self.snapshot_idx.fetch_add(1, Ordering::Relaxed);
 
-        let meta = SnapshotMeta {
+        let meta = SnapshotMetaOf::<TC> {
             last_log_id: last_applied_log,
             last_membership,
-            snapshot_id,
         };
 
         let snapshot = StoredSnapshot {
@@ -282,8 +272,7 @@ impl RaftSnapshotBuilder<TC> for Rc<StateMachine> {
         };
 
         self.current_snapshot.replace(Some(snapshot));
-        self.persist()
-            .map_err(|error| StorageError::write_snapshot(Some(meta.signature()), &error))?;
+        self.persist()?;
         self.uncheckpointed.set(0);
 
         Ok(Snapshot {
@@ -295,10 +284,9 @@ impl RaftSnapshotBuilder<TC> for Rc<StateMachine> {
 
 impl RaftStateMachine<TC> for Rc<StateMachine> {
     type SnapshotBuilder = Self;
+    type SnapshotData = Cursor<Vec<u8>>;
 
-    async fn applied_state(
-        &mut self,
-    ) -> Result<(Option<LogId<TC>>, StoredMembership<TC>), StorageError<TC>> {
+    async fn applied_state(&mut self) -> io::Result<(Option<LogIdOf<TC>>, StoredMembershipOf<TC>)> {
         let state_machine = self.state_machine.borrow();
         Ok((
             state_machine.last_applied_log,
@@ -306,58 +294,58 @@ impl RaftStateMachine<TC> for Rc<StateMachine> {
         ))
     }
 
-    async fn apply<I>(&mut self, entries: I) -> Result<Vec<Res>, StorageError<TC>>
+    async fn apply<Strm>(&mut self, mut entries: Strm) -> io::Result<()>
     where
-        I: IntoIterator<Item = Entry<TC>>,
+        Strm: Stream<Item = io::Result<(EntryOf<TC>, Option<openraft::storage::ApplyResponder<TC>>)>>
+            + Unpin
+            + OptionalSend,
     {
-        let mut res = Vec::new(); //No `with_capacity`; do not know `len` of iterator
         let mut applied = 0_u64;
         let mut membership_changed = false;
 
-        let mut sm = self.state_machine.borrow_mut();
-
-        for entry in entries {
+        while let Some(item) = entries.next().await {
+            let (entry, responder) = item?;
             applied = applied.saturating_add(1);
+            let mut sm = self.state_machine.borrow_mut();
             sm.last_applied_log = Some(entry.log_id);
 
-            match entry.payload {
-                EntryPayload::Blank => res.push(Res::default()),
+            let response = match entry.payload {
+                EntryPayload::Blank => Res::default(),
                 EntryPayload::Normal(request) => {
                     let result = sm.application.apply_operation(
                         request.operation_id,
                         request.submitted_at_ms,
                         request.command,
                     );
-                    res.push(Res { result });
+                    Res { result }
                 }
                 EntryPayload::Membership(ref mem) => {
                     membership_changed = true;
-                    sm.last_membership = StoredMembership::new(Some(entry.log_id), mem.clone());
-                    res.push(Res::default())
+                    sm.last_membership =
+                        StoredMembershipOf::<TC>::new(Some(entry.log_id), mem.clone());
+                    Res::default()
                 }
             };
+            drop(sm);
+            if let Some(responder) = responder {
+                responder.send(response);
+            }
         }
-        drop(sm);
         let uncheckpointed = self.uncheckpointed.get().saturating_add(applied);
         if membership_changed || uncheckpointed >= CHECKPOINT_INTERVAL {
-            self.persist()
-                .map_err(|error| StorageError::write_state_machine(&error))?;
+            self.persist()?;
             self.uncheckpointed.set(0);
         } else {
             self.uncheckpointed.set(uncheckpointed);
         }
-        Ok(res)
-    }
-
-    async fn begin_receiving_snapshot(&mut self) -> Result<SnapshotDataOf<TC>, StorageError<TC>> {
-        Ok(Cursor::new(Vec::new()))
+        Ok(())
     }
 
     async fn install_snapshot(
         &mut self,
-        meta: &SnapshotMeta<TC>,
-        snapshot: SnapshotDataOf<TC>,
-    ) -> Result<(), StorageError<TC>> {
+        meta: &SnapshotMetaOf<TC>,
+        snapshot: Self::SnapshotData,
+    ) -> io::Result<()> {
         let new_snapshot = StoredSnapshot {
             meta: meta.clone(),
             data: snapshot.into_inner(),
@@ -365,7 +353,7 @@ impl RaftStateMachine<TC> for Rc<StateMachine> {
 
         // Update the state machine.
         let application = decode_application(&new_snapshot.data)
-            .map_err(|e| StorageError::read_snapshot(Some(new_snapshot.meta.signature()), &e))?;
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))?;
         let updated_state_machine = StateMachineData {
             last_applied_log: meta.last_log_id,
             last_membership: meta.last_membership.clone(),
@@ -382,13 +370,14 @@ impl RaftStateMachine<TC> for Rc<StateMachine> {
         // Update current snapshot.
         *current_snapshot = Some(new_snapshot);
         drop(current_snapshot);
-        self.persist()
-            .map_err(|error| StorageError::write_snapshot(Some(meta.signature()), &error))?;
+        self.persist()?;
         self.uncheckpointed.set(0);
         Ok(())
     }
 
-    async fn get_current_snapshot(&mut self) -> Result<Option<Snapshot<TC>>, StorageError<TC>> {
+    async fn get_current_snapshot(
+        &mut self,
+    ) -> io::Result<Option<SnapshotOf<TC, Self::SnapshotData>>> {
         match &*self.current_snapshot.borrow_mut() {
             Some(snapshot) => {
                 let data = snapshot.data.clone();

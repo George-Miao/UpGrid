@@ -7,9 +7,10 @@ mod tests {
     use std::fs;
     use std::rc::Rc;
 
+    use openraft::alias::{CommittedLeaderIdOf, LogIdOf};
     use openraft::storage::RaftStateMachine;
-    use openraft::vote::leader_id_adv::CommittedLeaderId;
-    use openraft::{Entry, EntryPayload, LogId, StoredMembership};
+    use openraft::{Entry, EntryPayload, StoredMembership};
+    use openraft_rt_compio::futures::stream;
     use url::Url;
     use uuid::Uuid;
 
@@ -27,14 +28,15 @@ mod tests {
         fs::create_dir_all(&directory).unwrap();
         let path = directory.join("raft-state.postcard");
         let mut state_machine = Rc::new(StateMachine::open(&path).unwrap());
-        let leader = CommittedLeaderId::<TC> {
+        let leader = CommittedLeaderIdOf::<TC> {
             term: 1,
             node_id: Uuid::now_v7(),
         };
         let entries = (1..CHECKPOINT_INTERVAL).map(|index| Entry {
-            log_id: LogId::new(leader, index),
+            log_id: LogIdOf::<TC>::new(leader, index),
             payload: EntryPayload::Blank,
         });
+        let entries = stream::iter(entries.map(|entry| Ok((entry, None))));
 
         RaftStateMachine::apply(&mut state_machine, entries)
             .await
@@ -43,10 +45,13 @@ mod tests {
 
         RaftStateMachine::apply(
             &mut state_machine,
-            [Entry {
-                log_id: LogId::new(leader, CHECKPOINT_INTERVAL),
-                payload: EntryPayload::Blank,
-            }],
+            stream::iter([Ok((
+                Entry {
+                    log_id: LogIdOf::<TC>::new(leader, CHECKPOINT_INTERVAL),
+                    payload: EntryPayload::Blank,
+                },
+                None,
+            ))]),
         )
         .await
         .unwrap();

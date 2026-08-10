@@ -7,7 +7,7 @@ use std::{fs, io};
 
 use openraft::alias::{LogIdOf, VoteOf};
 use openraft::entry::RaftEntry;
-use openraft::{LogState, RaftTypeConfig, StorageError};
+use openraft::{LogState, RaftTypeConfig};
 use openraft_rt_compio::futures::lock::Mutex;
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::de::DeserializeOwned;
@@ -98,7 +98,7 @@ impl<C: RaftTypeConfig> InMemStoreInner<C> {
     async fn try_get_log_entries<RB: RangeBounds<u64> + Clone + Debug>(
         &mut self,
         range: RB,
-    ) -> Result<Vec<C::Entry>, StorageError<C>>
+    ) -> io::Result<Vec<C::Entry>>
     where
         C::Entry: Clone,
     {
@@ -109,7 +109,7 @@ impl<C: RaftTypeConfig> InMemStoreInner<C> {
             .collect())
     }
 
-    async fn get_log_state(&mut self) -> Result<LogState<C>, StorageError<C>> {
+    async fn get_log_state(&mut self) -> io::Result<LogState<C>> {
         let last_log_id = self
             .log
             .iter()
@@ -123,11 +123,11 @@ impl<C: RaftTypeConfig> InMemStoreInner<C> {
         })
     }
 
-    async fn read_committed(&mut self) -> Result<Option<LogIdOf<C>>, StorageError<C>> {
+    async fn read_committed(&mut self) -> io::Result<Option<LogIdOf<C>>> {
         Ok(self.committed.clone())
     }
 
-    async fn read_vote(&mut self) -> Result<Option<VoteOf<C>>, StorageError<C>> {
+    async fn read_vote(&mut self) -> io::Result<Option<VoteOf<C>>> {
         Ok(self.vote.clone())
     }
 }
@@ -267,11 +267,6 @@ where
     transaction.commit().map_err(io_error)
 }
 
-fn write_error<C: RaftTypeConfig>(error: impl std::fmt::Display) -> StorageError<C> {
-    let error = io_error(error);
-    StorageError::write_logs(&error)
-}
-
 mod impl_log_store {
     use std::fmt::Debug;
     use std::io;
@@ -280,12 +275,10 @@ mod impl_log_store {
     use openraft::alias::{LogIdOf, VoteOf};
     use openraft::entry::RaftEntry;
     use openraft::storage::{IOFlushed, RaftLogStorage};
-    use openraft::{LogState, RaftLogReader, RaftTypeConfig, StorageError};
+    use openraft::{LogState, RaftLogReader, RaftTypeConfig};
     use serde::Serialize;
 
-    use super::{
-        InMemStore, LOG_TABLE, META_TABLE, StoreMeta, io_error, persist_meta, write_error,
-    };
+    use super::{InMemStore, LOG_TABLE, META_TABLE, StoreMeta, io_error, persist_meta};
 
     impl<C: RaftTypeConfig> RaftLogReader<C> for InMemStore<C>
     where
@@ -296,11 +289,11 @@ mod impl_log_store {
         async fn try_get_log_entries<RB: RangeBounds<u64> + Clone + Debug>(
             &mut self,
             range: RB,
-        ) -> Result<Vec<C::Entry>, StorageError<C>> {
+        ) -> io::Result<Vec<C::Entry>> {
             self.inner.lock().await.try_get_log_entries(range).await
         }
 
-        async fn read_vote(&mut self) -> Result<Option<VoteOf<C>>, StorageError<C>> {
+        async fn read_vote(&mut self) -> io::Result<Option<VoteOf<C>>> {
             self.inner.lock().await.read_vote().await
         }
     }
@@ -313,44 +306,37 @@ mod impl_log_store {
     {
         type LogReader = Self;
 
-        async fn get_log_state(&mut self) -> Result<LogState<C>, StorageError<C>> {
+        async fn get_log_state(&mut self) -> io::Result<LogState<C>> {
             self.inner.lock().await.get_log_state().await
         }
 
-        async fn save_committed(
-            &mut self,
-            committed: Option<LogIdOf<C>>,
-        ) -> Result<(), StorageError<C>> {
+        async fn save_committed(&mut self, committed: Option<LogIdOf<C>>) -> io::Result<()> {
             let mut inner = self.inner.lock().await;
             let mut meta = StoreMeta::from(&*inner);
             meta.committed = committed.clone();
             if let Some(database) = &self.database {
-                persist_meta(database, &meta).map_err(write_error)?;
+                persist_meta(database, &meta)?;
             }
             inner.committed = committed;
             Ok(())
         }
 
-        async fn read_committed(&mut self) -> Result<Option<LogIdOf<C>>, StorageError<C>> {
+        async fn read_committed(&mut self) -> io::Result<Option<LogIdOf<C>>> {
             self.inner.lock().await.read_committed().await
         }
 
-        async fn save_vote(&mut self, vote: &VoteOf<C>) -> Result<(), StorageError<C>> {
+        async fn save_vote(&mut self, vote: &VoteOf<C>) -> io::Result<()> {
             let mut inner = self.inner.lock().await;
             let mut meta = StoreMeta::from(&*inner);
             meta.vote = Some(vote.clone());
             if let Some(database) = &self.database {
-                persist_meta(database, &meta).map_err(write_error)?;
+                persist_meta(database, &meta)?;
             }
             inner.vote = Some(vote.clone());
             Ok(())
         }
 
-        async fn append<I>(
-            &mut self,
-            entries: I,
-            callback: IOFlushed<C>,
-        ) -> Result<(), StorageError<C>>
+        async fn append<I>(&mut self, entries: I, callback: IOFlushed<C>) -> io::Result<()>
         where
             I: IntoIterator<Item = C::Entry>,
         {
@@ -382,26 +368,27 @@ mod impl_log_store {
                 Ok(())
             });
             drop(inner);
-            callback.io_completed(result).await;
+            callback.io_completed(result);
             Ok(())
         }
 
-        async fn truncate(&mut self, log_id: LogIdOf<C>) -> Result<(), StorageError<C>> {
+        async fn truncate_after(&mut self, last_log_id: Option<LogIdOf<C>>) -> io::Result<()> {
             let mut inner = self.inner.lock().await;
+            let start = last_log_id.map_or(0, |log_id| log_id.index() + 1);
             let keys = inner
                 .log
-                .range(log_id.index()..)
+                .range(start..)
                 .map(|(index, _)| *index)
                 .collect::<Vec<_>>();
             if let Some(database) = &self.database {
-                let transaction = database.begin_write().map_err(write_error)?;
+                let transaction = database.begin_write().map_err(io_error)?;
                 {
-                    let mut table = transaction.open_table(LOG_TABLE).map_err(write_error)?;
+                    let mut table = transaction.open_table(LOG_TABLE).map_err(io_error)?;
                     for key in &keys {
-                        table.remove(key).map_err(write_error)?;
+                        table.remove(key).map_err(io_error)?;
                     }
                 }
-                transaction.commit().map_err(write_error)?;
+                transaction.commit().map_err(io_error)?;
             }
             for key in keys {
                 inner.log.remove(&key);
@@ -409,7 +396,7 @@ mod impl_log_store {
             Ok(())
         }
 
-        async fn purge(&mut self, log_id: LogIdOf<C>) -> Result<(), StorageError<C>> {
+        async fn purge(&mut self, log_id: LogIdOf<C>) -> io::Result<()> {
             let mut inner = self.inner.lock().await;
             assert!(inner.last_purged_log_id.as_ref() <= Some(&log_id));
             let keys = inner
@@ -421,20 +408,20 @@ mod impl_log_store {
             meta.last_purged_log_id = Some(log_id.clone());
 
             if let Some(database) = &self.database {
-                let meta = super::encode_meta(&meta).map_err(write_error)?;
-                let transaction = database.begin_write().map_err(write_error)?;
+                let meta = super::encode_meta(&meta)?;
+                let transaction = database.begin_write().map_err(io_error)?;
                 {
-                    let mut table = transaction.open_table(LOG_TABLE).map_err(write_error)?;
+                    let mut table = transaction.open_table(LOG_TABLE).map_err(io_error)?;
                     for key in &keys {
-                        table.remove(key).map_err(write_error)?;
+                        table.remove(key).map_err(io_error)?;
                     }
                 }
                 transaction
                     .open_table(META_TABLE)
-                    .map_err(write_error)?
+                    .map_err(io_error)?
                     .insert(super::META_KEY, meta.as_slice())
-                    .map_err(write_error)?;
-                transaction.commit().map_err(write_error)?;
+                    .map_err(io_error)?;
+                transaction.commit().map_err(io_error)?;
             }
 
             inner.last_purged_log_id = Some(log_id);

@@ -2,7 +2,7 @@
 
 use std::io;
 
-use compio::buf::{IoBuf, IoBufMut, IoBufMutExt, Slice};
+use compio::buf::{IoBuf, IoBufMut, Slice};
 use compio::io::framed::Framed;
 use compio::io::framed::codec::{Decoder, Encoder};
 use compio::io::framed::frame::LengthDelimited;

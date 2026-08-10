@@ -1,19 +1,19 @@
 //! Typed Raft and membership RPC interface.
 
+use std::io::Cursor;
 use std::rc::Rc;
 use std::time::Instant;
 
 use compio::time::sleep;
 use openraft::ReadPolicy;
-use openraft::alias::LogIdOf;
+use openraft::alias::{LogIdOf, SnapshotMetaOf, VoteOf};
 use openraft::async_runtime::watch::WatchReceiver;
-use openraft::error::{
-    ChangeMembershipError, CheckIsLeaderError, ClientWriteError, InstallSnapshotError, RaftError,
-};
+use openraft::error::{ChangeMembershipError, ClientWriteError, LinearizableReadError, RaftError};
 use openraft::raft::{
-    AppendEntriesRequest, AppendEntriesResponse, ClientWriteResponse, InstallSnapshotRequest,
-    InstallSnapshotResponse, VoteRequest, VoteResponse,
+    AppendEntriesRequest, AppendEntriesResponse, ClientWriteResponse, SnapshotResponse,
+    VoteRequest, VoteResponse,
 };
+use openraft::storage::Snapshot;
 use openraft_rt_compio::futures::lock::Mutex;
 use serde::{Deserialize, Serialize};
 use tarpc::context::Context;
@@ -50,9 +50,11 @@ pub trait UpgridService {
 
     async fn ask_to_join(remote: Identity, token: String) -> Result<(), JoinError>;
 
-    async fn install_snapshot(
-        req: InstallSnapshotRequest<TC>,
-    ) -> Result<InstallSnapshotResponse<TC>, RaftError<TC, InstallSnapshotError>>;
+    async fn full_snapshot(
+        vote: VoteOf<TC>,
+        meta: SnapshotMetaOf<TC>,
+        data: Vec<u8>,
+    ) -> Result<SnapshotResponse<TC>, RaftError<TC>>;
 
     async fn append_entries(
         req: AppendEntriesRequest<TC>,
@@ -64,7 +66,7 @@ pub trait UpgridService {
         req: Req,
     ) -> Result<ClientWriteResponse<TC>, RaftError<TC, ClientWriteError<TC>>>;
 
-    async fn read_index() -> Result<Option<LogIdOf<TC>>, RaftError<TC, CheckIsLeaderError<TC>>>;
+    async fn read_index() -> Result<LogIdOf<TC>, RaftError<TC, LinearizableReadError<TC>>>;
 }
 
 #[derive(Clone)]
@@ -203,12 +205,23 @@ impl UpgridService for UpgridServer {
         Ok(())
     }
 
-    async fn install_snapshot(
+    async fn full_snapshot(
         self,
         _: Context,
-        req: InstallSnapshotRequest<TC>,
-    ) -> Result<InstallSnapshotResponse<TC>, RaftError<TC, InstallSnapshotError>> {
-        self.raft.install_snapshot(req).await
+        vote: VoteOf<TC>,
+        meta: SnapshotMetaOf<TC>,
+        data: Vec<u8>,
+    ) -> Result<SnapshotResponse<TC>, RaftError<TC>> {
+        self.raft
+            .install_full_snapshot(
+                vote,
+                Snapshot {
+                    meta,
+                    snapshot: Cursor::new(data),
+                },
+            )
+            .await
+            .map_err(RaftError::Fatal)
     }
 
     async fn append_entries(
@@ -238,8 +251,11 @@ impl UpgridService for UpgridServer {
     async fn read_index(
         self,
         _: Context,
-    ) -> Result<Option<LogIdOf<TC>>, RaftError<TC, CheckIsLeaderError<TC>>> {
-        self.raft.ensure_linearizable(ReadPolicy::ReadIndex).await
+    ) -> Result<LogIdOf<TC>, RaftError<TC, LinearizableReadError<TC>>> {
+        self.raft
+            .ensure_linearizable(ReadPolicy::ReadIndex)
+            .await
+            .map(|read_log_id| *read_log_id.log_id())
     }
 }
 
@@ -295,13 +311,15 @@ mod test {
             Ok(())
         }
 
-        async fn install_snapshot(
+        async fn full_snapshot(
             self,
             _: Context,
-            req: InstallSnapshotRequest<TC>,
-        ) -> Result<InstallSnapshotResponse<TC>, RaftError<TC, InstallSnapshotError>> {
-            info!(?req, "Install snapshot");
-            Ok(InstallSnapshotResponse { vote: req.vote })
+            vote: VoteOf<TC>,
+            meta: SnapshotMetaOf<TC>,
+            data: Vec<u8>,
+        ) -> Result<SnapshotResponse<TC>, RaftError<TC>> {
+            info!(?vote, ?meta, bytes = data.len(), "Install snapshot");
+            Ok(SnapshotResponse::new(vote))
         }
 
         async fn append_entries(
@@ -337,7 +355,7 @@ mod test {
         async fn read_index(
             self,
             _: Context,
-        ) -> Result<Option<LogIdOf<TC>>, RaftError<TC, CheckIsLeaderError<TC>>> {
+        ) -> Result<LogIdOf<TC>, RaftError<TC, LinearizableReadError<TC>>> {
             unimplemented!("the transport smoke test does not issue reads")
         }
     }
