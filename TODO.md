@@ -6,7 +6,7 @@ The MVP is complete. This file records unfinished work for future agile iteratio
 
 - [ ] Replace the static shared administrator username and password with replicated identities, API tokens or sessions, password hashing, and role-based authorization.
 - [ ] Add safe Node drain, membership removal, and failed-Node replacement workflows.
-- [ ] Support editing Notification Channels and sending explicit test deliveries.
+- [ ] Support editing existing Notification Channels.
 - [ ] Add alert acknowledgement, manual delivery retry, and richer alert-history filters.
 
 ## Monitoring Capabilities

@@ -1,78 +1,80 @@
 # UpGrid
 
-UpGrid is a self-contained, Raft-backed uptime monitor. Every Node exposes the same Basic-authenticated API and embedded WebUI. Writes received by followers are forwarded to the leader; reads are served from local replicated state after a linearizable read barrier. The leader assigns HTTP/HTTPS evaluations across voters and delivers Telegram or webhook alerts.
+Distributed uptime monitoring that stays available with your infrastructure.
 
-## Start one Node
+[Website](https://upgrid.rs) · [Documentation](https://upgrid.rs/getting-started/installation/) · [HTTP API](https://upgrid.rs/reference/api/) · [Deployment guide](https://upgrid.rs/reference/deployment/)
 
-UpGrid currently requires the pinned nightly Rust toolchain used by the repository.
+![UpGrid WebUI in bright and dark themes](website/src/assets/webui-showcase.png)
+
+UpGrid is a self-contained, Raft-backed service monitor. Run one binary for a capable uptime dashboard, or join several Nodes into a resilient Cluster without adding a separate database, queue, or control plane.
+
+Every Node exposes the same authenticated API and responsive WebUI. Followers transparently forward changes to the leader, reads come from replicated state after a linearizable barrier, and polling work is distributed across voting members.
+
+## Why UpGrid
+
+- **One binary, no external database.** The API, WebUI, scheduler, probe workers, notifications, and durable Raft state travel together.
+- **A useful interface on every Node.** Manage Targets, inspect latency and availability history, and operate the Cluster from any healthy member.
+- **Distributed monitoring.** The leader assigns each polling interval to one Node, commits one authoritative result, and preserves failure streaks across leader changes.
+- **Flexible HTTP checks.** Use any HTTP method with configurable timeouts, redirects, status ranges, headers, bodies, Secrets, and consecutive-failure thresholds.
+- **Actionable notifications.** Deliver service and Cluster Node transitions through Telegram or webhooks, with default Channels and at-least-once delivery.
+- **Simple expansion.** Create an expiring, revocable `up://` Join Token in the WebUI and start another Node with `--join`.
+
+## Quick start
+
+UpGrid is currently built from source. The repository provides a reproducible Nix development shell with the required Rust, Node, and native tooling.
 
 ```sh
-cargo run -- \
-  --bind 127.0.0.1:8080 \
-  --raft-url up://127.0.0.1:11451 \
-  --data-dir upgrid-data \
+git clone https://github.com/George-Miao/UpGrid.git
+cd UpGrid
+nix develop
+cargo run -p upgrid -- \
   --username admin \
-  --password change-me
+  --password 'replace-this-password'
 ```
 
-Open [http://127.0.0.1:8080/](http://127.0.0.1:8080/) and enter the configured username and password. Data survives restarts in `upgrid-data/`. The generated API description is available at `/openapi.json`; `/healthz` does not require authentication.
+Open [http://127.0.0.1:8080/setup](http://127.0.0.1:8080/setup), sign in, review the generated Node name, and choose **Create new Cluster**. The guided setup can add your first notification Channel and service Target, or skip either step.
 
-TLS is intentionally not forced on the HTTP API so a reverse proxy can terminate it. Do not expose Basic authentication over an untrusted plaintext connection.
-See [deployment notes](docs/DEPLOYMENT.md) for Caddy and Nginx examples.
+State is stored in `upgrid-data/` by default. Use a durable, unique data directory for each Node.
 
-## Start a three-Node Cluster
+## Grow into a Cluster
 
-Start the first Node as above, then create one short-lived link for each joining Node. The WebUI's **Add node** button creates and copies the same command.
+Open **Cluster**, choose **Create token**, and configure its expiration and usage limit. Then start a fresh Node with the generated token:
 
 ```sh
-export JOIN_LINK_2="$(curl -fsS -u admin:change-me \
-  -H 'content-type: application/json' -d '{"expires_in_seconds":600}' \
-  http://127.0.0.1:8080/api/v1/join-links | jq -r .url)"
-export JOIN_LINK_3="$(curl -fsS -u admin:change-me \
-  -H 'content-type: application/json' -d '{"expires_in_seconds":600}' \
-  http://127.0.0.1:8080/api/v1/join-links | jq -r .url)"
+cargo run -p upgrid -- \
+  --join 'up://existing-node.example/opaque-token' \
+  --bind 127.0.0.1:8081 \
+  --raft-url up://node-2.internal:11451 \
+  --data-dir upgrid-data-2 \
+  --username admin \
+  --password 'replace-this-password'
 ```
 
-In two more terminals, use unique API addresses, Raft URLs, and data directories while keeping the same API credentials:
+The Join Token contains admission authority and deployment material. Treat it as a password, transfer it through a trusted channel, and revoke reusable tokens after provisioning. Every advertised `up://` address must be reachable by every Cluster member.
 
-```sh
-cargo run -- --bind 127.0.0.1:8081 --raft-url up://127.0.0.1:11452 \
-  --join "$JOIN_LINK_2" --data-dir upgrid-data-2 \
-  --username admin --password change-me
+See [Join a Cluster](https://upgrid.rs/guides/join-cluster/) for browser and unattended workflows.
 
-cargo run -- --bind 127.0.0.1:8082 --raft-url up://127.0.0.1:11453 \
-  --join "$JOIN_LINK_3" --data-dir upgrid-data-3 \
-  --username admin --password change-me
-```
+## How it works
 
-The opaque `up://` link carries both a single-use admission token and the deployment material needed for mutual TLS and replicated Secret decryption. Treat it as a password, never log or archive it, and create a separate link for every Node. The `up://` hostname advertised by each Node must be reachable by every other Node. The joining process stores the deployment key with private permissions before connecting; the leader atomically consumes the token through Raft. On restart, a Node resumes membership from its data directory and no longer needs `--join`.
+1. A request reaches any Node. Mutations are forwarded to the Raft leader; consistent reads use the local replicated state.
+2. The leader assigns due evaluations across voting Nodes. The first accepted result for an interval becomes authoritative.
+3. Replicated policy turns results into **Up**, **Suspicious**, **Down**, or **Paused** state.
+4. Availability transitions enter a replicated outbox and are delivered to the Target's notification Channels.
 
-## Verify
+The HTTP API can run behind a TLS-terminating reverse proxy or serve HTTPS directly. `/healthz` is public; the WebUI and remaining API routes use Basic authentication. Never expose Basic credentials over untrusted plaintext transport.
+
+## Development
 
 ```sh
 cargo fmt --all -- --check
-cargo test --no-run
-cargo test domain::tests
-cargo test scheduler::tests
-cargo test published_openapi_matches_routes
-pnpm --dir frontend install --frozen-lockfile
-pnpm --dir frontend build
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --no-run
 scripts/test-webui.sh
 scripts/verify-local-cluster.sh
 ```
 
-The browser test starts an isolated Node and exercises the embedded UI in Chromium. The final command starts three local Nodes, writes through a follower, and confirms the Target is readable from every Node. The legacy fixed-port `master` and `worker` network tests are manual fixtures; do not run the unfiltered suite in automation.
+The Lit frontend lives in `frontend/`; the Starlight documentation site lives in `website/`. Run `scripts/update-webui.sh` after frontend changes and `scripts/update-openapi.sh` after API route or schema changes.
 
-## WebUI development
+## Project status
 
-The Lit/TypeScript source is in `frontend/src/`. Run `scripts/update-webui.sh` after changing it; Vite rebuilds the checked-in `frontend/dist/` files embedded by the Rust binary. CI rebuilds the same artifact and rejects stale generated output. Install Chromium once with `pnpm --dir frontend exec playwright install chromium` before running browser tests locally.
-
-With an UpGrid Node running on port 8080, start the Vite development server with hot reload:
-
-```sh
-pnpm --dir frontend dev
-```
-
-Set `UPGRID_API_URL`, `UPGRID_USERNAME`, and `UPGRID_PASSWORD` when the API uses a different address or credentials; Vite proxies `/api` to that Node.
-
-Run `scripts/update-openapi.sh` after changing API routes or schemas. CI compares the generated contract with `docs/openapi.json`. A running reference deployment can exercise the 1,000-Target SLO with `scripts/verify-reference-workload.sh`.
+The self-contained MVP is complete and development now follows small, agile iterations. UpGrid is suitable for evaluation and self-hosted experimentation; authentication and Cluster membership operations are still being hardened. Current follow-up work is tracked in [TODO.md](TODO.md).

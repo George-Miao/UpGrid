@@ -1,8 +1,10 @@
 # First-Run Cluster OOBE
 
+Status: implemented. This document records the accepted behavior and its original motivation.
+
 ## Problem Statement
 
-A fresh UpGrid Node currently needs an operator to understand startup flags before it can safely create or join a Cluster. The browser onboarding path only supports joining, while ordinary startup silently creates a Cluster. Operators also see cluster actions that are invalid for the Node's current lifecycle state, and optional first Target and Notification Channel setup is disconnected from provisioning.
+Before OOBE was introduced, a fresh UpGrid Node required an operator to understand startup flags before it could safely create or join a Cluster. The browser onboarding path only supported joining, while ordinary startup silently created a Cluster. Operators also saw cluster actions that were invalid for the Node's lifecycle state, and optional first Target and Notification Channel setup was disconnected from provisioning.
 
 ## Solution
 

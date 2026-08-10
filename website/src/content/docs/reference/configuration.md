@@ -38,7 +38,7 @@ Start with `upgrid --config /etc/upgrid.toml` or set `UPGRID_CONFIG=/etc/upgrid.
 | `password` | `UPGRID_PASSWORD` | `--password` | `upgrid` |
 | `new_cluster` | `UPGRID_NEW_CLUSTER` | `--new-cluster` | `false` |
 | `join` | `UPGRID_JOIN` | `--join` | unset |
-| `history_retention_hours` | `UPGRID_HISTORY_RETENTION_HOURS` | `--history-retention-hours` | unset |
+| `history_retention_hours` | `UPGRID_HISTORY_RETENTION_HOURS` | `--history-retention-hours` | 24 hours for a new Cluster |
 | `tls_cert` | `UPGRID_TLS_CERT` | `--tls-cert` | unset |
 | `tls_key` | `UPGRID_TLS_KEY` | `--tls-key` | unset |
 
