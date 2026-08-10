@@ -145,11 +145,22 @@ jobs:
           GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
+          image_ref="${IMAGE_NAME}:${GITHUB_REF_NAME}"
+          image_url="https://github.com/${GITHUB_REPOSITORY}/pkgs/container/upgrid"
+          printf -v image_note "## Container image\n\n[\`%s\`](%s)" "$image_ref" "$image_url"
+
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" release/* --clobber
+
+            existing_notes="$(gh release view "$GITHUB_REF_NAME" --json body --jq .body)"
+            if [[ "$existing_notes" != *"$image_ref"* ]]; then
+              gh release edit "$GITHUB_REF_NAME" \
+                --notes "$image_note"$'\n\n'"$existing_notes"
+            fi
           else
             gh release create "$GITHUB_REF_NAME" release/* \
               --verify-tag \
               --generate-notes \
+              --notes "$image_note" \
               --title "UpGrid $GITHUB_REF_NAME"
           fi
