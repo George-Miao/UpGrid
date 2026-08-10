@@ -109,6 +109,9 @@ export class UpgridApp extends AppController {
     .resource strong { display: block; font-size: 13px; }
     .resource code { color: var(--muted); font-size: 11px; }
     .badge { border: 1px solid var(--badge-border); border-radius: 999px; color: var(--badge-text); padding: 2px 7px; font-size: 10px; text-transform: uppercase; }
+    .badge.up { border-color: var(--green); color: var(--green); }
+    .badge.down { border-color: var(--red); color: var(--red); }
+    .transition-main { display: flex; align-items: center; gap: 12px; }
     .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 17px 20px; border-bottom: 1px solid var(--line); }
     .panel-head h2 { margin: 0; font-size: 14px; }
     .target-wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; border-bottom: 1px solid var(--divider); padding-left: 20px; }

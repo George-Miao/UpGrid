@@ -125,6 +125,9 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
   const transition = page.getByRole("region", { name: "Alert history" })
     .locator(".resource", { hasText: targetName });
   await expect(transition).toContainText("down");
+  await expect(transition.locator(".state")).toHaveClass(/down/);
+  await expect(transition.locator(".badge")).toHaveClass(/down/);
+  await expect(transition.locator(".badge")).toHaveCSS("color", "rgb(197, 52, 52)");
 
   await page.goto("/");
   await page.getByRole("button", { name: "Add target" }).click();

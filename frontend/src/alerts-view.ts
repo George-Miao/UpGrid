@@ -22,7 +22,21 @@ export function renderAlertsPage(
       <section class="panel" aria-label="Alert history">
         <div class="panel-head"><h2>Availability transitions</h2><span class="meta">${transitions.length} events</span></div>
         ${transitions.length
-          ? transitions.map((transition) => html`<div class="resource"><div><strong>${transition.target_name}</strong><code>${new Date(transition.scheduled_at_ms).toLocaleString()}</code></div><span class="badge">${transition.kind}</span></div>`)
+          ? transitions.map((transition) => {
+              const status = transition.kind === "recovered" ? "up" : "down";
+              return html`
+                <div class="resource">
+                  <div class="transition-main">
+                    <span class=${`state ${status}`} aria-hidden="true"></span>
+                    <div>
+                      <strong>${transition.target_name}</strong>
+                      <code>${new Date(transition.scheduled_at_ms).toLocaleString()}</code>
+                    </div>
+                  </div>
+                  <span class=${`badge ${status}`}>${transition.kind}</span>
+                </div>
+              `;
+            })
           : html`<div class="empty">No availability transitions.</div>`}
       </section>
       <section class="panel" aria-label="Notification channels">

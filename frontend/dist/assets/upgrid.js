@@ -87,7 +87,18 @@
     <div class="page-columns">
       <section class="panel" aria-label="Alert history">
         <div class="panel-head"><h2>Availability transitions</h2><span class="meta">${t.length} events</span></div>
-        ${t.length?t.map(i=>h`<div class="resource"><div><strong>${i.target_name}</strong><code>${new Date(i.scheduled_at_ms).toLocaleString()}</code></div><span class="badge">${i.kind}</span></div>`):h`<div class="empty">No availability transitions.</div>`}
+        ${t.length?t.map(i=>{const n=i.kind==="recovered"?"up":"down";return h`
+                <div class="resource">
+                  <div class="transition-main">
+                    <span class=${`state ${n}`} aria-hidden="true"></span>
+                    <div>
+                      <strong>${i.target_name}</strong>
+                      <code>${new Date(i.scheduled_at_ms).toLocaleString()}</code>
+                    </div>
+                  </div>
+                  <span class=${`badge ${n}`}>${i.kind}</span>
+                </div>
+              `}):h`<div class="empty">No availability transitions.</div>`}
       </section>
       <section class="panel" aria-label="Notification channels">
         <div class="panel-head"><h2>Notification channels</h2><span class="meta">${e.length} configured</span></div>
@@ -412,6 +423,9 @@
     .resource strong { display: block; font-size: 13px; }
     .resource code { color: var(--muted); font-size: 11px; }
     .badge { border: 1px solid var(--badge-border); border-radius: 999px; color: var(--badge-text); padding: 2px 7px; font-size: 10px; text-transform: uppercase; }
+    .badge.up { border-color: var(--green); color: var(--green); }
+    .badge.down { border-color: var(--red); color: var(--red); }
+    .transition-main { display: flex; align-items: center; gap: 12px; }
     .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 17px 20px; border-bottom: 1px solid var(--line); }
     .panel-head h2 { margin: 0; font-size: 14px; }
     .target-wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; border-bottom: 1px solid var(--divider); padding-left: 20px; }
