@@ -7,7 +7,6 @@ const password = process.env.UPGRID_PASSWORD ?? "upgrid";
 
 export default defineConfig({
   server: {
-    host: "0.0.0.0",
     proxy: {
       "/api": {
         target: apiUrl,
