@@ -379,7 +379,7 @@ test("keeps primary navigation visible on mobile", async ({ page }) => {
   await expect(page).toHaveURL(/\/alerts$/);
 });
 
-test("lists Cluster members as read-only Node Targets", async ({ page }) => {
+test("renames a Node Target and shows its evaluation history", async ({ page }) => {
   await page.goto("/");
 
   const node = page.locator(".target-wrap", { has: page.getByText("Node", { exact: true }) }).first();
@@ -395,6 +395,26 @@ test("lists Cluster members as read-only Node Targets", async ({ page }) => {
   expect(name).not.toBeNull();
   expect(badge).not.toBeNull();
   expect(badge!.x).toBeGreaterThan(name!.x + name!.width);
+  await expect(node.locator(".mini-chart")).toBeVisible({ timeout: 15_000 });
+
+  const originalName = (await node.locator("h3").textContent())!;
+  const renamed = `${originalName}-renamed`;
+  await node.locator("button.target").click();
+  const details = page.getByRole("dialog", { name: "Node details" });
+  await expect(details.getByLabel("RPC URL")).toBeDisabled();
+  await expect(details.getByRole("button", { name: "Save changes" })).toBeDisabled();
+  await expect(details.getByRole("listitem").first())
+    .toHaveAttribute("aria-label", /reachable.*Executed by/);
+  await details.getByRole("textbox", { name: "Name", exact: true }).fill(renamed);
+  await details.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("button", { name: renamed })).toBeVisible();
+
+  await page.getByRole("button", { name: renamed }).click();
+  await page.getByRole("dialog", { name: "Node details" })
+    .getByRole("textbox", { name: "Name", exact: true }).fill(originalName);
+  await page.getByRole("dialog", { name: "Node details" })
+    .getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("button", { name: originalName })).toBeVisible();
 });
 
 test("copying a join command confirms success", async ({ page }) => {

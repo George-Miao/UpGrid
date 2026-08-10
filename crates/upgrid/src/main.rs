@@ -54,25 +54,35 @@ async fn run() -> AppResult<()> {
     };
     let ready = bootstrap::prepare(*config).await?;
     let bootstrap::Ready {
-        config,
+        mut config,
         node,
         cipher,
-        node_name,
+        mut node_name,
         oobe,
         startup_warning,
         bootstrapping,
     } = ready;
     let node_id = node.node_id();
-    node.write(Req {
-        operation_id: uuid::Uuid::now_v7(),
-        submitted_at_ms: upgrid_config::now_ms(),
-        command: Command::SetNodeName {
-            node_id,
-            name: node_name,
-        },
-    })
-    .await
-    .map_err(std::io::Error::other)?;
+    if let Some(replicated) = node
+        .local_application_state()
+        .node_names
+        .get(&node_id)
+        .cloned()
+    {
+        node_name = replicated;
+        config.node_name = Some(node_name.clone());
+    } else {
+        node.write(Req {
+            operation_id: uuid::Uuid::now_v7(),
+            submitted_at_ms: upgrid_config::now_ms(),
+            command: Command::SetNodeName {
+                node_id,
+                name: node_name,
+            },
+        })
+        .await
+        .map_err(std::io::Error::other)?;
+    }
     if let Some(retention_ms) = config
         .history_retention_ms
         .or_else(|| bootstrapping.then_some(DEFAULT_HISTORY_RETENTION_MS))

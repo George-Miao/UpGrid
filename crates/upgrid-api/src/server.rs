@@ -1,5 +1,6 @@
 use super::assets::*;
 use super::join::*;
+use super::nodes::*;
 use super::resources::*;
 use super::targets::*;
 use super::*;
@@ -111,6 +112,7 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(get_target, update_target, delete_target))
         .routes(routes!(pause_target))
         .routes(routes!(resume_target))
+        .routes(routes!(rename_node))
         .routes(routes!(list_channels, create_channel))
         .routes(routes!(set_channel_default))
         .routes(routes!(test_channel))

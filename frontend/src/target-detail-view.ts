@@ -24,6 +24,7 @@ export function renderTargetDetail(
   channels: Channel[],
   actions: Actions,
 ) {
+  const isNode = target.kind === "node";
   const statuses = target.accepted_statuses
     .map((range) => (range.start === range.end ? range.start : `${range.start}-${range.end}`))
     .join(",");
@@ -39,27 +40,31 @@ export function renderTargetDetail(
   return html`
     <dialog id="detail-dialog" aria-labelledby="target-detail-title" @click=${actions.backdrop}>
       <div class="dialog-head">
-        <h2 id="target-detail-title">Target details</h2>
-        <button class="button secondary icon-button dialog-close" type="button" aria-label="Close target details" title="Close" @click=${actions.close}><iconify-icon .icon=${closeIcon} aria-hidden="true"></iconify-icon></button>
+        <h2 id="target-detail-title">${isNode ? "Node details" : "Target details"}</h2>
+        <button class="button secondary icon-button dialog-close" type="button" aria-label=${`Close ${isNode ? "Node" : "Target"} details`} title="Close" @click=${actions.close}><iconify-icon .icon=${closeIcon} aria-hidden="true"></iconify-icon></button>
       </div>
       <form @submit=${actions.update} @input=${actions.changed}>
         <label>Name<input name="name" .value=${target.name} required /></label>
-        <label>URL<input name="url" type="url" .value=${target.url} required /></label>
-        <div class="row"><label>Method<input name="method" .value=${target.method} required /></label><label>Expected statuses<input name="statuses" .value=${statuses} required /></label></div>
-        <div class="row"><label>Interval (seconds)<input name="interval" type="number" min="1" .value=${String(target.interval_seconds)} required /></label><label>Timeout (seconds)<input name="timeout" type="number" min="1" .value=${String(target.timeout_seconds)} required /></label></div>
-        <div class="row"><label>Failures before Down<input name="failures" type="number" min="1" .value=${String(target.failure_threshold)} required /></label><label>Maximum redirects<input name="max_redirects" type="number" min="0" .value=${String(target.max_redirects)} ?disabled=${!target.follow_redirects} required /></label></div>
-        <label>Body must contain<input name="body_contains" .value=${target.body_contains ?? ""} /></label>
-        <div class="row"><label class="check"><input name="follow_redirects" type="checkbox" .checked=${target.follow_redirects} @change=${actions.redirects} />Follow redirects</label><label class="check"><input name="skip_tls_verification" type="checkbox" .checked=${target.skip_tls_verification} />Skip TLS verification</label></div>
-        ${renderChannelFields(
-          channels,
-          target.notification_channel_ids,
-          target.use_default_channels,
-        )}
+        ${isNode
+          ? html`<label>RPC URL<input .value=${target.url} disabled /></label>`
+          : html`
+              <label>URL<input name="url" type="url" .value=${target.url} required /></label>
+              <div class="row"><label>Method<input name="method" .value=${target.method} required /></label><label>Expected statuses<input name="statuses" .value=${statuses} required /></label></div>
+              <div class="row"><label>Interval (seconds)<input name="interval" type="number" min="1" .value=${String(target.interval_seconds)} required /></label><label>Timeout (seconds)<input name="timeout" type="number" min="1" .value=${String(target.timeout_seconds)} required /></label></div>
+              <div class="row"><label>Failures before Down<input name="failures" type="number" min="1" .value=${String(target.failure_threshold)} required /></label><label>Maximum redirects<input name="max_redirects" type="number" min="0" .value=${String(target.max_redirects)} ?disabled=${!target.follow_redirects} required /></label></div>
+              <label>Body must contain<input name="body_contains" .value=${target.body_contains ?? ""} /></label>
+              <div class="row"><label class="check"><input name="follow_redirects" type="checkbox" .checked=${target.follow_redirects} @change=${actions.redirects} />Follow redirects</label><label class="check"><input name="skip_tls_verification" type="checkbox" .checked=${target.skip_tls_verification} />Skip TLS verification</label></div>
+              ${renderChannelFields(
+                channels,
+                target.notification_channel_ids,
+                target.use_default_channels,
+              )}
+            `}
         <div class="dialog-actions">
-          <div class="danger-actions">
+          ${isNode ? nothing : html`<div class="danger-actions">
             <button class="button danger icon-button" type="button" aria-label="Delete target" title="Delete target" @click=${actions.delete}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
             <button class=${`button ${target.paused ? "success" : "warning"} icon-button`} type="button" aria-label=${target.paused ? "Resume evaluations" : "Pause evaluations"} title=${target.paused ? "Resume evaluations" : "Pause evaluations"} @click=${() => actions.pause(!target.paused)}><iconify-icon .icon=${target.paused ? playIcon : pauseIcon} aria-hidden="true"></iconify-icon></button>
-          </div>
+          </div>`}
           <button class="button" type="submit" aria-busy=${saving ? "true" : "false"} ?disabled=${saving || !dirty}>Save changes</button>
         </div>
       </form>
@@ -71,7 +76,9 @@ export function renderTargetDetail(
             <div class="history-chart" role="list" aria-label=${`Recent evaluation latency, 0 to ${chartLatency(maxLatency)}`}>
               ${history.map((item) => {
                 const result = item.succeeded ? "Passed" : "Failed";
-                const status = item.status_code === null ? "network error" : `HTTP ${item.status_code}`;
+                const status = isNode
+                  ? (item.succeeded ? "reachable" : "unreachable")
+                  : item.status_code === null ? "network error" : `HTTP ${item.status_code}`;
                 const executor = nodeNames.get(item.executor_node_id) ?? `Node ${item.executor_node_id.slice(0, 8)}`;
                 const label = `${result} at ${new Date(item.recorded_at_ms).toLocaleString()}: ${item.latency_ms} ms, ${status}. Executed by ${executor}`;
                 return html`<span class="history-bar ${item.succeeded ? "up" : "down"}" role="listitem" aria-label=${label} title=${label} style=${`height: ${Math.max(8, item.latency_ms / maxLatency * 100)}%`}></span>`;

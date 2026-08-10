@@ -35,6 +35,7 @@ use uuid::Uuid;
 mod assets;
 mod join;
 mod model;
+mod nodes;
 mod resources;
 mod server;
 mod setup;

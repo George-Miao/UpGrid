@@ -38,29 +38,34 @@ export class AppController extends AppState {
     event.preventDefault();
     if (!this.selected) return;
     const fields = new FormData(event.currentTarget as HTMLFormElement);
-    const follow = fields.get("follow_redirects") === "on";
-    const input: TargetInput = {
-      name: String(fields.get("name")), url: String(fields.get("url")), method: String(fields.get("method")),
-      accepted_statuses: String(fields.get("statuses")).split(",").map((part) => {
-        const [start, end] = part.trim().split("-").map(Number);
-        return { start, end: end || start };
-      }),
-      follow_redirects: follow, max_redirects: follow ? Number(fields.get("max_redirects")) : 0,
-      interval_seconds: Number(fields.get("interval")), timeout_seconds: Number(fields.get("timeout")),
-      failure_threshold: Number(fields.get("failures")),
-      headers: Object.fromEntries(Object.entries(this.selected.headers).map(([name, value]) => [
-        name, value.kind === "literal" ? value.value : { secret_id: value.secret_id },
-      ])),
-      body: this.selected.body?.kind === "literal" ? this.selected.body.value
-        : this.selected.body ? { secret_id: this.selected.body.secret_id } : null,
-      body_contains: String(fields.get("body_contains")) || null,
-      skip_tls_verification: fields.get("skip_tls_verification") === "on",
-      notification_channel_ids: fields.getAll("channel_id").map(String),
-      use_default_channels: fields.get("use_default_channels") === "on",
-    };
+    let path = `/api/v1/nodes/${this.selected.id}`;
+    let input: TargetInput | { name: string } = { name: String(fields.get("name")) };
+    if (this.selected.kind === "http") {
+      const follow = fields.get("follow_redirects") === "on";
+      path = `/api/v1/targets/${this.selected.id}`;
+      input = {
+        name: String(fields.get("name")), url: String(fields.get("url")), method: String(fields.get("method")),
+        accepted_statuses: String(fields.get("statuses")).split(",").map((part) => {
+          const [start, end] = part.trim().split("-").map(Number);
+          return { start, end: end || start };
+        }),
+        follow_redirects: follow, max_redirects: follow ? Number(fields.get("max_redirects")) : 0,
+        interval_seconds: Number(fields.get("interval")), timeout_seconds: Number(fields.get("timeout")),
+        failure_threshold: Number(fields.get("failures")),
+        headers: Object.fromEntries(Object.entries(this.selected.headers).map(([name, value]) => [
+          name, value.kind === "literal" ? value.value : { secret_id: value.secret_id },
+        ])),
+        body: this.selected.body?.kind === "literal" ? this.selected.body.value
+          : this.selected.body ? { secret_id: this.selected.body.secret_id } : null,
+        body_contains: String(fields.get("body_contains")) || null,
+        skip_tls_verification: fields.get("skip_tls_verification") === "on",
+        notification_channel_ids: fields.getAll("channel_id").map(String),
+        use_default_channels: fields.get("use_default_channels") === "on",
+      };
+    }
     this.saving = true;
     try {
-      await request<Target>(`/api/v1/targets/${this.selected.id}`, { method: "PUT", body: JSON.stringify(input) });
+      await request<unknown>(path, { method: "PUT", body: JSON.stringify(input) });
       this.closeDetailDialog();
       await this.refresh();
     } catch (error) {

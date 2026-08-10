@@ -77,3 +77,27 @@ fn syncing_membership_preserves_health_and_removes_departed_nodes() {
     state.apply(Command::SyncNodeTargets(Vec::new())).unwrap();
     assert!(state.node_targets.is_empty());
 }
+
+#[test]
+fn renaming_a_node_updates_its_target_without_losing_history() {
+    let mut state = ApplicationState::default();
+    let node_id = id(31);
+    let node = node(node_id, "green-anchor");
+    state
+        .apply(Command::SyncNodeTargets(vec![node.clone()]))
+        .unwrap();
+    let mut passed = evaluation(node.id(), 1_000, true);
+    passed.http.final_url = node.url.clone();
+    state.apply(Command::RecordNodeEvaluation(passed)).unwrap();
+
+    state
+        .apply(Command::SetNodeName {
+            node_id,
+            name: "  renamed-anchor  ".to_owned(),
+        })
+        .unwrap();
+
+    let renamed = &state.node_targets[&node.id()];
+    assert_eq!(renamed.target.name, "renamed-anchor");
+    assert_eq!(renamed.history.len(), 1);
+}

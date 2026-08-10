@@ -157,6 +157,9 @@ impl ApplicationState {
                     ));
                 }
                 self.node_names.insert(node_id, name.to_owned());
+                if let Some(target) = self.node_targets.get_mut(&TargetId(node_id)) {
+                    target.target.name = name.to_owned();
+                }
                 Ok(CommandResult::NodeNameSet(node_id))
             }
             Command::SetNotificationChannelDefault {
@@ -381,6 +384,6 @@ use uuid::Uuid;
 use super::{
     AlertDelivery, AlertId, ApplicationState, Command, CommandResult,
     DEFAULT_OPERATION_RETENTION_MS, DomainError, EvaluationAssignment, MAX_DIAGNOSTIC_BYTES,
-    NodeTarget, NodeTargetState, NotificationChannel, ProcessedOperation, Secret, Target,
+    NodeTarget, NodeTargetState, NotificationChannel, ProcessedOperation, Secret, Target, TargetId,
     TargetState,
 };
