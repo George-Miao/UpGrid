@@ -20,19 +20,6 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 import { Image } from 'astro:assets';
 import webuiShowcase from '../../assets/webui-showcase.png';
 
-## An elegant WebUI on every Node
-
-See service health, recent latency, Cluster status, and operational controls in one responsive dashboard.
-
-<Image
-	class="webui-showcase"
-	src={webuiShowcase}
-	alt="UpGrid overview dashboard in bright and dark themes, showing service status cards and monitored Targets"
-	format="png"
-	loading="eager"
-	quality={100}
-/>
-
 ## Monitoring without a control-plane dependency
 
 Every UpGrid Node runs the API, WebUI, scheduler, probe worker, notification worker, and a copy of the Raft state. Add a service once and the Cluster coordinates who checks it.
@@ -51,6 +38,15 @@ Every UpGrid Node runs the API, WebUI, scheduler, probe worker, notification wor
 		Configure Targets, inspect history, manage alerts, and operate the Cluster from a responsive dashboard.
 	</Card>
 </CardGrid>
+
+<Image
+	class="webui-showcase"
+	src={webuiShowcase}
+	alt="UpGrid overview dashboard in bright and dark themes, showing service status cards and monitored Targets"
+	format="png"
+	loading="eager"
+	quality={100}
+/>
 
 ## Begin with one Node
 
