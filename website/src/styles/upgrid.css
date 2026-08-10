@@ -41,3 +41,8 @@
 
 .card { border-radius: 1rem; }
 code { border-radius: 0.35rem; }
+
+.sl-markdown-content table code:not(:where(.not-content *)) {
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
