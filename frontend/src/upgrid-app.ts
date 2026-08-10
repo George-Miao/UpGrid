@@ -172,8 +172,8 @@ export class UpgridApp extends AppController {
     .success:hover { border-color: var(--button-text); }
     .dialog-close { position: absolute; top: 12px; right: 14px; }
     .check { display: flex; align-items: center; gap: 8px; } .check input { width: auto; }
-    .channel-fields { display: grid; gap: 7px; margin: 0; border: 0; padding: 0; }
-    .channel-fields legend { margin-bottom: 5px; padding: 0; color: var(--muted); font-size: 11px; letter-spacing: .03em; }
+    .channel-fields { display: grid; gap: 9px; margin: 4px 0 0; border: 0; border-top: 1px solid var(--line); padding: 14px 0 0; }
+    .channel-fields legend { padding: 0; color: var(--text); font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
     .channel-options { display: flex; flex-wrap: wrap; gap: 10px 16px; }
     .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .switch input { width: 40px; height: 22px; flex: none; appearance: none; border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }

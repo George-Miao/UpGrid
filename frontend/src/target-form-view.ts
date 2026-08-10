@@ -12,6 +12,16 @@ export function renderChannelFields(
   selected: string[] = [],
   useDefaults = true,
 ) {
+  const updateDefaults = (event: Event) => {
+    const toggle = event.currentTarget as HTMLInputElement;
+    const fieldset = toggle.closest("fieldset");
+    fieldset?.querySelectorAll<HTMLInputElement>('input[data-default="true"]')
+      .forEach((input) => {
+        input.disabled = toggle.checked;
+        input.checked = toggle.checked || input.dataset.explicit === "true";
+      });
+    toggle.form?.dispatchEvent(new Event("input", { bubbles: true }));
+  };
   return html`
     <fieldset class="channel-fields">
       <legend>Notification channels</legend>
@@ -22,20 +32,32 @@ export function renderChannelFields(
           type="checkbox"
           role="switch"
           .checked=${useDefaults}
+          @change=${updateDefaults}
         />
       </label>
       <div class="channel-options">
-        ${channels.map((channel) => html`
-          <label class="check">
-            <input
-              name="channel_id"
-              type="checkbox"
-              value=${channel.id}
-              .checked=${selected.includes(channel.id)}
-            />
-            ${channel.name} <span class="badge">${channel.kind}</span>
-          </label>
-        `)}
+        ${channels.map((channel) => {
+          const explicit = selected.includes(channel.id);
+          const inherited = useDefaults && channel.default;
+          return html`
+            <label class="check">
+              <input
+                name="channel_id"
+                type="checkbox"
+                value=${channel.id}
+                data-default=${String(channel.default)}
+                data-explicit=${String(explicit)}
+                .checked=${explicit || inherited}
+                ?disabled=${inherited}
+                @change=${(event: Event) => {
+                  const input = event.currentTarget as HTMLInputElement;
+                  input.dataset.explicit = String(input.checked);
+                }}
+              />
+              ${channel.name} <span class="badge">${channel.kind}</span>
+            </label>
+          `;
+        })}
       </div>
     </fieldset>`;
 }
