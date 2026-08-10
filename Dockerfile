@@ -5,9 +5,10 @@ FROM rustlang/rust:nightly-bookworm AS builder
 WORKDIR /src
 COPY . .
 
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/src/target \
+ARG TARGETARCH
+RUN --mount=type=cache,id=upgrid-cargo-registry-${TARGETARCH},target=/usr/local/cargo/registry \
+    --mount=type=cache,id=upgrid-cargo-git-${TARGETARCH},target=/usr/local/cargo/git \
+    --mount=type=cache,id=upgrid-target-${TARGETARCH},target=/src/target \
     cargo build --locked --release -p upgrid && \
     strip target/release/upgrid && \
     cp target/release/upgrid /tmp/upgrid

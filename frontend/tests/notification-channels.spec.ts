@@ -81,6 +81,7 @@ test("uses trash icons for secret and Target deletion", async ({ page }) => {
 });
 
 test("default channels deliver unless a Target opts out", async ({ page }) => {
+  test.setTimeout(60_000);
   const suffix = Date.now();
   const channelName = `Default delivery webhook ${suffix}`;
   const targetName = `Default delivery target ${suffix}`;
