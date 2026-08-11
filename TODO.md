@@ -2,12 +2,6 @@
 
 The MVP is complete. This file records unfinished work for future agile iterations. Ordered from higher to lower priority.
 
-## Active Iteration
-
-- [x] Existing Notification Channels can be edited from the Alerts page without changing their type.
-- [x] Updates preserve omitted webhook headers and an omitted Telegram bot token; supplied values replace the existing configuration.
-- [x] API and browser tests cover successful edits, retained write-only configuration, and missing Channels.
-
 ## Backlog
 
 - [ ] Add support to email notification channel, via SMTP
