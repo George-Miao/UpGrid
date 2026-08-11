@@ -1,27 +1,22 @@
 # UpGrid TODO
 
-The MVP is complete. This file records unfinished work for future agile iterations; ordering is provisional until an item is selected.
+The MVP is complete. This file records unfinished work for future agile iterations. Ordered from higher to lower priority.
 
-## Near-Term Hardening
-
-- [ ] Replace the static shared administrator username and password with replicated identities, API tokens or sessions, password hashing, and role-based authorization.
-- [ ] Add safe Node drain, membership removal, and failed-Node replacement workflows.
+- [ ] Better explain how secrets can be used, both in website and frontend (in the form of info icon & tooltip).
+- [ ] Split monitoring-related code into upgrid-monitor, structured like upgrid-notification.
 - [ ] Support editing existing Notification Channels.
-- [ ] Add alert acknowledgement, manual delivery retry, and richer alert-history filters.
-
-## Monitoring Capabilities
-
+- [ ] Add support to email notification channel, via SMTP
 - [ ] Add TCP-connect, DNS, ICMP, and TLS-certificate Target types.
+- [ ] Replace the static shared administrator username and password with replicated identities, API tokens and JWT.
+- [ ] Add safe Node drain, membership removal, and failed-Node replacement workflows.
+- [ ] Add alert acknowledgement, manual delivery retry, and richer alert-history filters.
 - [ ] Add regex, JSONPath, response-header, latency-threshold, and scripted HTTP assertions.
 - [ ] Support custom HTTPS CA bundles and mutual-TLS Target credentials.
-- [ ] Evaluate cron or calendar schedules after fixed-interval usage is understood.
 - [ ] Add optional multi-location evaluation and result aggregation.
-
-## Data Lifecycle
-
 - [ ] Add long-term history aggregation and external archival.
 - [ ] Add configurable trash or restore behavior for deleted Targets.
 - [ ] Provide safe discovery and cleanup of unreferenced Secrets.
+- [ ] Evaluate cron or calendar schedules after fixed-interval usage is understood.
 
 ## Iteration Policy
 
