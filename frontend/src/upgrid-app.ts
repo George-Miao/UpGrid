@@ -11,6 +11,7 @@ import { AppController } from "./app-controller.ts";
 import { renderAlertsPage } from "./alerts-view.ts";
 import { type Section, sectionPaths, serviceHealth, themeIcons } from "./app-state.ts";
 import { renderFooter } from "./footer-view.ts";
+import { renderHelpTooltip } from "./help-tooltip.ts";
 import { renderTargetDetail } from "./target-detail-view.ts";
 import { renderTargetForm } from "./target-form-view.ts";
 @customElement("upgrid-app")
@@ -98,6 +99,13 @@ export class UpgridApp extends AppController {
     .button[aria-busy="true"] { cursor: wait; }
     .icon-button { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; }
     iconify-icon { display: inline-block; width: 18px; height: 18px; font-size: 18px; }
+    .title-with-help { display: flex; align-items: center; gap: 3px; }
+    .help-tooltip-wrap { position: relative; display: inline-flex; align-items: center; }
+    .help-tooltip-trigger { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 0; cursor: help; transition: background-color 160ms ease, color 160ms ease; }
+    .help-tooltip-trigger:hover { background: var(--panel-2); color: var(--text); }
+    .help-tooltip-trigger iconify-icon { width: 16px; height: 16px; font-size: 16px; }
+    .help-tooltip { position: absolute; top: calc(100% + 6px); left: -60px; z-index: 10; width: 280px; max-width: calc(100vw - 64px); border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2); color: var(--text); box-shadow: 0 10px 30px var(--dialog-shadow); padding: 9px 10px; font-size: 12px; font-weight: 400; line-height: 1.45; opacity: 0; visibility: hidden; transform: translateY(-3px); pointer-events: none; transition: opacity 140ms ease, transform 140ms ease, visibility 140ms; }
+    .help-tooltip-wrap:hover .help-tooltip, .help-tooltip-wrap:focus-within .help-tooltip { opacity: 1; visibility: visible; transform: translateY(0); }
     .overview-top { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; }
     .page-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
     .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -258,7 +266,7 @@ export class UpgridApp extends AppController {
         --join-bg: #eef8f2;
     }
     @media (prefers-reduced-motion: reduce) {
-      :host, nav a, .button, .metric, .panel, .target-wrap, .target, .dot, .state, .mini-bar, .history-bar, dialog, dialog::backdrop, input, select { transition-duration: 0s; }
+      :host, nav a, .button, .metric, .panel, .target-wrap, .target, .dot, .state, .mini-bar, .history-bar, dialog, dialog::backdrop, input, select, .help-tooltip-trigger, .help-tooltip { transition-duration: 0s; }
       .bulk, .bulk-actions .button { animation-duration: 0s; }
     }
     @media (max-width: 720px) {
@@ -352,7 +360,7 @@ export class UpgridApp extends AppController {
           : nothing
       }
       <dialog id="secret-dialog" aria-labelledby="secret-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><h2 id="secret-title">Add secret</h2><p>The plaintext is encrypted before replication and never returned.</p></div>
+        <div class="dialog-head"><h2 id="secret-title">Add secret</h2><p>Create an encrypted, write-only value to reference from Target requests or webhook headers through the HTTP API.</p></div>
         <form @submit=${this.createSecret}>
           <label>Name<input name="name" placeholder="Webhook token" required /></label>
           <label>Value<input name="value" type="password" autocomplete="new-password" required /></label>
@@ -370,7 +378,7 @@ export class UpgridApp extends AppController {
           ${
             this.channelKind === "webhook"
               ? html`<label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/upgrid" data-test-required required /></label>`
-              : html`<label>Bot token<input name="bot_token" type="password" autocomplete="off" data-test-required required /></label><label>Chat ID<input name="chat_id" data-test-required required /></label>`
+              : html`<label><span class="title-with-help">Bot token ${renderHelpTooltip("telegram-token-help", "About Telegram bot token storage", "Creating the Channel encrypts this token as an automatically managed Secret. Test sends use the entered value without storing it.")}</span><input name="bot_token" type="password" autocomplete="off" data-test-required required /></label><label>Chat ID<input name="chat_id" data-test-required required /></label>`
           }
           <label class="switch"><span>Default channel</span><input name="default" type="checkbox" role="switch" /></label>
           <div class="dialog-actions">${this.channelTestMessage ? html`<span class="meta" role="status" style="margin-right:auto">${this.channelTestMessage}</span>` : nothing}<button class="button secondary" type="button" @click=${() => this.closeDialog("channel-dialog")}>Cancel</button><button class="button secondary" type="button" aria-busy=${this.testingChannel} ?disabled=${this.testingChannel || this.saving} @click=${this.testChannel}>${this.testingChannel ? "Sending…" : "Send test"}</button><button class="button" type="submit" ?disabled=${this.saving || this.testingChannel}>Create channel</button></div>
@@ -409,7 +417,7 @@ export class UpgridApp extends AppController {
           <div class=${`metric down ${down ? "active" : ""}`}><span>Down</span><strong>${down}</strong></div>
         </section>
         <section class="panel" aria-label="Secrets">
-          <div class="panel-head"><h2>Secrets</h2><button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div>
+          <div class="panel-head"><div class="title-with-help"><h2>Secrets</h2>${renderHelpTooltip("secrets-help", "About reusable Secrets", "Reusable Secrets are encrypted and write-only. Reference their IDs in Target headers or bodies and webhook headers through the HTTP API.")}</div><button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div>
           ${this.secrets.length ? this.secrets.map((secret) => html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id}</code></div><button class="button danger icon-button" aria-label=${`Delete secret ${secret.name}`} title=${`Delete ${secret.name}`} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div>`) : html`<div class="empty">No reusable Secrets.</div>`}
         </section>
       </section>

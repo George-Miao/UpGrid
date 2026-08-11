@@ -25,6 +25,33 @@ test.afterAll(async () => {
   await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
 });
 
+test("explains Secret usage from related forms", async ({ page }) => {
+  await page.goto("/");
+  const reusableHelp = page.getByRole("button", { name: "About reusable Secrets" });
+  const reusableTooltip = page.locator("#secrets-help");
+  await expect(reusableTooltip).toBeHidden();
+  await reusableHelp.focus();
+  await expect(reusableTooltip).toContainText("Target headers or bodies and webhook headers");
+  await expect(reusableTooltip).toBeVisible();
+
+  await page.getByRole("button", { name: "Add target" }).click();
+  const targetDialog = page.getByRole("dialog", { name: "Add target" });
+  const targetTooltip = targetDialog.locator("#target-secret-help");
+  await expect(targetTooltip).toBeHidden();
+  await targetDialog.getByRole("button", { name: "About Target Secrets" }).focus();
+  await expect(targetTooltip).toContainText("headers and request bodies");
+  await expect(targetTooltip).toBeVisible();
+  await targetDialog.getByRole("button", { name: "Cancel" }).click();
+
+  await page.getByRole("link", { name: "Alerts" }).click();
+  await page.getByRole("button", { name: "Add channel" }).click();
+  const channelDialog = page.getByRole("dialog", { name: "Add channel" });
+  await channelDialog.getByLabel("Type").selectOption("telegram");
+  await channelDialog.getByRole("button", { name: "About Telegram bot token storage" }).focus();
+  await expect(channelDialog.locator("#telegram-token-help")).toContainText("automatically managed Secret");
+  await expect(channelDialog.locator("#telegram-token-help")).toBeVisible();
+});
+
 test("tests a channel and places its type beside the name", async ({ page }) => {
   await page.goto("/alerts");
   await page.getByRole("button", { name: "Add channel" }).click();

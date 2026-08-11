@@ -1,5 +1,6 @@
 import { html } from "lit";
 import type { Channel } from "./api.ts";
+import { renderHelpTooltip } from "./help-tooltip.ts";
 
 interface Actions {
   backdrop: (event: MouseEvent) => void;
@@ -60,9 +61,9 @@ export function renderChannelFields(channels: Channel[], selected: string[] = []
 export function renderTargetForm(channels: Channel[], saving: boolean, actions: Actions) {
   return html`
     <dialog id="target-dialog" aria-labelledby="add-target-title" @click=${actions.backdrop}>
-      <div class="dialog-head"><h2 id="add-target-title">Add target</h2><p>Start monitoring a service.</p></div>
+      <div class="dialog-head"><div class="title-with-help"><h2 id="add-target-title">Add target</h2>${renderHelpTooltip("target-secret-help", "About Target Secrets", "Advanced Target headers and request bodies can reference reusable Secrets through the HTTP API.")}</div><p>Start monitoring a service.</p></div>
       <form @submit=${actions.create}>
-        <label>Name<input name="name" placeholder="Production API" required /></label>
+        <label>Name<input name="name" placeholder="Production API" required autofocus /></label>
         <label>URL<input name="url" type="url" placeholder="https://example.com/health" required /></label>
         <div class="row">
           <label>Method<input name="method" value="GET" required /></label>
