@@ -91,39 +91,158 @@ pub(super) async fn delete_secret(
 #[utoipa::path(
     get,
     path = "/api/v1/alerts",
+    params(AlertFilters),
     responses(
         (status = 200, body = [AlertView]),
+        (status = 400, body = ErrorBody),
         (status = 401, body = ErrorBody),
         (status = 503, body = ErrorBody),
     )
 )]
 pub(super) async fn list_alerts(
     State(state): State<WebState>,
+    Query(filters): Query<AlertFilters>,
 ) -> Result<Json<Vec<AlertView>>, ApiError> {
+    let limit = filters.limit.unwrap_or(500);
+    if !(1..=500).contains(&limit) {
+        return Err(ApiError::bad_request(
+            "alert limit must be between 1 and 500",
+        ));
+    }
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
     let alerts = snapshot
         .alerts
         .values()
         .rev()
-        .map(|alert| AlertView {
-            target_id: alert.id.target_id.0,
-            channel_id: alert.id.channel_id.0,
-            kind: match alert.id.kind {
-                AlertKind::Down => "down",
-                AlertKind::Recovered => "recovered",
+        .filter(|alert| {
+            filters
+                .target_id
+                .is_none_or(|id| alert.id.target_id.0 == id)
+                && filters
+                    .channel_id
+                    .is_none_or(|id| alert.id.channel_id.0 == id)
+                && filters.kind.is_none_or(|kind| alert.id.kind == kind.into())
+                && filters.delivery.is_none_or(|delivery| {
+                    matches!(
+                        (&alert.delivery, delivery),
+                        (AlertDelivery::Pending { .. }, AlertDeliveryParam::Pending)
+                            | (
+                                AlertDelivery::Delivered { .. },
+                                AlertDeliveryParam::Delivered
+                            )
+                            | (AlertDelivery::Failed { .. }, AlertDeliveryParam::Failed)
+                    )
+                })
+                && filters.acknowledged.is_none_or(|acknowledged| {
+                    snapshot.alert_acknowledgements.contains_key(&alert.id) == acknowledged
+                })
+                && filters
+                    .from_ms
+                    .is_none_or(|from_ms| alert.id.evaluation_scheduled_at_ms >= from_ms)
+                && filters
+                    .to_ms
+                    .is_none_or(|to_ms| alert.id.evaluation_scheduled_at_ms <= to_ms)
+        })
+        .take(limit)
+        .map(|alert| {
+            let (delivery, attempts, next_attempt_at_ms, completed_at_ms, diagnostic) =
+                match &alert.delivery {
+                    AlertDelivery::Pending {
+                        attempts,
+                        next_attempt_at_ms,
+                    } => ("pending", *attempts, Some(*next_attempt_at_ms), None, None),
+                    AlertDelivery::Delivered { delivered_at_ms } => {
+                        ("delivered", 0, None, Some(*delivered_at_ms), None)
+                    }
+                    AlertDelivery::Failed {
+                        failed_at_ms,
+                        diagnostic,
+                    } => (
+                        "failed",
+                        0,
+                        None,
+                        Some(*failed_at_ms),
+                        Some(diagnostic.clone()),
+                    ),
+                };
+            AlertView {
+                target_id: alert.id.target_id.0,
+                channel_id: alert.id.channel_id.0,
+                kind: match alert.id.kind {
+                    AlertKind::Down => "down",
+                    AlertKind::Recovered => "recovered",
+                }
+                .to_owned(),
+                target_name: alert.target_name.clone(),
+                channel_name: snapshot
+                    .notification_channels
+                    .get(&alert.id.channel_id)
+                    .map_or_else(
+                        || "Deleted channel".to_owned(),
+                        |channel| channel.name.clone(),
+                    ),
+                scheduled_at_ms: alert.id.evaluation_scheduled_at_ms,
+                delivery: delivery.to_owned(),
+                attempts,
+                next_attempt_at_ms,
+                completed_at_ms,
+                diagnostic,
+                acknowledged_at_ms: snapshot.alert_acknowledgements.get(&alert.id).copied(),
             }
-            .to_owned(),
-            target_name: alert.target_name.clone(),
-            scheduled_at_ms: alert.id.evaluation_scheduled_at_ms,
-            delivery: match &alert.delivery {
-                AlertDelivery::Pending { .. } => "pending",
-                AlertDelivery::Delivered { .. } => "delivered",
-                AlertDelivery::Failed { .. } => "failed",
-            }
-            .to_owned(),
         })
         .collect();
     Ok(Json(alerts))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/alerts/acknowledge",
+    request_body = AlertActionRequest,
+    responses(
+        (status = 204),
+        (status = 401, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 503, body = ErrorBody),
+    )
+)]
+pub(super) async fn acknowledge_alert(
+    State(state): State<WebState>,
+    Json(input): Json<AlertActionRequest>,
+) -> Result<StatusCode, ApiError> {
+    state
+        .cluster
+        .apply(Command::AcknowledgeAlert {
+            alert_id: input.alert_id(),
+            acknowledged_at_ms: now_ms(),
+        })
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/alerts/retry",
+    request_body = AlertActionRequest,
+    responses(
+        (status = 204),
+        (status = 401, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 422, body = ErrorBody),
+        (status = 503, body = ErrorBody),
+    )
+)]
+pub(super) async fn retry_alert(
+    State(state): State<WebState>,
+    Json(input): Json<AlertActionRequest>,
+) -> Result<StatusCode, ApiError> {
+    state
+        .cluster
+        .apply(Command::RetryAlert {
+            alert_id: input.alert_id(),
+            retry_at_ms: now_ms(),
+        })
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[utoipa::path(
@@ -175,6 +294,12 @@ pub(super) async fn get_cluster(
         .status()
         .await
         .map_err(ApiError::unavailable)?;
+    let mut active_assignments = BTreeMap::<Uuid, usize>::new();
+    for assignment in snapshot.assignments.values() {
+        *active_assignments
+            .entry(assignment.executor_node_id)
+            .or_default() += 1;
+    }
     Ok(Json(ClusterView {
         leader_node_id: status.leader_node_id,
         local_node_id: status.local_node_id,
@@ -191,6 +316,8 @@ pub(super) async fn get_cluster(
                 raft_url,
                 leader: status.leader_node_id == Some(id),
                 local: status.local_node_id == id,
+                draining: snapshot.draining_nodes.contains(&id),
+                active_assignments: active_assignments.get(&id).copied().unwrap_or_default(),
             })
             .collect(),
     }))

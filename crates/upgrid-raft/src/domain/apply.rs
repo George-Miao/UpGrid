@@ -1,3 +1,5 @@
+mod alert;
+
 impl ApplicationState {
     pub fn apply_operation(
         &mut self,
@@ -187,6 +189,22 @@ impl ApplicationState {
                 }
                 Ok(CommandResult::NodeNameSet(node_id))
             }
+            Command::SetNodeDraining {
+                node_id,
+                draining,
+                force,
+            } => {
+                if draining {
+                    self.draining_nodes.insert(node_id);
+                    if force {
+                        self.assignments
+                            .retain(|_, assignment| assignment.executor_node_id != node_id);
+                    }
+                } else {
+                    self.draining_nodes.remove(&node_id);
+                }
+                Ok(CommandResult::NodeDrainSet { node_id, draining })
+            }
             Command::SetNotificationChannelDefault {
                 channel_id,
                 is_default,
@@ -223,6 +241,14 @@ impl ApplicationState {
                 retry_at_ms,
                 diagnostic,
             } => self.record_alert_failure(alert_id, attempted_at_ms, retry_at_ms, diagnostic),
+            Command::AcknowledgeAlert {
+                alert_id,
+                acknowledged_at_ms,
+            } => self.acknowledge_alert(alert_id, acknowledged_at_ms),
+            Command::RetryAlert {
+                alert_id,
+                retry_at_ms,
+            } => self.retry_alert(alert_id, retry_at_ms),
         }
     }
 
@@ -387,6 +413,9 @@ impl ApplicationState {
         assignment: EvaluationAssignment,
     ) -> Result<CommandResult, DomainError> {
         assignment.validate()?;
+        if self.draining_nodes.contains(&assignment.executor_node_id) {
+            return Ok(CommandResult::EvaluationDiscarded);
+        }
         let Some(target) = self.targets.get(&assignment.id.target_id) else {
             return Ok(CommandResult::EvaluationDiscarded);
         };
@@ -426,50 +455,13 @@ impl ApplicationState {
         }
         Ok(CommandResult::Noop)
     }
-
-    fn record_alert_failure(
-        &mut self,
-        alert_id: AlertId,
-        attempted_at_ms: u64,
-        retry_at_ms: Option<u64>,
-        diagnostic: String,
-    ) -> Result<CommandResult, DomainError> {
-        if diagnostic.len() > MAX_DIAGNOSTIC_BYTES {
-            return Err(DomainError::InvalidAlert(format!(
-                "diagnostic exceeds {MAX_DIAGNOSTIC_BYTES} bytes"
-            )));
-        }
-        let alert = self
-            .alerts
-            .get_mut(&alert_id)
-            .ok_or(DomainError::AlertNotFound(alert_id))?;
-        if matches!(&alert.delivery, AlertDelivery::Delivered { .. }) {
-            return Ok(CommandResult::AlertUpdated(alert_id));
-        }
-        let attempts = match &alert.delivery {
-            AlertDelivery::Pending { attempts, .. } => (*attempts).saturating_add(1),
-            AlertDelivery::Delivered { .. } | AlertDelivery::Failed { .. } => 1,
-        };
-        alert.delivery = match retry_at_ms {
-            Some(next_attempt_at_ms) => AlertDelivery::Pending {
-                attempts,
-                next_attempt_at_ms,
-            },
-            None => AlertDelivery::Failed {
-                failed_at_ms: attempted_at_ms,
-                diagnostic,
-            },
-        };
-        Ok(CommandResult::AlertUpdated(alert_id))
-    }
 }
 use std::collections::BTreeSet;
 
 use uuid::Uuid;
 
 use super::{
-    AlertDelivery, AlertId, ApplicationState, Command, CommandResult,
-    DEFAULT_OPERATION_RETENTION_MS, DomainError, EvaluationAssignment, MAX_DIAGNOSTIC_BYTES,
-    NodeTarget, NodeTargetState, NotificationChannel, ProcessedOperation, Secret, Target, TargetId,
-    TargetState,
+    AlertDelivery, ApplicationState, Command, CommandResult, DEFAULT_OPERATION_RETENTION_MS,
+    DomainError, EvaluationAssignment, NodeTarget, NodeTargetState, NotificationChannel,
+    ProcessedOperation, Secret, Target, TargetId, TargetState,
 };

@@ -56,8 +56,14 @@ export interface Alert {
   channel_id: string;
   kind: "down" | "recovered";
   target_name: string;
+  channel_name: string;
   scheduled_at_ms: number;
   delivery: "pending" | "delivered" | "failed";
+  attempts: number;
+  next_attempt_at_ms: number | null;
+  completed_at_ms: number | null;
+  diagnostic: string | null;
+  acknowledged_at_ms: number | null;
 }
 
 export interface Transition {
@@ -91,6 +97,8 @@ export interface ClusterMember {
   raft_url: string;
   leader: boolean;
   local: boolean;
+  draining: boolean;
+  active_assignments: number;
 }
 
 export interface Setup {

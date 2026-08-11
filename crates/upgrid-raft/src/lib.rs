@@ -12,7 +12,7 @@ pub mod storage;
 mod test;
 mod token;
 
-pub use cluster::{ClusterError, Handle, Receiver, Status};
+pub use cluster::{ClusterError, Handle, MembershipError, Receiver, Status};
 pub use error::{Error, Result};
 pub use node::Node;
 pub use peer::UpgridNode;

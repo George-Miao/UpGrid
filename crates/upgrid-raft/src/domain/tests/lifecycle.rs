@@ -102,47 +102,6 @@ fn pausing_a_target_preserves_history_and_cancels_assignments() {
 }
 
 #[test]
-fn delivered_alerts_cannot_regress_to_pending() {
-    let (mut state, target_id, channel_id) = state_with_target();
-    for scheduled_at_ms in [1_000, 2_000, 3_000] {
-        state
-            .apply(Command::RecordEvaluation(evaluation(
-                target_id,
-                scheduled_at_ms,
-                false,
-            )))
-            .unwrap();
-    }
-    let alert_id = AlertId {
-        target_id,
-        channel_id,
-        evaluation_scheduled_at_ms: 3_000,
-        kind: AlertKind::Down,
-    };
-    state
-        .apply(Command::MarkAlertDelivered {
-            alert_id,
-            delivered_at_ms: 3_100,
-        })
-        .unwrap();
-    state
-        .apply(Command::RecordAlertFailure {
-            alert_id,
-            attempted_at_ms: 3_200,
-            retry_at_ms: Some(4_000),
-            diagnostic: "late failure".to_owned(),
-        })
-        .unwrap();
-
-    assert_eq!(
-        state.alerts[&alert_id].delivery,
-        AlertDelivery::Delivered {
-            delivered_at_ms: 3_100
-        }
-    );
-}
-
-#[test]
 fn history_retention_is_replicated_configuration() {
     let mut state = ApplicationState::default();
 
@@ -303,6 +262,67 @@ fn node_names_are_trimmed_and_validated() {
             })
             .is_err()
     );
+}
+
+#[test]
+fn forced_node_drain_releases_assignments_and_can_be_cancelled() {
+    let (mut state, target_id, _) = state_with_target();
+    let node_id = id(10);
+    let evaluation_id = EvaluationId {
+        target_id,
+        scheduled_at_ms: 2_000,
+    };
+    state
+        .apply(Command::AssignEvaluation(EvaluationAssignment {
+            id: evaluation_id,
+            executor_node_id: node_id,
+            assigned_at_ms: 1_900,
+            expires_at_ms: 3_000,
+            attempt: 1,
+        }))
+        .unwrap();
+
+    assert_eq!(
+        state
+            .apply(Command::SetNodeDraining {
+                node_id,
+                draining: true,
+                force: true,
+            })
+            .unwrap(),
+        CommandResult::NodeDrainSet {
+            node_id,
+            draining: true,
+        }
+    );
+    assert!(state.draining_nodes.contains(&node_id));
+    assert!(!state.assignments.contains_key(&evaluation_id));
+    let stale_id = EvaluationId {
+        target_id,
+        scheduled_at_ms: 3_000,
+    };
+    assert_eq!(
+        state
+            .apply(Command::AssignEvaluation(EvaluationAssignment {
+                id: stale_id,
+                executor_node_id: node_id,
+                assigned_at_ms: 2_900,
+                expires_at_ms: 4_000,
+                attempt: 1,
+            }))
+            .unwrap(),
+        CommandResult::EvaluationDiscarded
+    );
+    assert!(!state.assignments.contains_key(&stale_id));
+
+    state
+        .apply(Command::SetNodeDraining {
+            node_id,
+            draining: false,
+            force: false,
+        })
+        .unwrap();
+    assert!(!state.draining_nodes.contains(&node_id));
 }
 
 #[test]

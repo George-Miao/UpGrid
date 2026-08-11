@@ -1,6 +1,6 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { createServer as createTcpServer, type Server as TcpServer } from "node:net";
+import { createServer as createTcpServer, type Server as TcpServer, type Socket } from "node:net";
 import { expect, test } from "@playwright/test";
 
 let server: Server;
@@ -8,8 +8,10 @@ let webhookUrl: string;
 let webhookBody = "";
 let webhookBodies: string[] = [];
 let smtpServer: TcpServer;
+let webhookStatus = 204;
 let smtpPort = 0;
 let smtpMessage = "";
+const smtpSockets = new Set<Socket>();
 
 test.beforeAll(async () => {
   server = createServer((request, response) => {
@@ -18,12 +20,14 @@ test.beforeAll(async () => {
     request.on("end", () => {
       webhookBody = Buffer.concat(chunks).toString("utf8");
       webhookBodies.push(webhookBody);
-      response.writeHead(204).end();
+      response.writeHead(webhookStatus).end();
     });
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   webhookUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/hook`;
   smtpServer = createTcpServer((socket) => {
+    smtpSockets.add(socket);
+    socket.once("close", () => smtpSockets.delete(socket));
     socket.setEncoding("utf8");
     socket.write("220 localhost ESMTP\r\n");
     let buffer = "";
@@ -64,6 +68,8 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  server.closeAllConnections();
+  for (const socket of smtpSockets) socket.destroy();
   await Promise.all([new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))), new Promise<void>((resolve, reject) => smtpServer.close((error) => (error ? reject(error) : resolve())))]);
 });
 
@@ -250,10 +256,80 @@ test("uses trash icons for secret and Target deletion", async ({ page }) => {
   await deleteTarget.click();
 });
 
+test("filters, acknowledges, and retries alert deliveries", async ({ page }) => {
+  const suffix = Date.now();
+  const channelName = `Alert workflow webhook ${suffix}`;
+  const targetName = `Alert workflow target ${suffix}`;
+  webhookStatus = 500;
+
+  await page.goto("/alerts");
+  await page.getByRole("button", { name: "Add channel" }).click();
+  const channelDialog = page.getByRole("dialog", { name: "Add channel" });
+  await channelDialog.getByLabel("Name").fill(channelName);
+  await channelDialog.getByLabel("Webhook URL").fill(webhookUrl);
+  await channelDialog.getByRole("button", { name: "Create channel" }).click();
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add target" }).click();
+  const targetDialog = page.getByRole("dialog", { name: "Add target" });
+  await targetDialog.getByLabel("Name").fill(targetName);
+  await targetDialog.getByLabel("URL").fill("http://127.0.0.1:19095/");
+  await targetDialog.getByLabel("Interval (seconds)").fill("1");
+  await targetDialog.getByLabel("Failures before Down").fill("1");
+  await targetDialog.getByRole("switch", { name: "Use default channels" }).uncheck();
+  await targetDialog.getByRole("checkbox", { name: channelName }).check();
+  await targetDialog.getByRole("button", { name: "Create target" }).click();
+  const target = page.getByRole("button", { name: targetName });
+  await expect(target.locator(".state")).toHaveClass(/down/, { timeout: 15_000 });
+
+  await page.goto("/alerts");
+  const history = page.getByRole("region", { name: "Alert history" });
+  const alert = history.locator(".alert-resource", { hasText: targetName }).filter({ hasText: channelName });
+  await expect(alert).toContainText("failed", { timeout: 15_000 });
+
+  const failed = await page.request.get("/api/v1/alerts?delivery=failed&acknowledged=false&limit=10");
+  expect(failed.status()).toBe(200);
+  await expect(failed.json()).resolves.toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        target_name: targetName,
+        channel_name: channelName,
+        delivery: "failed",
+        acknowledged_at_ms: null,
+      }),
+    ]),
+  );
+  expect((await page.request.get("/api/v1/alerts?limit=0")).status()).toBe(400);
+
+  await history.getByLabel("Search").fill(targetName);
+  await history.getByLabel("Delivery").selectOption("failed");
+  await expect(alert).toBeVisible();
+  await history.getByLabel("Delivery").selectOption("all");
+  webhookStatus = 204;
+  await alert.getByRole("button", { name: "Retry" }).click();
+  await expect(alert).toContainText("delivered", { timeout: 15_000 });
+  await alert.getByRole("button", { name: "Acknowledge" }).click();
+  await expect(alert).toContainText("acknowledged");
+  await history.getByLabel("Acknowledged").selectOption("no");
+  await expect(alert).not.toBeVisible();
+  await history.getByLabel("Acknowledged").selectOption("yes");
+  await expect(alert).toBeVisible();
+
+  await page.goto("/");
+  await target.click();
+  page.once("dialog", (confirmation) => confirmation.accept());
+  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Delete target" }).click();
+  await page.goto("/alerts");
+  const channel = page.getByRole("region", { name: "Notification channels" }).locator(".resource", { hasText: channelName });
+  page.once("dialog", (confirmation) => confirmation.accept());
+  await channel.getByRole("button", { name: `Delete channel ${channelName}` }).click();
+});
+
 test("default channels deliver unless a Target opts out", async ({ page }) => {
   const suffix = Date.now();
   const channelName = `Default delivery webhook ${suffix}`;
   const targetName = `Default delivery target ${suffix}`;
+  webhookStatus = 204;
   const optedOutName = `Default opt-out target ${suffix}`;
   webhookBody = "";
   webhookBodies = [];
@@ -315,11 +391,10 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
     });
 
   await page.goto("/alerts");
-  const transition = page.getByRole("region", { name: "Alert history" }).locator(".resource", { hasText: targetName });
-  await expect(transition).toContainText("down");
-  await expect(transition.locator(".state")).toHaveClass(/down/);
-  await expect(transition.locator(".badge")).toHaveClass(/down/);
-  await expect(transition.locator(".badge")).toHaveCSS("color", "rgb(197, 52, 52)");
+  const alert = page.getByRole("region", { name: "Alert history" }).locator(".alert-resource", { hasText: targetName }).filter({ hasText: channelName });
+  await expect(alert).toContainText("down");
+  await expect(alert).toContainText("delivered");
+  await expect(alert.locator(".badge.down")).toHaveCSS("color", "rgb(197, 52, 52)");
 
   await page.goto("/");
   await page.getByRole("button", { name: "Add target" }).click();

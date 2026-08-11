@@ -49,6 +49,8 @@ pub trait UpgridService {
 
     async fn ask_to_join(remote: Identity, token: String) -> Result<(), JoinError>;
 
+    async fn remove_node(node_id: uuid::Uuid) -> Result<(), crate::MembershipError>;
+
     async fn full_snapshot(
         vote: VoteOf<TC>,
         meta: SnapshotMetaOf<TC>,
@@ -140,6 +142,19 @@ fn is_membership_change_in_progress(error: &RaftError<TC, ClientWriteError<TC>>)
     )
 }
 
+fn voters_without(
+    mut voters: std::collections::BTreeSet<uuid::Uuid>,
+    node_id: uuid::Uuid,
+) -> Result<std::collections::BTreeSet<uuid::Uuid>, crate::MembershipError> {
+    if !voters.remove(&node_id) {
+        return Err(crate::MembershipError::NodeNotFound(node_id));
+    }
+    if voters.is_empty() {
+        return Err(crate::MembershipError::LastVoter);
+    }
+    Ok(voters)
+}
+
 impl UpgridService for UpgridServer {
     async fn deployment_key_fingerprint(self, _: Context) -> [u8; 32] {
         self.deployment_key_fingerprint
@@ -200,6 +215,26 @@ impl UpgridService for UpgridServer {
         Ok(())
     }
 
+    async fn remove_node(
+        self,
+        context: tarpc::context::Context,
+        node_id: uuid::Uuid,
+    ) -> Result<(), crate::MembershipError> {
+        let _membership_change = self.membership_changes.lock().await;
+        let voters = self
+            .raft
+            .metrics()
+            .borrow_watched()
+            .membership_config
+            .membership()
+            .voter_ids()
+            .collect();
+        let voters = voters_without(voters, node_id)?;
+        self.promote_learner_when_ready(&context, &voters)
+            .await
+            .map_err(|error| crate::MembershipError::ChangeRejected(error.to_string()))
+    }
+
     async fn full_snapshot(
         self,
         _: Context,
@@ -255,201 +290,5 @@ impl UpgridService for UpgridServer {
 }
 
 #[cfg(test)]
-mod test {
-    use std::time::Duration;
-
-    use compio::runtime::spawn;
-    use compio::time::sleep;
-    use openraft_rt_compio::futures::StreamExt;
-    use openraft_rt_compio::futures::future::try_join;
-    use tarpc::client::{Config, NewClient};
-    use tarpc::context::Context;
-    use tarpc::server::{BaseChannel, Channel};
-    use tracing::info;
-    use tracing::level_filters::LevelFilter;
-    use tracing_subscriber::Layer;
-    use tracing_subscriber::filter::Targets;
-    use tracing_subscriber::layer::SubscriberExt;
-    use tracing_subscriber::util::SubscriberInitExt;
-    use upgrid_transport::{bi_stream_framed, insecure_endpoint};
-
-    use super::*;
-
-    #[test]
-    fn recognizes_membership_change_in_progress() {
-        let error = RaftError::APIError(ClientWriteError::ChangeMembershipError(
-            openraft::error::ChangeMembershipError::InProgress(openraft::error::InProgress {
-                committed: None,
-                membership_log_id: None,
-            }),
-        ));
-        assert!(is_membership_change_in_progress(&error));
-    }
-
-    #[derive(Clone)]
-    pub struct DummyServer {}
-
-    impl UpgridService for DummyServer {
-        async fn deployment_key_fingerprint(self, _: Context) -> [u8; 32] {
-            [0; 32]
-        }
-
-        async fn ping(self, _: Context) {}
-
-        async fn ask_to_join(
-            self,
-            _: tarpc::context::Context,
-            remote: Identity,
-            _: String,
-        ) -> Result<(), JoinError> {
-            info!(?remote, "Ask to join");
-            Ok(())
-        }
-
-        async fn full_snapshot(
-            self,
-            _: Context,
-            vote: VoteOf<TC>,
-            meta: SnapshotMetaOf<TC>,
-            data: Vec<u8>,
-        ) -> Result<SnapshotResponse<TC>, RaftError<TC>> {
-            info!(?vote, ?meta, bytes = data.len(), "Install snapshot");
-            Ok(SnapshotResponse::new(vote))
-        }
-
-        async fn append_entries(
-            self,
-            _: Context,
-            req: AppendEntriesRequest<TC>,
-        ) -> Result<AppendEntriesResponse<TC>, RaftError<TC>> {
-            info!(?req, "Append entries");
-            Ok(AppendEntriesResponse::Success)
-        }
-
-        async fn vote(
-            self,
-            _: Context,
-            req: VoteRequest<TC>,
-        ) -> Result<VoteResponse<TC>, RaftError<TC>> {
-            info!(?req, "Vote");
-            Ok(VoteResponse {
-                vote: req.vote,
-                vote_granted: true,
-                last_log_id: None,
-            })
-        }
-
-        async fn client_write(
-            self,
-            _: Context,
-            _: Req,
-        ) -> Result<ClientWriteResponse<TC>, RaftError<TC, ClientWriteError<TC>>> {
-            unimplemented!("the transport smoke test does not issue writes")
-        }
-
-        async fn read_index(
-            self,
-            _: Context,
-        ) -> Result<LogIdOf<TC>, RaftError<TC, LinearizableReadError<TC>>> {
-            unimplemented!("the transport smoke test does not issue reads")
-        }
-    }
-
-    #[compio::test]
-    async fn reused_client_supports_concurrent_requests() {
-        let target_filter = Targets::new()
-            .with_default(LevelFilter::INFO)
-            .with_target("rustls", LevelFilter::WARN);
-
-        let fmt = tracing_subscriber::fmt::layer().with_filter(target_filter);
-
-        tracing_subscriber::registry().with(fmt).init();
-
-        let (e1, e2) = try_join(
-            insecure_endpoint("localhost".to_owned(), 0),
-            insecure_endpoint("localhost".to_owned(), 0),
-        )
-        .await
-        .unwrap();
-        let server_addr = std::net::SocketAddr::from((
-            std::net::Ipv4Addr::LOCALHOST,
-            e1.local_addr().unwrap().port(),
-        ));
-
-        let server_handle = spawn(async move {
-            let conn = e1
-                .wait_incoming()
-                .await
-                .expect("Should be connected")
-                .await
-                .unwrap();
-
-            info!("Connection established");
-
-            let transport = conn
-                .accept_bi()
-                .await
-                .map(|(s, r)| bi_stream_framed(s, r))
-                .unwrap();
-
-            info!("Stream accepted");
-
-            let mut requests = Box::pin(BaseChannel::with_defaults(transport).requests());
-            while let Some(request) = requests.next().await {
-                match request {
-                    Ok(request) => spawn(request.execute(DummyServer {}.serve())).detach(),
-                    Err(error) => return Some(format!("{error:?}")),
-                }
-            }
-            None
-        });
-
-        sleep(Duration::from_secs(1)).await;
-
-        info!("Connecting to server...");
-
-        let conn = e2
-            .connect(server_addr, "localhost", None)
-            .unwrap()
-            .await
-            .unwrap();
-
-        sleep(Duration::from_secs(1)).await;
-
-        info!("Get ID...");
-
-        let transport = conn
-            .open_bi_wait()
-            .await
-            .map(|(s, r)| bi_stream_framed(s, r))
-            .unwrap();
-
-        info!("Stream Opened...");
-
-        let config = Config::default();
-        let NewClient { client, dispatch } = UpgridServiceClient::new(config, transport);
-        let dispatch_handle = spawn(dispatch);
-        let first_client = client.clone();
-        let second_client = client.clone();
-        let first = first_client.ask_to_join(
-            Context::current(),
-            Identity::new("up://dummy").unwrap(),
-            "test".to_owned(),
-        );
-        let second = second_client.ask_to_join(
-            Context::current(),
-            Identity::new("up://dummy").unwrap(),
-            "test".to_owned(),
-        );
-        let (first, second) = try_join(first, second).await.unwrap();
-        first.unwrap();
-        second.unwrap();
-        drop(first_client);
-        drop(second_client);
-        drop(client);
-        dispatch_handle.await.unwrap().unwrap();
-
-        let server_error = server_handle.await.unwrap();
-        assert_eq!(server_error, None, "server transport should close cleanly");
-    }
-}
+#[path = "service/test.rs"]
+mod test;

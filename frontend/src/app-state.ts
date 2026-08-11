@@ -56,6 +56,10 @@ export class AppState extends LitElement {
   @state() protected channelTestMessage = "";
   @state() protected testingChannel = false;
   @state() protected joinCommand = "";
+  @state() protected alertSearch = "";
+  @state() protected alertDeliveryFilter: "all" | Alert["delivery"] = "all";
+  @state() protected alertKindFilter: "all" | Alert["kind"] = "all";
+  @state() protected alertAcknowledgedFilter: "all" | "yes" | "no" = "all";
   @state() protected search = "";
   @state() protected statusFilter = "all";
   @state() protected sort = "name";

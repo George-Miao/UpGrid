@@ -55,6 +55,11 @@ pub enum Command {
         node_id: Uuid,
         name: String,
     },
+    SetNodeDraining {
+        node_id: Uuid,
+        draining: bool,
+        force: bool,
+    },
     SetNotificationChannelDefault {
         channel_id: NotificationChannelId,
         is_default: bool,
@@ -71,6 +76,14 @@ pub enum Command {
     DeleteIdentity(IdentityId),
     CreateApiToken(ApiToken),
     RevokeApiToken(ApiTokenId),
+    AcknowledgeAlert {
+        alert_id: AlertId,
+        acknowledged_at_ms: u64,
+    },
+    RetryAlert {
+        alert_id: AlertId,
+        retry_at_ms: u64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -99,6 +112,10 @@ pub enum CommandResult {
     NotificationChannelDeleted(NotificationChannelId),
     JoinTokenRevoked,
     NodeNameSet(Uuid),
+    NodeDrainSet {
+        node_id: Uuid,
+        draining: bool,
+    },
     NotificationChannelDefaultSet(NotificationChannelId),
     NodeTargetsSynced,
     NodeEvaluationAccepted {

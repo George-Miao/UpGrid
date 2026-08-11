@@ -34,6 +34,14 @@ upgrid \
 
 Restart with the same data directory and normal configuration. Durable membership takes precedence, so the Node does not need `--join` again.
 
+## Drain or replace a Node
+
+For planned maintenance, open **Cluster**, choose **Drain**, and wait for the active-assignment count to reach zero. Remove the Node, then stop its process. You can cancel the drain before removal.
+
+For an unreachable Node, first confirm its old process is permanently stopped, then choose **Replace failed** from a different healthy member. UpGrid releases its assignments and removes it from Raft membership. Create a one-use Join Token and start the replacement with a new Node identity and an empty data directory.
+
+Membership changes require quorum. A Node cannot remove itself or the final voting member.
+
 ## Revoke reusable tokens
 
 The **Join Tokens** panel shows remaining uses and expiration. Revoke a token when provisioning ends. Revocation blocks future admissions but does not remove Nodes that already joined.

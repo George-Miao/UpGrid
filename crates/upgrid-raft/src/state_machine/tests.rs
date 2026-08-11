@@ -362,6 +362,66 @@ mod tests {
         fs::remove_dir_all(directory).unwrap();
     }
     #[test]
+    fn pre_acknowledgement_state_is_migrated_without_losing_cluster_data() {
+        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("raft-state.postcard");
+        let node_id = Uuid::now_v7();
+        let mut application = ApplicationState::default();
+        application
+            .node_names
+            .insert(node_id, "migrated-node".to_owned());
+        application.draining_nodes.insert(node_id);
+        let previous = PreAcknowledgementPersistedStateMachine {
+            state_machine: PreAcknowledgementStateMachineData {
+                last_applied_log: None,
+                last_membership: StoredMembership::default(),
+                application: application.into(),
+            },
+            current_snapshot: None,
+            snapshot_idx: 0,
+        };
+        let mut encoded = PRE_ACKNOWLEDGEMENT_STATE_MAGIC.to_vec();
+        encoded.extend_from_slice(&postcard::to_stdvec(&previous).unwrap());
+        fs::write(&path, encoded).unwrap();
+
+        let migrated = StateMachine::open(&path).unwrap().application_state();
+        assert_eq!(migrated.node_names[&node_id], "migrated-node");
+        assert_eq!(migrated.draining_nodes, BTreeSet::from([node_id]));
+        assert!(migrated.alert_acknowledgements.is_empty());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn pre_drain_state_is_migrated_with_nodes_eligible() {
+        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("raft-state.postcard");
+        let node_id = Uuid::now_v7();
+        let mut application = ApplicationState::default();
+        application
+            .node_names
+            .insert(node_id, "migrated-node".to_owned());
+        let previous = PreDrainPersistedStateMachine {
+            state_machine: PreDrainStateMachineData {
+                last_applied_log: None,
+                last_membership: StoredMembership::default(),
+                application: application.into(),
+            },
+            current_snapshot: None,
+            snapshot_idx: 0,
+        };
+        let mut encoded = PRE_DRAIN_STATE_MAGIC.to_vec();
+        encoded.extend_from_slice(&postcard::to_stdvec(&previous).unwrap());
+        fs::write(&path, encoded).unwrap();
+
+        let migrated = StateMachine::open(&path).unwrap().application_state();
+        assert_eq!(migrated.node_names[&node_id], "migrated-node");
+        assert!(migrated.draining_nodes.is_empty());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn pre_authentication_state_is_migrated_without_losing_cluster_data() {
         let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
         fs::create_dir_all(&directory).unwrap();

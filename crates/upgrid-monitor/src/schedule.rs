@@ -52,6 +52,10 @@ fn plan(
     voters: &BTreeSet<uuid::Uuid>,
     now_ms: u64,
 ) -> Vec<EvaluationAssignment> {
+    let eligible = voters
+        .difference(&state.draining_nodes)
+        .copied()
+        .collect::<BTreeSet<_>>();
     state
         .targets
         .values()
@@ -65,7 +69,7 @@ fn plan(
                 if existing.expires_at_ms > now_ms {
                     return None;
                 }
-                let mut candidates = voters.clone();
+                let mut candidates = eligible.clone();
                 if candidates.len() > 1 {
                     candidates.remove(&existing.executor_node_id);
                 }
@@ -93,7 +97,7 @@ fn plan(
             };
             Some(EvaluationAssignment {
                 id,
-                executor_node_id: select_executor(id, voters.iter().copied())?,
+                executor_node_id: select_executor(id, eligible.iter().copied())?,
                 assigned_at_ms: now_ms,
                 expires_at_ms: expiry(&target.target, now_ms),
                 attempt: 1,
@@ -148,5 +152,41 @@ mod tests {
         assert_eq!(second.id, first.id);
         assert_eq!(second.attempt, 2);
         assert_ne!(second.executor_node_id, first.executor_node_id);
+    }
+
+    #[test]
+    fn draining_nodes_receive_no_new_assignments() {
+        let id = TargetId(Uuid::from_u128(42));
+        let target = Target {
+            id,
+            name: "API".to_owned(),
+            http: HttpTarget::get(Url::parse("https://example.com/health").unwrap()),
+            policy: EvaluationPolicy {
+                interval_ms: 1_000,
+                timeout_ms: 100,
+                failure_threshold: 3,
+            },
+            notification_channels: BTreeSet::new(),
+        };
+        let draining = Uuid::from_u128(1);
+        let eligible = Uuid::from_u128(2);
+        let mut state = ApplicationState::default();
+        state
+            .apply(Command::CreateTarget {
+                target,
+                use_default_notifications: true,
+            })
+            .unwrap();
+        state.draining_nodes.insert(draining);
+
+        let assignment = plan(
+            &state,
+            &BTreeSet::from([draining, eligible]),
+            crate::scheduler::phase_offset_ms(id, 1_000).unwrap() + 10_000,
+        )
+        .pop()
+        .unwrap();
+
+        assert_eq!(assignment.executor_node_id, eligible);
     }
 }

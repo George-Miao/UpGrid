@@ -13,13 +13,17 @@ This makes every healthy Node a valid API entry point while retaining one ordere
 
 ## Evaluation path
 
-The leader schedules due work across voting members. The assigned Node executes the HTTP request and proposes its result. For a given Target interval, the first accepted result is committed and duplicate results are discarded.
+The leader schedules due work across eligible voting members. Draining Nodes receive no new assignments; forced drain releases their assignments for immediate reassignment. The assigned Node executes the probe and proposes its result. For a given Target interval, the first accepted result is committed and duplicate results are discarded.
 
 Availability thresholds and transitions are computed from replicated state, so a leader change does not reset failure counts.
 
+## Membership changes
+
+Healthy Nodes drain before removal so in-flight evaluations can finish. Failed Nodes can be force-removed while a quorum remains; replacement uses a new Node identity, an empty data directory, and a one-use Join Token. Raft serializes admission and removal so concurrent membership changes cannot overwrite one another.
+
 ## Notifications
 
-Committed availability transitions create notification work. Telegram, SMTP email, and webhook workers deliver through configured Channels with at-least-once semantics.
+Committed availability transitions create notification work. Telegram, SMTP email, and webhook workers deliver through configured Channels with at-least-once semantics. Delivery state, acknowledgement, and manual retry requests are replicated, so every Node presents the same alert history and a leader change does not lose operator actions.
 
 ## Transport and security boundaries
 

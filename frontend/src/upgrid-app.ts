@@ -6,7 +6,7 @@ import deleteIcon from "@iconify-icons/lucide/trash-2";
 import closeIcon from "@iconify-icons/lucide/x";
 import "iconify-icon";
 import "./setup-flow.ts";
-import type { Target } from "./api.ts";
+import type { ClusterMember, Target } from "./api.ts";
 import { AppController } from "./app-controller.ts";
 import { renderAlertsPage } from "./alerts-view.ts";
 import { type Section, sectionPaths, serviceHealth, themeIcons } from "./app-state.ts";
@@ -135,6 +135,14 @@ export class UpgridApp extends AppController {
     .channel-actions .switch span { font-size: 12px; }
     .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 17px 20px; border-bottom: 1px solid var(--line); }
     .panel-head h2 { margin: 0; font-size: 14px; }
+    .alert-history { margin-bottom: 20px; }
+    .alert-filters { display: grid; grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(120px, auto)); gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+    .alert-filters label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
+    .alert-resource { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+    .alert-summary { display: grid; min-width: 0; gap: 4px; }
+    .alert-summary code, .alert-summary .meta { font-size: 11px; }
+    .alert-summary .meta { color: var(--muted); white-space: normal; }
+    .alert-actions { display: flex; align-items: center; gap: 8px; }
     .target-wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; border-bottom: 1px solid var(--divider); padding-left: 20px; }
     .target-wrap:last-child { border-bottom: 0; }
     .select-target { width: 24px; height: 24px; accent-color: var(--green); }
@@ -288,6 +296,9 @@ export class UpgridApp extends AppController {
       .target-side { grid-column: 2; display: grid; grid-template-columns: minmax(88px, 1fr) auto; width: 100%; gap: 18px; margin-top: 4px; } .target > .state { align-self: start; margin-top: 5px; } .mini-chart { width: 100%; max-width: 140px; height: 28px; }
       .latency { min-width: 72px; text-align: right; }
       .channel-resource { grid-template-columns: 1fr; }
+      .alert-filters { grid-template-columns: 1fr 1fr; }
+      .alert-resource { grid-template-columns: 1fr; }
+      .alert-actions { margin-top: 8px; }
       .channel-actions { justify-content: space-between; margin-top: 10px; }
       .access-form { grid-template-columns: 1fr; }
     }
@@ -354,12 +365,30 @@ export class UpgridApp extends AppController {
           this.activeSection === "overview"
             ? this.renderOverview(visibleTargets, up, down, pending)
             : this.activeSection === "alerts"
-              ? renderAlertsPage(this.transitions, this.channels, {
-                  create: () => this.openChannelDialog(),
-                  edit: (channel) => this.openChannelDialog(channel),
-                  remove: (channel) => void this.deleteResource("channels", channel.id, channel.name),
-                  setDefault: (channel, isDefault) => void this.setChannelDefault(channel, isDefault),
-                })
+              ? renderAlertsPage(
+                  this.alerts,
+                  this.transitions,
+                  this.channels,
+                  {
+                    search: this.alertSearch,
+                    delivery: this.alertDeliveryFilter,
+                    kind: this.alertKindFilter,
+                    acknowledged: this.alertAcknowledgedFilter,
+                  },
+                  this.saving,
+                  {
+                    create: () => this.openChannelDialog(),
+                    edit: (channel) => this.openChannelDialog(channel),
+                    remove: (channel) => void this.deleteResource("channels", channel.id, channel.name),
+                    setDefault: (channel, isDefault) => void this.setChannelDefault(channel, isDefault),
+                    acknowledge: (alert) => void this.acknowledgeAlert(alert),
+                    retry: (alert) => void this.retryAlert(alert),
+                    setSearch: (value) => (this.alertSearch = value),
+                    setDelivery: (value) => (this.alertDeliveryFilter = value),
+                    setKind: (value) => (this.alertKindFilter = value),
+                    setAcknowledged: (value) => (this.alertAcknowledgedFilter = value),
+                  },
+                )
               : this.renderClusterPage()
         }
       </main>${renderFooter()}
@@ -455,6 +484,31 @@ export class UpgridApp extends AppController {
     `;
   }
 
+  private renderClusterMember(member: ClusterMember) {
+    return html`
+      <div class="resource">
+        <div>
+          <strong>${member.name}</strong>
+          <code>${member.raft_url} · ${member.active_assignments} active assignments</code>
+        </div>
+        <div class="actions">
+          ${member.local ? html`<span class="badge">This node</span>` : nothing}
+          ${member.leader ? html`<span class="badge">Leader</span>` : nothing}
+          ${member.draining ? html`<span class="badge">Draining</span>` : nothing}
+          ${
+            member.local
+              ? nothing
+              : html`
+                <button class="button secondary" ?disabled=${this.saving} @click=${() => this.setNodeDrain(member, !member.draining)}>${member.draining ? "Cancel drain" : "Drain"}</button>
+                ${member.draining && member.active_assignments === 0 ? html`<button class="button danger" ?disabled=${this.saving} @click=${() => this.removeNode(member, false)}>Remove</button>` : nothing}
+                <button class="button danger" ?disabled=${this.saving} @click=${() => this.removeNode(member, true)}>Replace failed</button>
+              `
+          }
+        </div>
+      </div>
+    `;
+  }
+
   private renderClusterPage() {
     return html`
       <section class="heading" id="cluster">
@@ -465,8 +519,8 @@ export class UpgridApp extends AppController {
       </section>
       <div class="page-columns">
       <section class="panel" aria-label="Cluster topology">
-        <div class="panel-head"><h2>Nodes</h2><span class="meta">${this.cluster?.members.length ?? 0} members</span></div>
-        ${this.cluster?.members.map((member) => html`<div class="resource"><div><strong>${member.name}</strong><code>${member.raft_url}</code></div><div class="actions">${member.local ? html`<span class="badge">This node</span>` : nothing}${member.leader ? html`<span class="badge">Leader</span>` : nothing}</div></div>`)}
+        <div class="panel-head"><div><h2>Nodes</h2><p class="meta">Drain healthy Nodes before removal. Replace failed Nodes only after confirming the old process is permanently stopped.</p></div><span class="meta">${this.cluster?.members.length ?? 0} members</span></div>
+        ${this.cluster?.members.map((member) => this.renderClusterMember(member))}
         ${this.cluster?.members.length ? nothing : html`<div class="empty">Cluster topology unavailable.</div>`}
       </section>
       <section class="panel" aria-label="Join tokens">

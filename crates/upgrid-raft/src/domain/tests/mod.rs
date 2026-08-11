@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use super::*;
 
+mod alert_delivery;
 mod authentication;
 mod config_value;
 mod evaluation;

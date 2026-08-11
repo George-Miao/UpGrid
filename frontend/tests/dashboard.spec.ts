@@ -307,7 +307,7 @@ test("shows the local Raft topology and leader", async ({ page }) => {
   const expectedRaftUrl = process.env.UPGRID_EXPECTED_RAFT_URL ?? "up://127.0.0.1:18451";
   await expect(cluster.getByText(expectedRaftUrl)).toBeVisible();
   await expect(cluster.locator(".resource strong")).not.toBeEmpty();
-  await expect(cluster.locator(".resource code")).toHaveText(expectedRaftUrl);
+  await expect(cluster.locator(".resource code")).toContainText(expectedRaftUrl);
   await expect(cluster.getByText("Leader")).toBeVisible();
   await expect(cluster.getByText("This node")).toBeVisible();
 });
@@ -386,13 +386,15 @@ test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Alerts" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Targets" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Notification channels" })).toBeVisible();
-  const [historyBox, channelsBox] = await Promise.all([page.getByRole("region", { name: "Alert history" }).boundingBox(), page.getByRole("region", { name: "Notification channels" }).boundingBox()]);
-  expect(historyBox).not.toBeNull();
+  const [alertBox, availabilityBox, channelsBox] = await Promise.all([page.getByRole("region", { name: "Alert history" }).boundingBox(), page.getByRole("region", { name: "Availability history" }).boundingBox(), page.getByRole("region", { name: "Notification channels" }).boundingBox()]);
+  expect(alertBox).not.toBeNull();
+  expect(availabilityBox).not.toBeNull();
   expect(channelsBox).not.toBeNull();
-  expect(historyBox!.x).toBeLessThan(channelsBox!.x);
-  expect(Math.abs(historyBox!.y - channelsBox!.y)).toBeLessThan(2);
-  const [historyHead, channelsHead] = await Promise.all([page.getByRole("region", { name: "Alert history" }).locator(".panel-head").boundingBox(), page.getByRole("region", { name: "Notification channels" }).locator(".panel-head").boundingBox()]);
-  expect(Math.abs(historyHead!.height - channelsHead!.height)).toBeLessThan(1);
+  expect(alertBox!.y + alertBox!.height).toBeLessThanOrEqual(availabilityBox!.y);
+  expect(availabilityBox!.x).toBeLessThan(channelsBox!.x);
+  expect(Math.abs(availabilityBox!.y - channelsBox!.y)).toBeLessThan(2);
+  const [availabilityHead, channelsHead] = await Promise.all([page.getByRole("region", { name: "Availability history" }).locator(".panel-head").boundingBox(), page.getByRole("region", { name: "Notification channels" }).locator(".panel-head").boundingBox()]);
+  expect(Math.abs(availabilityHead!.height - channelsHead!.height)).toBeLessThan(1);
   await expect(page.getByRole("region", { name: "Notification channels" }).getByRole("button", { name: "Add channel" })).toHaveCount(0);
 
   await page.getByRole("link", { name: "Cluster" }).click();
@@ -611,4 +613,23 @@ test("joins a fresh node to the Cluster from its WebUI", async ({ page, request 
   await page.getByRole("link", { name: "Cluster" }).click();
   await expect(page.getByRole("region", { name: "Cluster topology" }).locator(".resource")).toHaveCount(2);
   await expect(page.getByText("playwright-worker")).toBeVisible();
+});
+
+test("drains and removes a remote Cluster Node", async ({ page }) => {
+  await page.goto("/cluster");
+  const topology = page.getByRole("region", { name: "Cluster topology" });
+  const member = topology.locator(".resource", { hasText: "playwright-worker" });
+  await expect(member.getByRole("button", { name: "Replace failed" })).toBeVisible();
+
+  await member.getByRole("button", { name: "Drain" }).click();
+  await expect(member.getByText("Draining", { exact: true })).toBeVisible();
+  await member.getByRole("button", { name: "Cancel drain" }).click();
+  await expect(member.getByText("Draining", { exact: true })).toHaveCount(0);
+
+  await member.getByRole("button", { name: "Drain" }).click();
+  const remove = member.getByRole("button", { name: "Remove" });
+  await expect(remove).toBeVisible({ timeout: 15_000 });
+  page.once("dialog", (dialog) => dialog.accept());
+  await remove.click();
+  await expect(member).toHaveCount(0);
 });

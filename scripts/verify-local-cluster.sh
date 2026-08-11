@@ -7,6 +7,7 @@ raft_base_port="${UPGRID_TEST_RAFT_BASE_PORT:-19451}"
 settle_seconds="${UPGRID_TEST_SETTLE_SECONDS:-4}"
 node_count="${UPGRID_TEST_NODE_COUNT:-3}"
 admission_only="${UPGRID_TEST_ADMISSION_ONLY:-false}"
+node_lifecycle_only="${UPGRID_TEST_NODE_LIFECYCLE_ONLY:-false}"
 rust_log="${UPGRID_TEST_RUST_LOG:-info}"
 test_root="$(mktemp -d "${TMPDIR:-/tmp}/upgrid-cluster.XXXXXX")"
 username="cluster-test"
@@ -145,6 +146,63 @@ if (( node_count >= 3 )); then
     echo "Invalid persisted Join Token did not produce a WebUI warning: ${setup_state}" >&2
     exit 1
   fi
+fi
+
+if [[ "$node_lifecycle_only" == true ]]; then
+  cluster="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
+    "http://127.0.0.1:${api_base_port}/api/v1/cluster")"
+  removed_id="$(printf '%s' "$cluster" | jq --raw-output \
+    --arg url "up://127.0.0.1:$((raft_base_port + 2))" \
+    '.members[] | select(.raft_url == $url) | .id')"
+  drain="$(curl --fail --silent --request PUT \
+    --header "authorization: Bearer ${api_token}" \
+    --header 'content-type: application/json' \
+    --data '{"draining":true}' \
+    "http://127.0.0.1:${api_base_port}/api/v1/nodes/${removed_id}/drain")"
+  if [[ "$(printf '%s' "$drain" | jq --raw-output '.draining')" != "true" ]]; then
+    echo "Node did not enter draining state: ${drain}" >&2
+    exit 1
+  fi
+  curl --fail --silent --request PUT \
+    --header "authorization: Bearer ${api_token}" \
+    --header 'content-type: application/json' \
+    --data '{"draining":false}' \
+    "http://127.0.0.1:${api_base_port}/api/v1/nodes/${removed_id}/drain" >/dev/null
+
+  kill "$existing_restart_pid"
+  wait "$existing_restart_pid" 2>/dev/null || true
+  removed="$(curl --fail --silent --request DELETE \
+    --header "authorization: Bearer ${api_token}" \
+    "http://127.0.0.1:${api_base_port}/api/v1/nodes/${removed_id}?force=true")"
+  if [[ "$(printf '%s' "$removed" | jq --raw-output '.status')" != "removed" ]] ||
+    [[ "$removed" != *"one-use Join Token"* ]]; then
+    echo "Failed-Node removal did not return replacement guidance: ${removed}" >&2
+    exit 1
+  fi
+
+  replacement_token="$(curl --fail --silent \
+    --header "authorization: Bearer ${api_token}" \
+    --header 'content-type: application/json' \
+    --data '{"expires_in_seconds":300,"max_uses":1}' \
+    "http://127.0.0.1:${api_base_port}/api/v1/join-tokens")"
+  replacement_link="$(printf '%s' "$replacement_token" | jq --raw-output '.url')"
+  start_node 4 --join "$replacement_link"
+  replacement_pid="${pids[${#pids[@]} - 1]}"
+  wait_for_api "$((api_base_port + 3))" "$replacement_pid"
+
+  attempts=0
+  until cluster="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
+    "http://127.0.0.1:${api_base_port}/api/v1/cluster")" \
+    && (( $(printf '%s' "$cluster" | jq '[.members[] | select(.name == "test-node-4")] | length') == 1 )); do
+    attempts=$((attempts + 1))
+    if (( attempts >= 100 )); then
+      echo "Replacement Node did not join the Cluster: ${cluster:-unavailable}" >&2
+      exit 1
+    fi
+    sleep 0.1
+  done
+  echo "Local failed-Node drain, removal, and replacement behavior verified"
+  exit 0
 fi
 
 if [[ "$admission_only" == true ]]; then

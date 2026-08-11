@@ -27,6 +27,22 @@ curl --header "Authorization: Bearer upgrid_REDACTED" \
 
 The repository also publishes the generated snapshot at `docs/openapi.json` for review and tooling.
 
+## Node lifecycle
+
+`PUT /api/v1/nodes/{id}/drain` excludes a Node from new evaluation assignments. Existing assignments may finish; the Cluster response reports `draining` and `active_assignments` for each member. Cancel a drain by sending `{"draining":false}`.
+
+`DELETE /api/v1/nodes/{id}` removes a drained remote member after its active assignment count reaches zero. `?force=true` releases assignments and removes an unreachable Node immediately. A Node cannot remove itself or the final voting member; send the request to another healthy Cluster member.
+
+After forced removal, create a one-use Join Token and start the replacement with an empty data directory. Never restart the removed Node against the Cluster.
+
+## Alert operations
+
+`GET /api/v1/alerts` returns notification-delivery history. Filter it with `target_id`, `channel_id`, `kind`, `delivery`, `acknowledged`, `from_ms`, `to_ms`, and `limit` query parameters. Limits must be between 1 and 500.
+
+To acknowledge a delivery record, `POST /api/v1/alerts/acknowledge` with its `target_id`, `channel_id`, `scheduled_at_ms`, and `kind`. Acknowledgement is replicated and idempotent.
+
+`POST /api/v1/alerts/retry` accepts the same locator and makes a failed or pending delivery immediately eligible for another attempt. Delivered alerts cannot be retried.
+
 ## Live events
 
 The WebUI refreshes from `/api/v1/events`, a Server-Sent Events stream. SSE works over ordinary HTTP and automatically reconnects in browsers. Reverse proxies must disable response buffering and allow long-lived reads.

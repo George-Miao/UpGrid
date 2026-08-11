@@ -74,6 +74,8 @@ upgrid \
 
 The Join Token contains admission authority and deployment material. Treat it as a password, transfer it through a trusted channel, and revoke reusable tokens after provisioning. Every advertised `up://` address must be reachable by every Cluster member. Joined Nodes receive the Cluster's Operator Identities and API Tokens through Raft; they do not use per-Node credentials.
 
+Drain a healthy Node before removing it from membership. For a failed Node, fence the old process, force-remove it from another healthy member, and join its replacement with a fresh data directory and one-use token.
+
 See [Join a Cluster](https://upgrid.rs/guides/join-cluster/) for browser and unattended workflows.
 
 ## How it works
@@ -82,6 +84,8 @@ See [Join a Cluster](https://upgrid.rs/guides/join-cluster/) for browser and una
 2. The leader assigns due evaluations across voting Nodes. The first accepted result for an interval becomes authoritative.
 3. Replicated policy turns results into **Up**, **Suspicious**, **Down**, or **Paused** state.
 4. Availability transitions enter a replicated outbox and are delivered to the Target's notification Channels.
+
+The Alerts page records delivery state per Channel. Operators can filter the history, acknowledge records, and retry failed deliveries; these actions are replicated with the rest of Cluster state.
 
 The HTTP API can run behind a TLS-terminating reverse proxy or serve HTTPS directly. `/healthz` is public; the WebUI uses an HTTP-only session cookie, and automation can use a revocable bearer API Token. Never send credentials over untrusted plaintext transport.
 

@@ -363,6 +363,33 @@ impl Node {
         }
     }
 
+    pub(crate) async fn remove_node(
+        &self,
+        node_id: uuid::Uuid,
+    ) -> Result<(), crate::MembershipError> {
+        let leader = {
+            let metrics = self.raft.metrics();
+            let current = metrics.borrow_watched();
+            let leader_id = current
+                .current_leader
+                .ok_or(crate::MembershipError::LeaderUnavailable)?;
+            current
+                .membership_config
+                .nodes()
+                .find_map(|(id, node)| (*id == leader_id).then(|| node.clone()))
+                .ok_or(crate::MembershipError::LeaderUnavailable)?
+        };
+        let client = self
+            .rpc
+            .client(&leader)
+            .await
+            .map_err(|error| crate::MembershipError::Transport(error.to_string()))?;
+        client
+            .remove_node(Context::current(), node_id)
+            .await
+            .map_err(|error| crate::MembershipError::Transport(error.to_string()))?
+    }
+
     pub fn voters(&self) -> BTreeSet<uuid::Uuid> {
         self.raft
             .metrics()

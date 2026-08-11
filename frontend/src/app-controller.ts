@@ -1,4 +1,4 @@
-import { type ApiToken, type Channel, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type Secret, type Session, type Setup, type Target, type TargetInput, request } from "./api.ts";
+import { type Alert, type ApiToken, type Channel, type ClusterMember, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type Secret, type Session, type Setup, type Target, type TargetInput, request } from "./api.ts";
 import { AppState } from "./app-state.ts";
 import { channelInput, targetInput } from "./resource-input.ts";
 
@@ -130,12 +130,12 @@ export class AppController extends AppState {
         method: editing ? "PUT" : "POST",
         body: JSON.stringify(body),
       });
+      await this.refresh();
       form.reset();
       this.editingChannel = undefined;
       this.channelKind = "webhook";
       this.channelTestMessage = "";
       this.closeDialog("channel-dialog");
-      await this.refresh();
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
     } finally {
@@ -270,6 +270,44 @@ export class AppController extends AppState {
   protected async revokeApiToken(token: ApiToken): Promise<void> {
     if (!window.confirm(`Revoke API Token ${token.name}?`)) return;
     await this.saveResource(() => request(`/api/v1/api-tokens/${token.id}`, { method: "DELETE" }));
+  }
+
+  protected async setNodeDrain(member: ClusterMember, draining: boolean): Promise<void> {
+    await this.saveResource(() =>
+      request(`/api/v1/nodes/${member.id}/drain`, {
+        method: "PUT",
+        body: JSON.stringify({ draining, force: false }),
+      }),
+    );
+  }
+
+  protected async removeNode(member: ClusterMember, force: boolean): Promise<void> {
+    const action = force ? `Replace failed Node ${member.name}? Confirm that it is permanently stopped. Its assignments will be released immediately.` : `Remove drained Node ${member.name} from the Cluster?`;
+    if (!window.confirm(action)) return;
+    await this.saveResource(() => request(`/api/v1/nodes/${member.id}?force=${force}`, { method: "DELETE" }));
+    if (force && !this.error) this.openTokenDialog();
+  }
+
+  protected async acknowledgeAlert(alert: Alert): Promise<void> {
+    await this.updateAlert("acknowledge", alert);
+  }
+
+  protected async retryAlert(alert: Alert): Promise<void> {
+    await this.updateAlert("retry", alert);
+  }
+
+  private async updateAlert(action: "acknowledge" | "retry", alert: Alert): Promise<void> {
+    await this.saveResource(() =>
+      request(`/api/v1/alerts/${action}`, {
+        method: "POST",
+        body: JSON.stringify({
+          target_id: alert.target_id,
+          channel_id: alert.channel_id,
+          scheduled_at_ms: alert.scheduled_at_ms,
+          kind: alert.kind,
+        }),
+      }),
+    );
   }
 
   private async saveResource(action: () => Promise<unknown>): Promise<void> {

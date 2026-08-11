@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 use std::time::Duration;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{StatusCode, header};
 use axum::response::sse::{Event, KeepAlive};
 use axum::response::{IntoResponse, Response, Sse};
@@ -18,11 +18,11 @@ use upgrid_raft::domain::{
     NotificationChannelId, NotificationChannelKind, Secret, SecretId, SmtpSecurity, StatusRange,
     Target, TargetId, TargetKind, TargetState,
 };
-use upgrid_raft::{ClusterError, Handle, hash_join_token};
+use upgrid_raft::{ClusterError, Handle, MembershipError, hash_join_token};
 use url::Url;
-use utoipa::ToSchema;
 use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityRequirement, SecurityScheme};
 use utoipa::openapi::{Components, Info};
+use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 use uuid::Uuid;
@@ -122,6 +122,7 @@ impl From<ClusterError> for ApiError {
                 source:
                     DomainError::TargetNotFound(_)
                     | DomainError::NotificationChannelNotFound(_)
+                    | DomainError::AlertNotFound(_)
                     | DomainError::IdentityNotFound(_)
                     | DomainError::ApiTokenNotFound(_),
             } => StatusCode::NOT_FOUND,
@@ -135,6 +136,13 @@ impl From<ClusterError> for ApiError {
             ClusterError::RuntimeStopped { .. }
             | ClusterError::RuntimeResponse { .. }
             | ClusterError::Operation { .. } => StatusCode::SERVICE_UNAVAILABLE,
+            ClusterError::Membership {
+                source: MembershipError::NodeNotFound(_),
+            } => StatusCode::NOT_FOUND,
+            ClusterError::Membership {
+                source: MembershipError::LastVoter,
+            } => StatusCode::CONFLICT,
+            ClusterError::Membership { .. } => StatusCode::SERVICE_UNAVAILABLE,
         };
         Self {
             status,
@@ -253,14 +261,76 @@ impl From<&Secret> for SecretView {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+enum AlertKindParam {
+    Down,
+    Recovered,
+}
+
+impl From<AlertKindParam> for AlertKind {
+    fn from(kind: AlertKindParam) -> Self {
+        match kind {
+            AlertKindParam::Down => Self::Down,
+            AlertKindParam::Recovered => Self::Recovered,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+enum AlertDeliveryParam {
+    Pending,
+    Delivered,
+    Failed,
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct AlertFilters {
+    target_id: Option<Uuid>,
+    channel_id: Option<Uuid>,
+    kind: Option<AlertKindParam>,
+    delivery: Option<AlertDeliveryParam>,
+    acknowledged: Option<bool>,
+    from_ms: Option<u64>,
+    to_ms: Option<u64>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+struct AlertActionRequest {
+    target_id: Uuid,
+    channel_id: Uuid,
+    scheduled_at_ms: u64,
+    kind: AlertKindParam,
+}
+
+impl AlertActionRequest {
+    fn alert_id(&self) -> upgrid_raft::domain::AlertId {
+        upgrid_raft::domain::AlertId {
+            target_id: TargetId(self.target_id),
+            channel_id: NotificationChannelId(self.channel_id),
+            evaluation_scheduled_at_ms: self.scheduled_at_ms,
+            kind: self.kind.into(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 struct AlertView {
     target_id: Uuid,
     channel_id: Uuid,
     kind: String,
     target_name: String,
+    channel_name: String,
     scheduled_at_ms: u64,
     delivery: String,
+    attempts: u32,
+    next_attempt_at_ms: Option<u64>,
+    completed_at_ms: Option<u64>,
+    diagnostic: Option<String>,
+    acknowledged_at_ms: Option<u64>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -270,6 +340,8 @@ struct ClusterMemberView {
     raft_url: String,
     leader: bool,
     local: bool,
+    draining: bool,
+    active_assignments: usize,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

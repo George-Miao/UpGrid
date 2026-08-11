@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use tokio::sync::{mpsc, oneshot, watch};
 use uuid::Uuid;
@@ -37,6 +38,10 @@ enum Request {
         node_id: Uuid,
         url: String,
         reply: oneshot::Sender<Result<(), crate::Error>>,
+    },
+    RemoveNode {
+        node_id: Uuid,
+        reply: oneshot::Sender<Result<(), MembershipError>>,
     },
 }
 
@@ -166,6 +171,22 @@ impl Handle {
         result.context(OperationSnafu)
     }
 
+    pub async fn remove_node(&self, node_id: Uuid) -> Result<(), ClusterError> {
+        let (reply, response) = oneshot::channel();
+        self.sender
+            .send(Request::RemoveNode { node_id, reply })
+            .ok()
+            .context(RuntimeStoppedSnafu {
+                operation: "remove Node",
+            })?;
+        response
+            .await
+            .context(RuntimeResponseSnafu {
+                operation: "remove Node",
+            })?
+            .context(MembershipSnafu)
+    }
+
     pub fn version(&self) -> u64 {
         self.version.load(Ordering::Relaxed)
     }
@@ -179,6 +200,29 @@ fn changed(version: &AtomicU64, events: &watch::Sender<u64>) {
     let version = version.fetch_add(1, Ordering::Relaxed).wrapping_add(1);
     events.send_replace(version);
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MembershipError {
+    NodeNotFound(Uuid),
+    LastVoter,
+    LeaderUnavailable,
+    ChangeRejected(String),
+    Transport(String),
+}
+
+impl std::fmt::Display for MembershipError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NodeNotFound(id) => write!(formatter, "Node not found: {id}"),
+            Self::LastVoter => formatter.write_str("cannot remove the final voting Node"),
+            Self::LeaderUnavailable => formatter.write_str("Cluster leader is unavailable"),
+            Self::ChangeRejected(message) => formatter.write_str(message),
+            Self::Transport(message) => formatter.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for MembershipError {}
 
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub(crate)))]
@@ -197,6 +241,8 @@ pub enum ClusterError {
 
     #[snafu(display("{source}"))]
     Domain { source: DomainError },
+    #[snafu(display("{source}"))]
+    Membership { source: MembershipError },
 }
 
 pub struct Receiver {
@@ -251,6 +297,9 @@ impl Receiver {
                     reply,
                 }) => {
                     let _ = reply.send(node.probe_node(node_id, &url).await);
+                }
+                Some(Request::RemoveNode { node_id, reply }) => {
+                    let _ = reply.send(node.remove_node(node_id).await);
                 }
                 None => {}
             }

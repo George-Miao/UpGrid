@@ -46,6 +46,7 @@ The same options are available as `UPGRID_TLS_CERT` and `UPGRID_TLS_KEY`, or `--
 - Restrict inter-Node transport ports to Cluster members.
 - Manage Operator Identities and API Tokens in the Cluster page; Raft replicates them to every Node.
 - Back up durable state, but never restore one Node's directory as a new identity.
+- Drain healthy Nodes before planned removal. Force-remove a failed Node only after fencing its old process, then replace it with a fresh data directory and Node identity.
 
 ## Operational checks
 
