@@ -210,6 +210,13 @@ impl Secret {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SmtpSecurity {
+    None,
+    StartTls,
+    Tls,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NotificationChannelKind {
     Telegram {
@@ -219,6 +226,15 @@ pub enum NotificationChannelKind {
     Webhook {
         url: Url,
         headers: BTreeMap<String, ConfigValue>,
+    },
+    Smtp {
+        host: String,
+        port: u16,
+        security: SmtpSecurity,
+        username: Option<String>,
+        password: Option<SecretId>,
+        from: String,
+        to: String,
     },
 }
 
@@ -255,6 +271,32 @@ impl NotificationChannel {
                 }
                 Ok(())
             }
+            NotificationChannelKind::Smtp {
+                host,
+                port,
+                username,
+                password,
+                from,
+                to,
+                ..
+            } => {
+                if host.trim().is_empty() || *port == 0 {
+                    return Err(DomainError::InvalidNotificationChannel(
+                        "SMTP host and port must be configured".to_owned(),
+                    ));
+                }
+                if from.trim().is_empty() || to.trim().is_empty() {
+                    return Err(DomainError::InvalidNotificationChannel(
+                        "SMTP sender and recipient must be configured".to_owned(),
+                    ));
+                }
+                if username.is_some() != password.is_some() {
+                    return Err(DomainError::InvalidNotificationChannel(
+                        "SMTP username and password must be configured together".to_owned(),
+                    ));
+                }
+                Ok(())
+            }
             NotificationChannelKind::Telegram { .. } => Ok(()),
         }
     }
@@ -269,6 +311,7 @@ impl NotificationChannel {
                     ConfigValue::Secret(id) => Some(*id),
                 })
                 .collect(),
+            NotificationChannelKind::Smtp { password, .. } => password.iter().copied().collect(),
         }
     }
 }

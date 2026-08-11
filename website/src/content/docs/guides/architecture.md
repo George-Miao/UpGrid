@@ -19,7 +19,7 @@ Availability thresholds and transitions are computed from replicated state, so a
 
 ## Notifications
 
-Committed availability transitions create notification work. Telegram and webhook workers deliver through configured Channels with at-least-once semantics.
+Committed availability transitions create notification work. Telegram, SMTP email, and webhook workers deliver through configured Channels with at-least-once semantics.
 
 ## Transport and security boundaries
 

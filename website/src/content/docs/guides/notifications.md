@@ -1,9 +1,9 @@
 ---
 title: Send notifications
-description: Deliver availability transitions to Telegram and webhook Channels.
+description: Deliver availability transitions to Telegram, SMTP email, and webhook Channels.
 ---
 
-Notification Channels receive availability transitions for service Targets and Cluster Node Targets. UpGrid currently supports Telegram Bot API and webhooks.
+Notification Channels receive availability transitions for service Targets and Cluster Node Targets. UpGrid supports Telegram Bot API, SMTP email, and webhooks.
 
 ## Store credentials as Secrets
 
@@ -32,6 +32,12 @@ Create a Telegram Channel with a descriptive name, a Bot API token, and the dest
 
 Transition messages identify the Target and whether it moved up or down.
 
+## SMTP email
+
+Create an SMTP Channel with a server host, port, sender, and recipient. Choose **STARTTLS** for explicit TLS upgrade, **Implicit TLS** for SMTP-over-TLS, or **Plaintext** only for a trusted local relay. UpGrid requires certificate validation for both TLS modes.
+
+Authentication is optional. Supply a username and password together to enable it. UpGrid encrypts the password as an automatically managed, write-only Secret; a **Test send** uses the password currently entered without storing it.
+
 ## Webhook
 
 Create a webhook Channel with its destination URL and optional literal or Secret-backed headers. UpGrid sends transition data to the endpoint and treats delivery separately from the evaluation that created the alert.
@@ -40,7 +46,7 @@ Create a webhook Channel with its destination URL and optional literal or Secret
 
 Use **Edit** on the Alerts page to change a Channel's name, destination, and default status. A Channel's type cannot be changed.
 
-Telegram tokens remain write-only. Leave the token field blank to keep the current automatically managed Secret, or enter a new token to replace it. When updating a webhook through the HTTP API, omit `headers` to preserve its existing literal and Secret-backed headers.
+Telegram tokens and SMTP passwords remain write-only. Leave either credential field blank while editing to keep its current automatically managed Secret, or enter a new value to replace it. Clear an SMTP username to disable authentication. When updating a webhook through the HTTP API, omit `headers` to preserve its existing literal and Secret-backed headers.
 
 ## Default Channels
 

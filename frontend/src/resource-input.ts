@@ -1,6 +1,6 @@
 import type { TargetInput } from "./api.ts";
 
-export type ChannelKind = "webhook" | "telegram";
+export type ChannelKind = "webhook" | "telegram" | "smtp";
 
 export function channelInput(fields: FormData, kind: ChannelKind, update = false) {
   if (kind === "telegram") {
@@ -10,6 +10,22 @@ export function channelInput(fields: FormData, kind: ChannelKind, update = false
       name: fields.get("name"),
       bot_token: update && !botToken ? undefined : botToken,
       chat_id: fields.get("chat_id"),
+      default: fields.get("default") === "on",
+    };
+  }
+  if (kind === "smtp") {
+    const username = String(fields.get("username") ?? "");
+    const password = String(fields.get("password") ?? "");
+    return {
+      type: "smtp",
+      name: fields.get("name"),
+      host: fields.get("host"),
+      port: Number(fields.get("port")),
+      security: fields.get("security"),
+      username: username || undefined,
+      password: password || undefined,
+      from: fields.get("from"),
+      to: fields.get("to"),
       default: fields.get("default") === "on",
     };
   }

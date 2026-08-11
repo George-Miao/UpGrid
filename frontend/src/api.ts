@@ -38,9 +38,14 @@ export type ConfigValue = { kind: "literal"; value: string } | { kind: "secret";
 export interface Channel {
   id: string;
   name: string;
-  kind: "telegram" | "webhook";
+  kind: "telegram" | "webhook" | "smtp";
   destination: string;
   headers: Record<string, ConfigValue>;
+  port?: number;
+  security?: "none" | "start_tls" | "tls";
+  username?: string;
+  from?: string;
+  to?: string;
   default: boolean;
 }
 

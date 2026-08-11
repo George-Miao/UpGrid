@@ -2,9 +2,14 @@
 
 The MVP is complete. This file records unfinished work for future agile iterations. Ordered from higher to lower priority.
 
+## Active Iteration
+
+- [x] SMTP Notification Channels support plaintext, STARTTLS, and implicit TLS delivery with optional username and encrypted password.
+- [x] Operators can create, test, and edit SMTP Channels in the WebUI; omitted passwords preserve the managed Secret.
+- [x] Domain, API, notification, and browser tests verify SMTP configuration, delivery, editing, and failures against a local SMTP fixture.
+
 ## Backlog
 
-- [ ] Add support to email notification channel, via SMTP
 - [ ] Add TCP-connect, DNS, ICMP, and TLS-certificate Target types.
 - [ ] Replace the static shared administrator username and password with replicated identities, API tokens and JWT.
 - [ ] Add safe Node drain, membership removal, and failed-Node replacement workflows.

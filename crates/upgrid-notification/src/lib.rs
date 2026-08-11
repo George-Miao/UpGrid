@@ -1,4 +1,4 @@
-//! Telegram and webhook alert delivery for an UpGrid Cluster.
+//! Telegram, SMTP email, and webhook alert delivery for an UpGrid Cluster.
 
 use std::cell::RefCell;
 use std::collections::BTreeSet;
@@ -25,7 +25,7 @@ mod test;
 mod notification_tests;
 
 pub use channel::ChannelError;
-use channel::Request;
+use channel::{Delivery, Request};
 pub use test::{TestChannel, TestError, Tester};
 
 const RETRY_WINDOW_MS: u64 = 24 * 60 * 60 * 1_000;
@@ -87,6 +87,10 @@ pub enum SendError {
 
     #[snafu(display("response body exceeds {limit} bytes"))]
     ResponseTooLarge { limit: u64 },
+    #[snafu(display("SMTP delivery failed: {source}"))]
+    Smtp {
+        source: lettre::transport::smtp::Error,
+    },
 }
 
 /// Starts alert delivery and channel testing in the current Compio runtime.
@@ -201,7 +205,24 @@ async fn attempt(
     Ok(Attempt { response, accepted })
 }
 
-async fn send(client: &Client, request: Request) -> Result<Response, SendError> {
+async fn send(client: &Client, delivery: Delivery) -> Result<Response, SendError> {
+    match delivery {
+        Delivery::Http(request) => send_http(client, request).await,
+        Delivery::Smtp(request) => {
+            compio::runtime::spawn_blocking(move || channel::send_smtp(request))
+                .await
+                .expect("SMTP delivery task should run to completion")
+                .context(SmtpSnafu)?;
+            Ok(Response {
+                status: StatusCode::OK,
+                body: Vec::new(),
+                retry_after_ms: None,
+            })
+        }
+    }
+}
+
+async fn send_http(client: &Client, request: Request) -> Result<Response, SendError> {
     let mut builder = client
         .request(Method::POST, request.url)
         .context(RequestSnafu)?;

@@ -9,6 +9,7 @@ compio.workspace = true
 cyper.workspace = true
 http.workspace = true
 httpdate.workspace = true
+lettre.workspace = true
 serde_json.workspace = true
 snafu.workspace = true
 tokio.workspace = true

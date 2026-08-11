@@ -10,8 +10,10 @@ import type { Target } from "./api.ts";
 import { AppController } from "./app-controller.ts";
 import { renderAlertsPage } from "./alerts-view.ts";
 import { type Section, sectionPaths, serviceHealth, themeIcons } from "./app-state.ts";
+import { renderChannelFields } from "./channel-form-view.ts";
 import { renderFooter } from "./footer-view.ts";
-import { renderHelpTooltip } from "./help-tooltip.ts";
+import { helpTooltipStyles, renderHelpTooltip } from "./help-tooltip.ts";
+import type { ChannelKind } from "./resource-input.ts";
 import { renderTargetDetail } from "./target-detail-view.ts";
 import { renderTargetForm } from "./target-form-view.ts";
 @customElement("upgrid-app")
@@ -99,13 +101,7 @@ export class UpgridApp extends AppController {
     .button[aria-busy="true"] { cursor: wait; }
     .icon-button { display: grid; width: 44px; height: 44px; min-height: 44px; place-items: center; padding: 0; }
     iconify-icon { display: inline-block; width: 18px; height: 18px; font-size: 18px; }
-    .title-with-help { display: flex; align-items: center; gap: 3px; }
-    .help-tooltip-wrap { position: relative; display: inline-flex; align-items: center; }
-    .help-tooltip-trigger { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 0; cursor: help; transition: background-color 160ms ease, color 160ms ease; }
-    .help-tooltip-trigger:hover { background: var(--panel-2); color: var(--text); }
-    .help-tooltip-trigger iconify-icon { width: 16px; height: 16px; font-size: 16px; }
-    .help-tooltip { position: absolute; top: calc(100% + 6px); left: -60px; z-index: 10; width: 280px; max-width: calc(100vw - 64px); border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2); color: var(--text); box-shadow: 0 10px 30px var(--dialog-shadow); padding: 9px 10px; font-size: 12px; font-weight: 400; line-height: 1.45; opacity: 0; visibility: hidden; transform: translateY(-3px); pointer-events: none; transition: opacity 140ms ease, transform 140ms ease, visibility 140ms; }
-    .help-tooltip-wrap:hover .help-tooltip, .help-tooltip-wrap:focus-within .help-tooltip { opacity: 1; visibility: visible; transform: translateY(0); }
+    ${helpTooltipStyles}
     .overview-top { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; }
     .page-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
     .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -369,18 +365,14 @@ export class UpgridApp extends AppController {
         </form>
       </dialog>
       <dialog id="channel-dialog" aria-labelledby="channel-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><h2 id="channel-title">${this.editingChannel ? "Edit channel" : "Add channel"}</h2><p>${this.editingChannel ? "Update this destination without changing its Channel type." : "Send transitions through Telegram or a generic webhook."}</p></div>
+        <div class="dialog-head"><h2 id="channel-title">${this.editingChannel ? "Edit channel" : "Add channel"}</h2><p>${this.editingChannel ? "Update this destination without changing its Channel type." : "Send transitions through Telegram, SMTP, or a generic webhook."}</p></div>
         <form @submit=${this.createChannel}>
           <label>Type<select name="type" .value=${this.channelKind} ?disabled=${this.editingChannel !== undefined} @change=${(event: Event) => {
-            this.channelKind = (event.target as HTMLSelectElement).value as "webhook" | "telegram";
+            this.channelKind = (event.target as HTMLSelectElement).value as ChannelKind;
             this.channelTestMessage = "";
-          }}><option value="webhook">Webhook</option><option value="telegram">Telegram</option></select></label>
+          }}><option value="webhook">Webhook</option><option value="telegram">Telegram</option><option value="smtp">SMTP email</option></select></label>
           <label>Name<input name="name" placeholder="On-call" .value=${this.editingChannel?.name ?? ""} required /></label>
-          ${
-            this.channelKind === "webhook"
-              ? html`<label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/upgrid" .value=${this.editingChannel?.destination ?? ""} data-test-required required /></label>`
-              : html`<label><span class="title-with-help">Bot token ${renderHelpTooltip("telegram-token-help", "About Telegram bot token storage", this.editingChannel ? "Leave this blank to keep the automatically managed Secret, or enter a replacement token." : "Creating the Channel encrypts this token as an automatically managed Secret. Test sends use the entered value without storing it.")}</span><input name="bot_token" type="password" autocomplete="off" placeholder=${this.editingChannel ? "Leave blank to keep current token" : ""} ?required=${this.editingChannel === undefined} /></label><label>Chat ID<input name="chat_id" .value=${this.editingChannel?.destination ?? ""} data-test-required required /></label>`
-          }
+          ${renderChannelFields(this.channelKind, this.editingChannel)}
           <label class="switch"><span>Default channel</span><input name="default" type="checkbox" role="switch" .checked=${this.editingChannel?.default ?? false} /></label>
           <div class="dialog-actions">${this.channelTestMessage ? html`<span class="meta" role="status" style="margin-right:auto">${this.channelTestMessage}</span>` : nothing}<button class="button secondary" type="button" @click=${() => {
             this.editingChannel = undefined;

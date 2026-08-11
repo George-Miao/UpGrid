@@ -8,8 +8,8 @@ use upgrid_raft::domain::{Alert, ApplicationState, ConfigValue, SecretId};
 use url::Url;
 
 use super::{
-    ChannelError, ChannelTarget, Request, TelegramBodySnafu, TelegramUrlSnafu, alert_text,
-    resolve_value,
+    ChannelError, ChannelTarget, Delivery, Request, TelegramBodySnafu, TelegramUrlSnafu,
+    alert_text, resolve_value,
 };
 
 pub(super) struct Telegram<'a> {
@@ -29,9 +29,9 @@ impl ChannelTarget for Telegram<'_> {
         state: &ApplicationState,
         cipher: &Cipher,
         alert: &Alert,
-    ) -> Result<Request, ChannelError> {
+    ) -> Result<Delivery, ChannelError> {
         let token = resolve_value(state, cipher, &ConfigValue::Secret(self.bot_token))?;
-        request(&token, self.chat_id, &alert_text(alert))
+        request(&token, self.chat_id, &alert_text(alert)).map(Delivery::Http)
     }
 
     fn accepts(&self, status: StatusCode, body: &[u8]) -> bool {

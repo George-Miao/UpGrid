@@ -46,7 +46,7 @@ export class AppState extends LitElement {
   @state() protected live = false;
   @state() protected saving = false;
   @state() protected selected?: Target;
-  @state() protected channelKind: "webhook" | "telegram" = "webhook";
+  @state() protected channelKind: "webhook" | "telegram" | "smtp" = "webhook";
   @state() protected editingChannel?: Channel;
   @state() protected channelTestMessage = "";
   @state() protected testingChannel = false;

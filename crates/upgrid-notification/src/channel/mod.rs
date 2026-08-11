@@ -9,6 +9,7 @@ use upgrid_raft::domain::{
 };
 use url::Url;
 
+mod smtp;
 mod telegram;
 mod webhook;
 
@@ -23,6 +24,20 @@ pub enum TestChannel {
         url: Url,
         headers: BTreeMap<String, String>,
     },
+    Smtp {
+        host: String,
+        port: u16,
+        security: upgrid_raft::domain::SmtpSecurity,
+        username: Option<String>,
+        password: Option<String>,
+        from: String,
+        to: String,
+    },
+}
+
+pub(crate) enum Delivery {
+    Http(Request),
+    Smtp(smtp::Request),
 }
 
 #[derive(Debug, Snafu)]
@@ -39,6 +54,21 @@ pub enum ChannelError {
 
     #[snafu(display("failed to encode webhook request: {source}"))]
     WebhookBody { source: serde_json::Error },
+    #[snafu(display("invalid SMTP configuration: {message}"))]
+    InvalidSmtp { message: &'static str },
+
+    #[snafu(display("invalid email address: {source}"))]
+    EmailAddress {
+        source: lettre::address::AddressError,
+    },
+
+    #[snafu(display("failed to construct email: {source}"))]
+    Email { source: lettre::error::Error },
+
+    #[snafu(display("failed to configure SMTP transport: {source}"))]
+    SmtpTransport {
+        source: lettre::transport::smtp::Error,
+    },
 }
 
 pub(crate) struct Request {
@@ -53,7 +83,7 @@ pub(crate) trait ChannelTarget {
         state: &ApplicationState,
         cipher: &Cipher,
         alert: &Alert,
-    ) -> Result<Request, ChannelError>;
+    ) -> Result<Delivery, ChannelError>;
 
     fn accepts(&self, status: StatusCode, _body: &[u8]) -> bool {
         status.is_success()
@@ -68,21 +98,63 @@ pub(crate) fn target(kind: &NotificationChannelKind) -> Box<dyn ChannelTarget + 
         NotificationChannelKind::Webhook { url, headers } => {
             Box::new(webhook::Webhook::new(url, headers))
         }
+        NotificationChannelKind::Smtp {
+            host,
+            port,
+            security,
+            username,
+            password,
+            from,
+            to,
+        } => Box::new(smtp::Smtp::new(
+            host,
+            *port,
+            *security,
+            username.as_deref(),
+            *password,
+            from,
+            to,
+        )),
     }
 }
 
-pub(crate) fn test_request(channel: &TestChannel) -> Result<Request, ChannelError> {
+pub(crate) fn test_request(channel: &TestChannel) -> Result<Delivery, ChannelError> {
     match channel {
-        TestChannel::Telegram { bot_token, chat_id } => telegram::test_request(bot_token, chat_id),
-        TestChannel::Webhook { url, headers } => webhook::test_request(url, headers),
+        TestChannel::Telegram { bot_token, chat_id } => {
+            telegram::test_request(bot_token, chat_id).map(Delivery::Http)
+        }
+        TestChannel::Webhook { url, headers } => {
+            webhook::test_request(url, headers).map(Delivery::Http)
+        }
+        TestChannel::Smtp {
+            host,
+            port,
+            security,
+            username,
+            password,
+            from,
+            to,
+        } => smtp::test_request(
+            host,
+            *port,
+            *security,
+            username.as_deref(),
+            password.as_deref(),
+            from,
+            to,
+        )
+        .map(Delivery::Smtp),
     }
 }
 
 pub(crate) fn test_accepts(channel: &TestChannel, status: StatusCode, body: &[u8]) -> bool {
     match channel {
         TestChannel::Telegram { .. } => telegram::accepts(status, body),
-        TestChannel::Webhook { .. } => status.is_success(),
+        TestChannel::Webhook { .. } | TestChannel::Smtp { .. } => status.is_success(),
     }
+}
+pub(crate) fn send_smtp(request: smtp::Request) -> Result<(), lettre::transport::smtp::Error> {
+    smtp::send(request)
 }
 
 pub(crate) fn alert_text(alert: &Alert) -> String {

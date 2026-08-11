@@ -10,3 +10,4 @@ mod config_value;
 mod evaluation;
 mod lifecycle;
 mod node;
+mod notification;

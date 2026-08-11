@@ -1,6 +1,9 @@
 use snafu::{ResultExt, Snafu};
 
 use super::*;
+mod model;
+
+use model::*;
 
 #[derive(Debug, Snafu)]
 enum ChannelInputError {
@@ -12,6 +15,8 @@ enum ChannelInputError {
 
     #[snafu(display("Notification Channel type cannot be changed"))]
     KindChanged,
+    #[snafu(display("SMTP username and password must be configured together"))]
+    InvalidSmtpAuth,
 }
 
 impl From<ChannelInputError> for ApiError {
@@ -28,100 +33,31 @@ fn cluster_snapshot(
         Err(error) => Err(ApiError::unavailable(error)),
     }
 }
-
-#[derive(Debug, Deserialize, ToSchema)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub(super) enum PutChannelRequest {
-    Telegram {
-        name: String,
-        bot_token: String,
-        chat_id: String,
-        #[serde(default, rename = "default")]
-        is_default: bool,
-    },
-    Webhook {
-        name: String,
-        url: String,
-        #[serde(default)]
-        headers: BTreeMap<String, ConfigValueInput>,
-        #[serde(default, rename = "default")]
-        is_default: bool,
-    },
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub(super) enum UpdateChannelRequest {
-    Telegram {
-        name: String,
-        #[serde(default)]
-        bot_token: Option<String>,
-        chat_id: String,
-        #[serde(default, rename = "default")]
-        is_default: bool,
-    },
-    Webhook {
-        name: String,
-        url: String,
-        headers: Option<BTreeMap<String, ConfigValueInput>>,
-        #[serde(default, rename = "default")]
-        is_default: bool,
-    },
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub(super) enum TestChannelRequest {
-    Telegram {
-        bot_token: String,
-        chat_id: String,
-    },
-    Webhook {
-        url: String,
-        #[serde(default)]
-        headers: BTreeMap<String, String>,
-    },
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub(super) struct SetChannelDefaultRequest {
-    #[serde(rename = "default")]
-    is_default: bool,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub(super) struct ChannelView {
-    id: Uuid,
-    name: String,
-    kind: String,
-    destination: String,
-    headers: BTreeMap<String, ConfigValueView>,
-    #[serde(rename = "default")]
-    is_default: bool,
-}
-
-impl ChannelView {
-    fn from_channel(channel: &NotificationChannel, is_default: bool) -> Self {
-        let (kind, destination, headers) = match &channel.kind {
-            NotificationChannelKind::Telegram { chat_id, .. } => {
-                ("telegram", chat_id.clone(), BTreeMap::new())
-            }
-            NotificationChannelKind::Webhook { url, headers } => (
-                "webhook",
-                url.to_string(),
-                headers
-                    .iter()
-                    .map(|(name, value)| (name.clone(), ConfigValueView::from(value)))
-                    .collect(),
-            ),
-        };
-        Self {
-            id: channel.id.0,
-            name: channel.name.clone(),
-            kind: kind.to_owned(),
-            destination,
-            headers,
-            is_default,
+fn smtp_auth(
+    state: &WebState,
+    channel_id: NotificationChannelId,
+    username: &Option<String>,
+    password: Option<String>,
+    existing_id: Option<SecretId>,
+) -> Result<(Option<SecretId>, Option<Secret>), ChannelInputError> {
+    match (username, password) {
+        (None, None) => Ok((None, None)),
+        (None, Some(_)) => Err(InvalidSmtpAuthSnafu.build()),
+        (Some(_), None) if existing_id.is_none() => Err(InvalidSmtpAuthSnafu.build()),
+        (Some(_), None) => Ok((existing_id, None)),
+        (Some(_), Some(password)) => {
+            let secret_id = existing_id.unwrap_or_else(|| SecretId(Uuid::now_v7()));
+            Ok((
+                Some(secret_id),
+                Some(Secret {
+                    id: secret_id,
+                    name: format!("smtp-{}", channel_id.0),
+                    ciphertext: state
+                        .cipher
+                        .seal(password.as_bytes())
+                        .context(SealSecretSnafu)?,
+                }),
+            ))
         }
     }
 }
@@ -218,6 +154,36 @@ pub(super) async fn create_channel(
             None,
             is_default,
         ),
+        PutChannelRequest::Smtp {
+            name,
+            host,
+            port,
+            security,
+            username,
+            password,
+            from,
+            to,
+            is_default,
+        } => {
+            let (password, generated_secret) = smtp_auth(&state, id, &username, password, None)?;
+            (
+                NotificationChannel {
+                    id,
+                    name,
+                    kind: NotificationChannelKind::Smtp {
+                        host,
+                        port,
+                        security: security.into(),
+                        username,
+                        password,
+                        from,
+                        to,
+                    },
+                },
+                generated_secret,
+                is_default,
+            )
+        }
     };
     state
         .cluster
@@ -333,6 +299,43 @@ pub(super) async fn update_channel(
             None,
             is_default,
         ),
+        (
+            UpdateChannelRequest::Smtp {
+                name,
+                host,
+                port,
+                security,
+                username,
+                password,
+                from,
+                to,
+                is_default,
+            },
+            NotificationChannelKind::Smtp {
+                password: existing_password,
+                ..
+            },
+        ) => {
+            let (password, generated_secret) =
+                smtp_auth(&state, id, &username, password, *existing_password)?;
+            (
+                NotificationChannel {
+                    id,
+                    name,
+                    kind: NotificationChannelKind::Smtp {
+                        host,
+                        port,
+                        security: security.into(),
+                        username,
+                        password,
+                        from,
+                        to,
+                    },
+                },
+                generated_secret,
+                is_default,
+            )
+        }
         _ => return Err(ChannelInputError::KindChanged.into()),
     };
     state
@@ -413,6 +416,23 @@ pub(super) async fn test_channel(
         TestChannelRequest::Webhook { url, headers } => upgrid_notification::TestChannel::Webhook {
             url: Url::parse(&url).context(InvalidUrlSnafu)?,
             headers,
+        },
+        TestChannelRequest::Smtp {
+            host,
+            port,
+            security,
+            username,
+            password,
+            from,
+            to,
+        } => upgrid_notification::TestChannel::Smtp {
+            host,
+            port,
+            security: security.into(),
+            username,
+            password,
+            from,
+            to,
         },
     };
     match state.notifications.send(channel).await {

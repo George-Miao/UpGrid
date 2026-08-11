@@ -16,7 +16,7 @@ Every Node exposes the same authenticated API and responsive WebUI. Followers tr
 - **A useful interface on every Node.** Manage Targets, inspect latency and availability history, and operate the Cluster from any healthy member.
 - **Distributed monitoring.** The leader assigns each polling interval to one Node, commits one authoritative result, and preserves failure streaks across leader changes.
 - **Flexible HTTP checks.** Use any HTTP method with configurable timeouts, redirects, status ranges, headers, bodies, Secrets, and consecutive-failure thresholds.
-- **Actionable notifications.** Deliver service and Cluster Node transitions through Telegram or webhooks, with default Channels and at-least-once delivery.
+- **Actionable notifications.** Deliver service and Cluster Node transitions through Telegram, SMTP email, or webhooks, with default Channels and at-least-once delivery.
 - **Simple expansion.** Create an expiring, revocable `up://` Join Token in the WebUI and start another Node with `--join`.
 
 ## Quick start

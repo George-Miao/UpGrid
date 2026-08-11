@@ -1585,6 +1585,12 @@
           "destination": {
             "type": "string"
           },
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "headers": {
             "type": "object",
             "additionalProperties": {
@@ -1603,6 +1609,32 @@
           },
           "name": {
             "type": "string"
+          },
+          "port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "security": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -1968,6 +2000,61 @@
                 "type": "string"
               }
             }
+          },
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "host",
+              "port",
+              "security",
+              "from",
+              "to",
+              "type"
+            ],
+            "properties": {
+              "default": {
+                "type": "boolean"
+              },
+              "from": {
+                "type": "string"
+              },
+              "host": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "password": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "port": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "security": {
+                "$ref": "#/components/schemas/SmtpSecurityInput"
+              },
+              "to": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "smtp"
+                ]
+              },
+              "username": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
           }
         ]
       },
@@ -2161,6 +2248,14 @@
             ]
           }
         }
+      },
+      "SmtpSecurityInput": {
+        "type": "string",
+        "enum": [
+          "none",
+          "start_tls",
+          "tls"
+        ]
       },
       "StatusRangeInput": {
         "type": "object",
@@ -2368,6 +2463,54 @@
                 "type": "string"
               }
             }
+          },
+          {
+            "type": "object",
+            "required": [
+              "host",
+              "port",
+              "security",
+              "from",
+              "to",
+              "type"
+            ],
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "host": {
+                "type": "string"
+              },
+              "password": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "port": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "security": {
+                "$ref": "#/components/schemas/SmtpSecurityInput"
+              },
+              "to": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "smtp"
+                ]
+              },
+              "username": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
           }
         ]
       },
@@ -2464,6 +2607,61 @@
               },
               "url": {
                 "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "host",
+              "port",
+              "security",
+              "from",
+              "to",
+              "type"
+            ],
+            "properties": {
+              "default": {
+                "type": "boolean"
+              },
+              "from": {
+                "type": "string"
+              },
+              "host": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "password": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "port": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "security": {
+                "$ref": "#/components/schemas/SmtpSecurityInput"
+              },
+              "to": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "smtp"
+                ]
+              },
+              "username": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }

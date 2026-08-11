@@ -20,6 +20,7 @@ figment = { version = "0.10.19", features = ["env", "toml"] }
 futures-core = "0.3.31"
 httpdate = "1"
 http = "1"
+lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "rustls-tls"] }
 openraft = { version = "0.10.0-alpha.33", git = "https://github.com/databendlabs/openraft.git", branch = "main", default-features = false, features = ["serde", "single-threaded", "type-alias"] }
 openraft-rt-compio = { version = "0.10.0-alpha.33", git = "https://github.com/databendlabs/openraft.git", branch = "main" }
 postcard = { version = "1.1.1", features = ["use-std"], default-features = false }

@@ -24,7 +24,7 @@ A named confidential value referenced by Target or notification configuration an
 _Avoid_: Credential, token, password
 
 **Notification Channel**:
-A reusable Telegram or webhook destination that receives availability-transition alerts from referenced Targets.
+A reusable Telegram, SMTP email, or webhook destination that receives availability-transition alerts from referenced Targets.
 _Avoid_: Contact, notifier, integration
 
 **Alert**:

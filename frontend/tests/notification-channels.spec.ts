@@ -1,11 +1,15 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { createServer as createTcpServer, type Server as TcpServer } from "node:net";
 import { expect, test } from "@playwright/test";
 
 let server: Server;
 let webhookUrl: string;
 let webhookBody = "";
 let webhookBodies: string[] = [];
+let smtpServer: TcpServer;
+let smtpPort = 0;
+let smtpMessage = "";
 
 test.beforeAll(async () => {
   server = createServer((request, response) => {
@@ -19,10 +23,48 @@ test.beforeAll(async () => {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   webhookUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/hook`;
+  smtpServer = createTcpServer((socket) => {
+    socket.setEncoding("utf8");
+    socket.write("220 localhost ESMTP\r\n");
+    let buffer = "";
+    let receivingData = false;
+    socket.on("data", (chunk: string) => {
+      buffer += chunk;
+      let newline = buffer.indexOf("\r\n");
+      while (newline >= 0) {
+        const line = buffer.slice(0, newline);
+        buffer = buffer.slice(newline + 2);
+        if (receivingData) {
+          if (line === ".") {
+            receivingData = false;
+            socket.write("250 queued\r\n");
+          } else {
+            smtpMessage += `${line}\r\n`;
+          }
+        } else if (line.startsWith("EHLO ")) {
+          socket.write("250-localhost\r\n250 AUTH PLAIN\r\n");
+        } else if (line.startsWith("AUTH PLAIN ")) {
+          socket.write("235 authenticated\r\n");
+        } else if (line.startsWith("MAIL FROM:") || line.startsWith("RCPT TO:")) {
+          socket.write("250 OK\r\n");
+        } else if (line === "DATA") {
+          receivingData = true;
+          socket.write("354 End data with <CR><LF>.<CR><LF>\r\n");
+        } else if (line === "QUIT") {
+          socket.end("221 Bye\r\n");
+        } else {
+          socket.destroy(new Error(`Unexpected SMTP command: ${line}`));
+        }
+        newline = buffer.indexOf("\r\n");
+      }
+    });
+  });
+  await new Promise<void>((resolve) => smtpServer.listen(0, "127.0.0.1", resolve));
+  smtpPort = (smtpServer.address() as AddressInfo).port;
 });
 
 test.afterAll(async () => {
-  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  await Promise.all([new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))), new Promise<void>((resolve, reject) => smtpServer.close((error) => (error ? reject(error) : resolve())))]);
 });
 
 test("explains Secret usage from related forms", async ({ page }) => {
@@ -72,6 +114,47 @@ test("tests a channel and places its type beside the name", async ({ page }) => 
   await expect(remove.locator("iconify-icon")).toBeVisible();
   page.once("dialog", (confirmation) => confirmation.accept());
   await remove.click();
+  await expect(row).not.toBeVisible();
+});
+test("creates, tests, and edits an SMTP channel", async ({ page }) => {
+  const suffix = Date.now();
+  const channelName = `Browser SMTP ${suffix}`;
+  smtpMessage = "";
+  await page.goto("/alerts");
+  await page.getByRole("button", { name: "Add channel" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add channel" });
+  await dialog.getByLabel("Type").selectOption("smtp");
+  await dialog.getByLabel("Name", { exact: true }).fill(channelName);
+  await dialog.getByLabel("SMTP host").fill("127.0.0.1");
+  await dialog.getByLabel("Port").fill(String(smtpPort));
+  await dialog.getByLabel("Security").selectOption("none");
+  await dialog.getByLabel("Username").fill("upgrid");
+  await dialog.getByLabel("Password", { exact: true }).fill("smtp-secret");
+  await dialog.getByLabel("From").fill("upgrid@example.com");
+  await dialog.getByLabel("Recipient").fill("on-call@example.com");
+  await dialog.getByRole("button", { name: "Send test" }).click();
+  await expect(dialog.getByRole("status")).toHaveText("Test sent");
+  expect(smtpMessage).toContain("Subject: UpGrid notification channel test");
+  expect(smtpMessage).toContain("UpGrid notification channel test");
+
+  await dialog.getByRole("button", { name: "Create channel" }).click();
+  const row = page.getByRole("region", { name: "Notification channels" }).locator(".resource", {
+    hasText: channelName,
+  });
+  await expect(row).toContainText("smtp");
+  await row.getByRole("button", { name: `Edit channel ${channelName}` }).click();
+  const editDialog = page.getByRole("dialog", { name: "Edit channel" });
+  await expect(editDialog.getByLabel("Type")).toHaveValue("smtp");
+  await expect(editDialog.getByLabel("Username")).toHaveValue("upgrid");
+  await expect(editDialog.getByLabel("Password", { exact: true })).toHaveValue("");
+  await editDialog.getByLabel("Recipient").fill("secondary@example.com");
+  await editDialog.getByRole("button", { name: "Save changes" }).click();
+
+  await row.getByRole("button", { name: `Edit channel ${channelName}` }).click();
+  await expect(page.getByRole("dialog", { name: "Edit channel" }).getByLabel("Recipient")).toHaveValue("secondary@example.com");
+  await editDialog.getByRole("button", { name: "Cancel" }).click();
+  page.once("dialog", (confirmation) => confirmation.accept());
+  await row.getByRole("button", { name: `Delete channel ${channelName}` }).click();
   await expect(row).not.toBeVisible();
 });
 
