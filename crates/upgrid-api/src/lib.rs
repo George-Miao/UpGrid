@@ -104,13 +104,17 @@ impl ApiError {
 impl From<ClusterError> for ApiError {
     fn from(error: ClusterError) -> Self {
         let status = match &error {
-            ClusterError::Domain(DomainError::TargetNotFound(_)) => StatusCode::NOT_FOUND,
-            ClusterError::Domain(DomainError::NotificationChannelNotFound(_)) => {
-                StatusCode::NOT_FOUND
-            }
-            ClusterError::Domain(DomainError::TargetAlreadyExists(_)) => StatusCode::CONFLICT,
-            ClusterError::Domain(_) => StatusCode::UNPROCESSABLE_ENTITY,
-            ClusterError::Unavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+            ClusterError::Domain {
+                source: DomainError::TargetNotFound(_),
+            } => StatusCode::NOT_FOUND,
+            ClusterError::Domain {
+                source: DomainError::NotificationChannelNotFound(_),
+            } => StatusCode::NOT_FOUND,
+            ClusterError::Domain {
+                source: DomainError::TargetAlreadyExists(_),
+            } => StatusCode::CONFLICT,
+            ClusterError::Domain { .. } => StatusCode::UNPROCESSABLE_ENTITY,
+            ClusterError::Unavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
         };
         Self {
             status,

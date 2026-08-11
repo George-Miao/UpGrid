@@ -5,8 +5,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
+use snafu::{ResultExt, Snafu};
 use tokio::sync::{mpsc, oneshot, watch};
-use upgrid_config::now_ms;
 use uuid::Uuid;
 
 use crate::domain::{ApplicationState, Command, CommandResult, DomainError};
@@ -97,19 +97,24 @@ impl Handle {
 
     pub async fn apply(&self, command: Command) -> Result<CommandResult, ClusterError> {
         let (reply, response) = oneshot::channel();
-        self.sender
+        if self
+            .sender
             .send(Request::Write {
-                request: Box::new(Req {
-                    operation_id: Uuid::now_v7(),
-                    submitted_at_ms: now_ms(),
-                    command,
-                }),
+                request: Box::new(Req::new(command)),
                 reply,
             })
-            .map_err(|_| ClusterError::Unavailable("cluster runtime stopped".to_owned()))?;
-        response.await.map_err(|_| {
-            ClusterError::Unavailable("cluster runtime stopped before responding".to_owned())
-        })?
+            .is_err()
+        {
+            return Err(ClusterError::Unavailable {
+                message: "cluster runtime stopped".to_owned(),
+            });
+        }
+        match response.await {
+            Ok(result) => result,
+            Err(_) => Err(ClusterError::Unavailable {
+                message: "cluster runtime stopped before responding".to_owned(),
+            }),
+        }
     }
 
     pub async fn is_leader(&self) -> bool {
@@ -168,22 +173,15 @@ fn changed(version: &AtomicU64, events: &watch::Sender<u64>) {
     events.send_replace(version);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Snafu)]
+#[snafu(visibility(pub(crate)))]
 pub enum ClusterError {
-    Unavailable(String),
-    Domain(DomainError),
-}
+    #[snafu(display("{message}"))]
+    Unavailable { message: String },
 
-impl std::fmt::Display for ClusterError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Unavailable(message) => formatter.write_str(message),
-            Self::Domain(error) => error.fmt(formatter),
-        }
-    }
+    #[snafu(display("{source}"))]
+    Domain { source: DomainError },
 }
-
-impl std::error::Error for ClusterError {}
 
 pub struct Receiver {
     requests: mpsc::UnboundedReceiver<Request>,
@@ -211,8 +209,8 @@ impl Receiver {
                 }
                 Some(Request::Write { request, reply }) => {
                     let result = match node.write(*request).await {
-                        Ok(response) => response.result.map_err(ClusterError::Domain),
-                        Err(error) => Err(ClusterError::Unavailable(error)),
+                        Ok(response) => response.result.context(DomainSnafu),
+                        Err(message) => Err(ClusterError::Unavailable { message }),
                     };
                     let _ = reply.send(result);
                 }

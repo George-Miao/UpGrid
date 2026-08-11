@@ -18,6 +18,7 @@ use upgrid_config::Cipher;
 use upgrid_transport::{RpcTransport, secure_endpoint};
 
 use crate::UpgridNode;
+use crate::cluster::{ClusterError, DomainSnafu};
 use crate::error::*;
 use crate::raft::{Identity, Raft, Req, Res};
 use crate::rpc::{JoinError, Rpc, UpgridNetwork};
@@ -191,7 +192,18 @@ impl Node {
         self.state_machine.applied_index()
     }
 
-    pub async fn write(&self, request: Req) -> Result<Res, String> {
+    pub async fn apply(
+        &self,
+        command: crate::domain::Command,
+    ) -> Result<crate::domain::CommandResult, ClusterError> {
+        let response = match self.write(Req::new(command)).await {
+            Ok(response) => response,
+            Err(message) => return Err(ClusterError::Unavailable { message }),
+        };
+        response.result.context(DomainSnafu)
+    }
+
+    pub(crate) async fn write(&self, request: Req) -> Result<Res, String> {
         let deadline = Instant::now() + Duration::from_secs(5);
         let mut leader = None;
         let mut last_transport_error = None;

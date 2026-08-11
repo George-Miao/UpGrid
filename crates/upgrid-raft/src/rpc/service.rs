@@ -18,7 +18,6 @@ use openraft_rt_compio::futures::lock::Mutex;
 use serde::{Deserialize, Serialize};
 use tarpc::context::Context;
 use upgrid_config::now_ms;
-use uuid::Uuid;
 
 use crate::Result;
 use crate::domain::{Command, DomainError};
@@ -170,18 +169,14 @@ impl UpgridService for UpgridServer {
         if voters.contains(&remote_id) {
             return Ok(());
         }
-        let now_ms = now_ms();
+        let authorized_at_ms = now_ms();
         let token_hash = hash_join_token(&token);
         let authorized = self
             .raft
-            .client_write(Req {
-                operation_id: Uuid::now_v7(),
-                submitted_at_ms: now_ms,
-                command: Command::AuthorizeJoinToken {
-                    hash: token_hash,
-                    authorized_at_ms: now_ms,
-                },
-            })
+            .client_write(Req::new(Command::AuthorizeJoinToken {
+                hash: token_hash,
+                authorized_at_ms,
+            }))
             .await
             .map_err(JoinError::Raft)?;
         authorized.data.result.map_err(JoinError::Rejected)?;

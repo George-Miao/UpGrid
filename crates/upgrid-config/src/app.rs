@@ -4,15 +4,14 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs, io};
 
-use clap::Parser as _;
 use figment::Figment;
 use figment::providers::{Env, Format, Serialized, Toml};
 use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
 use uuid::Uuid;
 
-use crate::cli::Cli;
-use crate::error::{CliOutputSnafu, LoadSnafu, NodeIdSnafu, ReadSnafu, WriteSnafu};
+use crate::cli::ConfigArgs;
+use crate::error::{LoadSnafu, NodeIdSnafu, ReadSnafu, WriteSnafu};
 use crate::{Cipher, Error, JoinLink, Result, durable};
 
 #[derive(Clone)]
@@ -35,6 +34,12 @@ pub struct Config {
     pub history_retention_ms: Option<u64>,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
+}
+
+impl Config {
+    pub fn load(args: ConfigArgs) -> Result<Self> {
+        load_with(args, true)
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -72,53 +77,22 @@ impl Default for RawConfig {
     }
 }
 
-pub enum Action {
-    Run(Box<Config>),
-    PrintOpenApi,
-}
-
-impl Action {
-    pub fn from_env_and_args() -> Result<Option<Self>> {
-        let cli = match Cli::try_parse() {
-            Ok(cli) => cli,
-            Err(error)
-                if matches!(
-                    error.kind(),
-                    clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
-                ) =>
-            {
-                error.print().context(CliOutputSnafu)?;
-                return Ok(None);
-            }
-            Err(source) => return Err(Error::Cli { source }),
-        };
-        if cli.print_openapi {
-            return Ok(Some(Self::PrintOpenApi));
-        }
-        load(cli).map(|config| Some(Self::Run(Box::new(config))))
-    }
-}
-
-fn load(cli: Cli) -> Result<Config> {
-    load_with(cli, true)
-}
-
-fn load_with(cli: Cli, environment: bool) -> Result<Config> {
+fn load_with(args: ConfigArgs, load_env: bool) -> Result<Config> {
     let mut figment = Figment::from(Serialized::defaults(RawConfig::default()));
-    if let Some(path) = cli.config.or_else(|| {
-        environment
+    if let Some(path) = args.config.or_else(|| {
+        load_env
             .then(|| env::var_os("UPGRID_CONFIG"))
             .flatten()
             .map(PathBuf::from)
     }) {
         figment = figment.merge(Toml::file(path));
     }
-    if environment {
+    if load_env {
         figment = figment.merge(Env::prefixed("UPGRID_"));
     }
     macro_rules! override_value {
         ($field:ident) => {
-            if let Some(value) = cli.$field {
+            if let Some(value) = args.$field {
                 figment = figment.merge((stringify!($field), value));
             }
         };
@@ -134,7 +108,7 @@ fn load_with(cli: Cli, environment: bool) -> Result<Config> {
     override_value!(history_retention_hours);
     override_value!(tls_cert);
     override_value!(tls_key);
-    if cli.new_cluster {
+    if args.new_cluster {
         figment = figment.merge(("new_cluster", true));
     }
     RawConfig::try_into(figment.extract().context(LoadSnafu)?)
@@ -242,7 +216,16 @@ pub fn now_ms() -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use clap::Parser;
+
     use super::*;
+
+    #[derive(Debug, Parser)]
+    #[command(name = "upgrid")]
+    struct TestCli {
+        #[command(flatten)]
+        config: ConfigArgs,
+    }
 
     #[test]
     fn node_identity_survives_reopen() {
@@ -294,16 +277,17 @@ mod tests {
             "bind = \"127.0.0.1:9000\"\nusername = \"from-file\"\n",
         )
         .unwrap();
-        let cli = Cli::try_parse_from([
+        let args = TestCli::try_parse_from([
             "upgrid",
             "--config",
             path.to_str().unwrap(),
             "--bind",
             "127.0.0.1:9001",
         ])
-        .unwrap();
+        .unwrap()
+        .config;
 
-        let config = load_with(cli, false).unwrap();
+        let config = load_with(args, false).unwrap();
 
         assert_eq!(config.bind, "127.0.0.1:9001");
         assert_eq!(config.username, "from-file");

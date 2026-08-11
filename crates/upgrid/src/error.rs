@@ -20,8 +20,8 @@ pub enum Error {
     #[snafu(display("Cluster request channel stopped"))]
     ClusterStopped,
 
-    #[snafu(display("failed to update Cluster state: {reason}"))]
-    ClusterWrite { reason: String },
+    #[snafu(display("failed to update Cluster state: {source}"))]
+    ClusterWrite { source: upgrid_raft::ClusterError },
 
     #[snafu(transparent)]
     Config { source: upgrid_config::Error },

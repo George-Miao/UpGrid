@@ -17,5 +17,8 @@ pub use cluster::{ClusterError, Handle, Receiver, Status};
 pub use error::{Error, Result};
 pub use node::Node;
 pub use peer::UpgridNode;
-pub use raft::{Identity, Req, Res, TC};
+// OpenRaft's public type configuration requires its data type to remain reachable.
+#[doc(hidden)]
+pub use raft::Req;
+pub use raft::{Identity, Res, TC};
 pub use token::hash_join_token;

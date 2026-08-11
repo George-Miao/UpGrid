@@ -15,9 +15,19 @@ use crate::state_machine::StateMachine;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Req {
-    pub operation_id: Uuid,
-    pub submitted_at_ms: u64,
-    pub command: Command,
+    pub(crate) operation_id: Uuid,
+    pub(crate) submitted_at_ms: u64,
+    pub(crate) command: Command,
+}
+
+impl Req {
+    pub(crate) fn new(command: Command) -> Self {
+        Self {
+            operation_id: Uuid::now_v7(),
+            submitted_at_ms: upgrid_config::now_ms(),
+            command,
+        }
+    }
 }
 
 impl Display for Req {

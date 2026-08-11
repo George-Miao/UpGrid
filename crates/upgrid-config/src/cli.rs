@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use clap::{ArgAction, Parser};
+use clap::{ArgAction, Args};
 
-#[derive(Debug, Parser)]
-#[command(name = "upgrid", version, about = "Distributed service monitor")]
-pub(super) struct Cli {
+/// Command-line arguments that configure ordinary Node startup.
+#[derive(Debug, Args)]
+pub struct ConfigArgs {
     /// Read configuration from this TOML file.
     #[arg(long, value_name = "PATH")]
     pub(super) config: Option<PathBuf>,
@@ -56,40 +56,44 @@ pub(super) struct Cli {
     /// PEM private key for API HTTPS.
     #[arg(long, value_name = "PATH", requires = "tls_cert")]
     pub(super) tls_key: Option<PathBuf>,
-
-    /// Print generated OpenAPI JSON and exit.
-    #[arg(long, action = ArgAction::SetTrue)]
-    pub(super) print_openapi: bool,
 }
 
 #[cfg(test)]
 mod tests {
-    use clap::Parser as _;
+    use clap::Parser;
 
-    use super::Cli;
+    use super::ConfigArgs;
+
+    #[derive(Debug, Parser)]
+    #[command(name = "upgrid")]
+    struct TestCli {
+        #[command(flatten)]
+        _config: ConfigArgs,
+    }
 
     #[test]
     fn new_cluster_and_direct_join_conflict() {
         assert!(
-            Cli::try_parse_from(["upgrid", "--new-cluster", "--join", "up://node/token"]).is_err()
+            TestCli::try_parse_from(["upgrid", "--new-cluster", "--join", "up://node/token"])
+                .is_err()
         );
     }
 
     #[test]
     fn new_cluster_flag_is_accepted() {
-        assert!(Cli::try_parse_from(["upgrid", "--new-cluster"]).is_ok());
+        assert!(TestCli::try_parse_from(["upgrid", "--new-cluster"]).is_ok());
     }
 
     #[test]
     fn setup_flag_is_removed() {
-        assert!(Cli::try_parse_from(["upgrid", "--setup"]).is_err());
+        assert!(TestCli::try_parse_from(["upgrid", "--setup"]).is_err());
     }
 
     #[test]
     fn tls_paths_are_a_pair() {
-        assert!(Cli::try_parse_from(["upgrid", "--tls-cert", "cert.pem"]).is_err());
+        assert!(TestCli::try_parse_from(["upgrid", "--tls-cert", "cert.pem"]).is_err());
         assert!(
-            Cli::try_parse_from(["upgrid", "--tls-cert", "cert.pem", "--tls-key", "key.pem",])
+            TestCli::try_parse_from(["upgrid", "--tls-cert", "cert.pem", "--tls-key", "key.pem",])
                 .is_ok()
         );
     }

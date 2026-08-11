@@ -18,7 +18,7 @@ use upgrid_transport::insecure_endpoint;
 
 use crate::domain::Command;
 use crate::node::Node;
-use crate::raft::{Identity, Req};
+use crate::raft::Identity;
 use crate::token::hash_join_token;
 
 fn init_tracing() {
@@ -33,6 +33,7 @@ fn init_tracing() {
 }
 
 #[compio::test]
+#[ignore = "manual multi-node fixture uses fixed ports 8080 and 8081"]
 async fn master() {
     init_tracing();
 
@@ -48,13 +49,9 @@ async fn master() {
     sleep(Duration::from_secs(1)).await;
 
     node.start_cluster().await.unwrap();
-    node.write(Req {
-        operation_id: uuid::Uuid::now_v7(),
-        submitted_at_ms: now_ms(),
-        command: Command::PutJoinToken {
-            hash: hash_join_token("test-join-token"),
-            expires_at_ms: now_ms().saturating_add(60_000),
-        },
+    node.apply(Command::PutJoinToken {
+        hash: hash_join_token("test-join-token"),
+        expires_at_ms: now_ms().saturating_add(60_000),
     })
     .await
     .unwrap();
@@ -65,6 +62,7 @@ async fn master() {
 }
 
 #[compio::test]
+#[ignore = "manual multi-node fixture uses fixed ports 8080 and 8081"]
 async fn worker() {
     init_tracing();
 
@@ -80,6 +78,7 @@ async fn worker() {
 }
 
 #[compio::test]
+#[ignore = "manual multi-node fixture uses fixed ports 8080 and 8081"]
 async fn master_raw() {
     init_tracing();
 
@@ -105,6 +104,7 @@ async fn master_raw() {
 }
 
 #[compio::test]
+#[ignore = "manual multi-node fixture uses fixed ports 8080 and 8081"]
 async fn worker_raw() {
     init_tracing();
 

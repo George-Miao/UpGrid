@@ -2,21 +2,39 @@
 
 use std::str::FromStr;
 
+use clap::{Parser, Subcommand};
+use snafu::ResultExt;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::Layer;
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use upgrid_config::Action;
+use upgrid_config::{Config, ConfigArgs};
+use upgrid_raft::Handle;
 use upgrid_raft::domain::{Command, DEFAULT_HISTORY_RETENTION_MS};
-use upgrid_raft::{Handle, Req};
 
 mod bootstrap;
 mod error;
 mod scheduler;
 mod worker;
 
-use crate::error::{Error, Result};
+use crate::error::{ClusterWriteSnafu, Error, Result};
+
+#[derive(Debug, Parser)]
+#[command(name = "upgrid", version, about = "Distributed service monitor")]
+struct Cli {
+    #[command(flatten)]
+    config: ConfigArgs,
+
+    #[command(subcommand)]
+    command: Option<CliCommand>,
+}
+
+#[derive(Debug, Subcommand)]
+enum CliCommand {
+    #[command(name = "print-openapi")]
+    PrintOpenApi,
+}
 
 #[compio::main]
 async fn main() {
@@ -48,14 +66,13 @@ fn log_filter(level: LevelFilter) -> Targets {
 }
 
 async fn run() -> Result<()> {
-    let Some(action) = Action::from_env_and_args()? else {
-        return Ok(());
-    };
-    let Action::Run(config) = action else {
+    let Cli { config, command } = Cli::parse();
+    if matches!(command, Some(CliCommand::PrintOpenApi)) {
         print!("{}", upgrid_api::openapi_json()?);
         return Ok(());
-    };
-    let ready = bootstrap::prepare(*config).await?;
+    }
+    let config = Config::load(config)?;
+    let ready = bootstrap::prepare(config).await?;
     let bootstrap::Ready {
         mut config,
         node,
@@ -75,28 +92,20 @@ async fn run() -> Result<()> {
         node_name = replicated;
         config.node_name = Some(node_name.clone());
     } else {
-        node.write(Req {
-            operation_id: uuid::Uuid::now_v7(),
-            submitted_at_ms: upgrid_config::now_ms(),
-            command: Command::SetNodeName {
-                node_id,
-                name: node_name,
-            },
+        node.apply(Command::SetNodeName {
+            node_id,
+            name: node_name,
         })
         .await
-        .map_err(|reason| Error::ClusterWrite { reason })?;
+        .context(ClusterWriteSnafu)?;
     }
     if let Some(retention_ms) = config
         .history_retention_ms
         .or_else(|| bootstrapping.then_some(DEFAULT_HISTORY_RETENTION_MS))
     {
-        node.write(Req {
-            operation_id: uuid::Uuid::now_v7(),
-            submitted_at_ms: upgrid_config::now_ms(),
-            command: Command::SetHistoryRetention { retention_ms },
-        })
-        .await
-        .map_err(|reason| Error::ClusterWrite { reason })?;
+        node.apply(Command::SetHistoryRetention { retention_ms })
+            .await
+            .context(ClusterWriteSnafu)?;
     }
     if config.username == "admin" && config.password == "upgrid" {
         tracing::warn!(
@@ -117,6 +126,31 @@ async fn run() -> Result<()> {
     worker::start(cluster.clone(), cipher.clone());
     receiver.run(node).await;
     Err(Error::ClusterStopped)
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use clap::Parser as _;
+
+    use super::{Cli, CliCommand};
+
+    #[test]
+    fn print_openapi_subcommand_is_selected() {
+        let cli = Cli::try_parse_from(["upgrid", "print-openapi"]).unwrap();
+        assert!(matches!(cli.command, Some(CliCommand::PrintOpenApi)));
+    }
+
+    #[test]
+    fn legacy_print_openapi_flag_is_rejected() {
+        assert!(Cli::try_parse_from(["upgrid", "--print-openapi"]).is_err());
+    }
+
+    #[test]
+    fn run_flags_remain_at_the_root() {
+        let cli =
+            Cli::try_parse_from(["upgrid", "--bind", "127.0.0.1:9000", "--new-cluster"]).unwrap();
+        assert!(cli.command.is_none());
+    }
 }
 
 #[cfg(test)]

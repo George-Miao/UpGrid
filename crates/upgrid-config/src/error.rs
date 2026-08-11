@@ -8,12 +8,6 @@ use snafu::Snafu;
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub(crate)))]
 pub enum Error {
-    #[snafu(display("failed to parse command-line arguments: {source}"))]
-    Cli { source: clap::Error },
-
-    #[snafu(display("failed to print command-line output: {source}"))]
-    CliOutput { source: io::Error },
-
     #[snafu(display("failed to load configuration: {source}"))]
     Load {
         #[snafu(source(from(figment::Error, Box::new)))]
