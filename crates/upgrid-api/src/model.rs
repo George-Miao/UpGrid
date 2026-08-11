@@ -154,6 +154,12 @@ pub(super) struct PutTargetRequest {
     pub(super) assertions: Vec<HttpAssertionModel>,
     #[serde(default)]
     pub(super) skip_tls_verification: bool,
+    #[serde(default)]
+    pub(super) tls_ca_secret_id: Option<Uuid>,
+    #[serde(default)]
+    pub(super) tls_client_certificate_secret_id: Option<Uuid>,
+    #[serde(default)]
+    pub(super) tls_client_private_key_secret_id: Option<Uuid>,
     #[serde(default = "default_interval_seconds")]
     pub(super) interval_seconds: u64,
     #[serde(default = "default_timeout_seconds")]
@@ -245,6 +251,9 @@ pub(super) struct TargetView {
     max_redirects: u8,
     assertions: Vec<HttpAssertionModel>,
     skip_tls_verification: bool,
+    tls_ca_secret_id: Option<Uuid>,
+    tls_client_certificate_secret_id: Option<Uuid>,
+    tls_client_private_key_secret_id: Option<Uuid>,
     interval_seconds: u64,
     timeout_seconds: u64,
     failure_threshold: u32,
@@ -291,6 +300,15 @@ impl TargetView {
                 .map(HttpAssertionModel::from)
                 .collect(),
             skip_tls_verification: target.http.skip_tls_verification,
+            tls_ca_secret_id: target.http.tls_ca_secret.map(|id| id.0),
+            tls_client_certificate_secret_id: target
+                .http
+                .tls_client_certificate_secret
+                .map(|id| id.0),
+            tls_client_private_key_secret_id: target
+                .http
+                .tls_client_private_key_secret
+                .map(|id| id.0),
             interval_seconds: target.policy.interval_ms / 1_000,
             timeout_seconds: target.policy.timeout_ms / 1_000,
             failure_threshold: target.policy.failure_threshold,
@@ -327,6 +345,9 @@ impl TargetView {
             max_redirects: 0,
             assertions: Vec::new(),
             skip_tls_verification: false,
+            tls_ca_secret_id: None,
+            tls_client_certificate_secret_id: None,
+            tls_client_private_key_secret_id: None,
             interval_seconds: target.policy.interval_ms / 1_000,
             timeout_seconds: target.policy.timeout_ms / 1_000,
             failure_threshold: target.policy.failure_threshold,

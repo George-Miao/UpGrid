@@ -5,8 +5,8 @@ use super::core::StoredSnapshot;
 use crate::domain::{
     DefaultChannelApplicationState, LegacyApplicationState, NamedApplicationState,
     PreAcknowledgementApplicationState, PreAssertionApplicationState, PreAuthApplicationState,
-    PreDrainApplicationState, PreviousApplicationState, TokenApplicationState,
-    TransitionApplicationState,
+    PreDrainApplicationState, PreTlsApplicationState, PreviousApplicationState,
+    TokenApplicationState, TransitionApplicationState,
 };
 use crate::raft::TC;
 
@@ -28,6 +28,11 @@ macro_rules! version {
     };
 }
 
+version!(
+    PreTlsStateMachineData,
+    PreTlsPersistedStateMachine,
+    PreTlsApplicationState
+);
 version!(
     PreAssertionStateMachineData,
     PreAssertionPersistedStateMachine,

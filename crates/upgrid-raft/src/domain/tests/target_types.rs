@@ -133,6 +133,79 @@ fn validates_http_assertions_before_replication() {
 }
 
 #[test]
+fn validates_custom_tls_secret_references_before_replication() {
+    let ca_id = SecretId(id(40));
+    let certificate_id = SecretId(id(41));
+    let private_key_id = SecretId(id(42));
+    let mut state = ApplicationState::default();
+    for (id, name) in [
+        (ca_id, "ca"),
+        (certificate_id, "certificate"),
+        (private_key_id, "private-key"),
+    ] {
+        state
+            .apply(Command::PutSecret(Secret {
+                id,
+                name: name.to_owned(),
+                ciphertext: vec![1],
+            }))
+            .unwrap();
+    }
+
+    let mut valid = target(43, "https://example.com/health");
+    valid.http.tls_ca_secret = Some(ca_id);
+    valid.http.tls_client_certificate_secret = Some(certificate_id);
+    valid.http.tls_client_private_key_secret = Some(private_key_id);
+    state
+        .apply(Command::CreateTarget {
+            target: valid,
+            use_default_notifications: true,
+        })
+        .unwrap();
+
+    let mut partial = target(44, "https://example.com/health");
+    partial.http.tls_client_certificate_secret = Some(certificate_id);
+    assert!(matches!(
+        state.apply(Command::CreateTarget {
+            target: partial,
+            use_default_notifications: true,
+        }),
+        Err(DomainError::InvalidTarget(_))
+    ));
+
+    let mut insecure = target(45, "https://example.com/health");
+    insecure.http.tls_ca_secret = Some(ca_id);
+    insecure.http.skip_tls_verification = true;
+    assert!(matches!(
+        state.apply(Command::CreateTarget {
+            target: insecure,
+            use_default_notifications: true,
+        }),
+        Err(DomainError::InvalidTarget(_))
+    ));
+
+    let mut plaintext = target(46, "http://example.com/health");
+    plaintext.http.tls_ca_secret = Some(ca_id);
+    assert!(matches!(
+        state.apply(Command::CreateTarget {
+            target: plaintext,
+            use_default_notifications: true,
+        }),
+        Err(DomainError::InvalidTarget(_))
+    ));
+
+    let mut missing = target(47, "https://example.com/health");
+    missing.http.tls_ca_secret = Some(SecretId(id(404)));
+    assert!(matches!(
+        state.apply(Command::CreateTarget {
+            target: missing,
+            use_default_notifications: true,
+        }),
+        Err(DomainError::SecretNotFound(_))
+    ));
+}
+
+#[test]
 fn target_kind_addition_preserves_legacy_http_encoding() {
     #[derive(Serialize)]
     struct LegacyTarget {

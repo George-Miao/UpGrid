@@ -85,7 +85,7 @@ fn evaluate_one(
             response.status.as_u16(),
             latency_ms,
             &body,
-            &response.url.to_string(),
+            response.url.as_ref(),
             &response.headers,
         ),
     }

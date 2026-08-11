@@ -11,7 +11,7 @@ use crate::domain::{
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PreAssertionHttpTarget {
+struct PreTlsHttpTarget {
     url: Url,
     method: String,
     headers: BTreeMap<String, ConfigValue>,
@@ -19,22 +19,22 @@ struct PreAssertionHttpTarget {
     accepted_statuses: Vec<StatusRange>,
     follow_redirects: bool,
     max_redirects: u8,
-    body_contains: Option<String>,
+    assertions: Vec<HttpAssertion>,
     skip_tls_verification: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PreAssertionTarget {
+struct PreTlsTarget {
     id: TargetId,
     name: String,
-    http: PreAssertionHttpTarget,
+    http: PreTlsHttpTarget,
     policy: EvaluationPolicy,
     notification_channels: BTreeSet<NotificationChannelId>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PreAssertionTargetState {
-    target: PreAssertionTarget,
+struct PreTlsTargetState {
+    target: PreTlsTarget,
     availability: AvailabilityState,
     consecutive_failures: u32,
     latest_evaluation: Option<Evaluation>,
@@ -43,8 +43,8 @@ struct PreAssertionTargetState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PreAssertionApplicationState {
-    targets: BTreeMap<TargetId, PreAssertionTargetState>,
+pub(crate) struct PreTlsApplicationState {
+    targets: BTreeMap<TargetId, PreTlsTargetState>,
     node_targets: BTreeMap<TargetId, NodeTargetState>,
     secrets: BTreeMap<SecretId, Secret>,
     notification_channels: BTreeMap<NotificationChannelId, NotificationChannel>,
@@ -65,8 +65,8 @@ pub(crate) struct PreAssertionApplicationState {
     api_tokens: BTreeMap<ApiTokenId, ApiToken>,
 }
 
-impl From<PreAssertionApplicationState> for ApplicationState {
-    fn from(previous: PreAssertionApplicationState) -> Self {
+impl From<PreTlsApplicationState> for ApplicationState {
+    fn from(previous: PreTlsApplicationState) -> Self {
         Self {
             targets: previous
                 .targets
@@ -95,8 +95,8 @@ impl From<PreAssertionApplicationState> for ApplicationState {
     }
 }
 
-impl From<PreAssertionTargetState> for TargetState {
-    fn from(previous: PreAssertionTargetState) -> Self {
+impl From<PreTlsTargetState> for TargetState {
+    fn from(previous: PreTlsTargetState) -> Self {
         Self {
             target: previous.target.into(),
             availability: previous.availability,
@@ -108,14 +108,8 @@ impl From<PreAssertionTargetState> for TargetState {
     }
 }
 
-impl From<PreAssertionTarget> for Target {
-    fn from(previous: PreAssertionTarget) -> Self {
-        let assertions = previous
-            .http
-            .body_contains
-            .into_iter()
-            .map(|value| HttpAssertion::BodyContains { value })
-            .collect();
+impl From<PreTlsTarget> for Target {
+    fn from(previous: PreTlsTarget) -> Self {
         Self {
             id: previous.id,
             name: previous.name,
@@ -127,7 +121,7 @@ impl From<PreAssertionTarget> for Target {
                 accepted_statuses: previous.http.accepted_statuses,
                 follow_redirects: previous.http.follow_redirects,
                 max_redirects: previous.http.max_redirects,
-                assertions,
+                assertions: previous.http.assertions,
                 skip_tls_verification: previous.http.skip_tls_verification,
                 tls_ca_secret: None,
                 tls_client_certificate_secret: None,
@@ -140,7 +134,7 @@ impl From<PreAssertionTarget> for Target {
 }
 
 #[cfg(test)]
-impl From<ApplicationState> for PreAssertionApplicationState {
+impl From<ApplicationState> for PreTlsApplicationState {
     fn from(current: ApplicationState) -> Self {
         Self {
             targets: current
@@ -171,7 +165,7 @@ impl From<ApplicationState> for PreAssertionApplicationState {
 }
 
 #[cfg(test)]
-impl From<TargetState> for PreAssertionTargetState {
+impl From<TargetState> for PreTlsTargetState {
     fn from(current: TargetState) -> Self {
         Self {
             target: current.target.into(),
@@ -185,21 +179,12 @@ impl From<TargetState> for PreAssertionTargetState {
 }
 
 #[cfg(test)]
-impl From<Target> for PreAssertionTarget {
+impl From<Target> for PreTlsTarget {
     fn from(current: Target) -> Self {
-        let body_contains =
-            current
-                .http
-                .assertions
-                .into_iter()
-                .find_map(|assertion| match assertion {
-                    HttpAssertion::BodyContains { value } => Some(value),
-                    _ => None,
-                });
         Self {
             id: current.id,
             name: current.name,
-            http: PreAssertionHttpTarget {
+            http: PreTlsHttpTarget {
                 url: current.http.url,
                 method: current.http.method,
                 headers: current.http.headers,
@@ -207,7 +192,7 @@ impl From<Target> for PreAssertionTarget {
                 accepted_statuses: current.http.accepted_statuses,
                 follow_redirects: current.http.follow_redirects,
                 max_redirects: current.http.max_redirects,
-                body_contains,
+                assertions: current.http.assertions,
                 skip_tls_verification: current.http.skip_tls_verification,
             },
             policy: current.policy,

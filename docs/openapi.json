@@ -3370,6 +3370,27 @@
             "format": "int64",
             "minimum": 0
           },
+          "tls_ca_secret_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "tls_client_certificate_secret_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "tls_client_private_key_secret_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "url": {
             "type": "string"
           },
@@ -3701,6 +3722,27 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "tls_ca_secret_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "tls_client_certificate_secret_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "tls_client_private_key_secret_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
           },
           "url": {
             "type": "string"

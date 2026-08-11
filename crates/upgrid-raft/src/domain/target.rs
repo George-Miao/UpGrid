@@ -40,6 +40,9 @@ pub struct HttpTarget {
     pub max_redirects: u8,
     pub assertions: Vec<HttpAssertion>,
     pub skip_tls_verification: bool,
+    pub tls_ca_secret: Option<SecretId>,
+    pub tls_client_certificate_secret: Option<SecretId>,
+    pub tls_client_private_key_secret: Option<SecretId>,
 }
 
 impl HttpTarget {
@@ -54,6 +57,9 @@ impl HttpTarget {
             max_redirects: 5,
             assertions: Vec::new(),
             skip_tls_verification: false,
+            tls_ca_secret: None,
+            tls_client_certificate_secret: None,
+            tls_client_private_key_secret: None,
         }
     }
 
@@ -95,6 +101,27 @@ impl HttpTarget {
         }
         for assertion in &self.assertions {
             assertion.validate()?;
+        }
+        let tls_configured = self.tls_ca_secret.is_some()
+            || self.tls_client_certificate_secret.is_some()
+            || self.tls_client_private_key_secret.is_some();
+        if tls_configured && self.url.scheme() != "https" {
+            return Err(DomainError::InvalidTarget(
+                "custom TLS credentials require an HTTPS Target".to_owned(),
+            ));
+        }
+        if tls_configured && self.skip_tls_verification {
+            return Err(DomainError::InvalidTarget(
+                "custom TLS credentials cannot be combined with skipped TLS verification"
+                    .to_owned(),
+            ));
+        }
+        if self.tls_client_certificate_secret.is_some()
+            != self.tls_client_private_key_secret.is_some()
+        {
+            return Err(DomainError::InvalidTarget(
+                "mutual TLS requires both client certificate and private key Secrets".to_owned(),
+            ));
         }
 
         let mut names = BTreeSet::new();
@@ -145,6 +172,9 @@ impl HttpTarget {
             || self.max_redirects != defaults.max_redirects
             || self.assertions != defaults.assertions
             || self.skip_tls_verification != defaults.skip_tls_verification
+            || self.tls_ca_secret != defaults.tls_ca_secret
+            || self.tls_client_certificate_secret != defaults.tls_client_certificate_secret
+            || self.tls_client_private_key_secret != defaults.tls_client_private_key_secret
         {
             return Err(DomainError::InvalidTarget(format!(
                 "{} targets do not accept HTTP request options",
@@ -162,6 +192,9 @@ impl HttpTarget {
                 ConfigValue::Literal(_) => None,
                 ConfigValue::Secret(id) => Some(*id),
             })
+            .chain(self.tls_ca_secret)
+            .chain(self.tls_client_certificate_secret)
+            .chain(self.tls_client_private_key_secret)
     }
 }
 

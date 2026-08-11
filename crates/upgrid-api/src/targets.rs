@@ -239,6 +239,9 @@ pub(super) fn target_from_input(id: TargetId, input: PutTargetRequest) -> Result
             max_redirects: input.max_redirects,
             assertions: input.assertions.into_iter().map(Into::into).collect(),
             skip_tls_verification: input.skip_tls_verification,
+            tls_ca_secret: input.tls_ca_secret_id.map(SecretId),
+            tls_client_certificate_secret: input.tls_client_certificate_secret_id.map(SecretId),
+            tls_client_private_key_secret: input.tls_client_private_key_secret_id.map(SecretId),
         },
         policy: EvaluationPolicy {
             interval_ms: input.interval_seconds.saturating_mul(1_000),

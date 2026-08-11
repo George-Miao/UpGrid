@@ -11,6 +11,8 @@ mod acknowledgement;
 pub(crate) use acknowledgement::*;
 mod drain;
 pub(crate) use drain::*;
+mod tls;
+pub(crate) use tls::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PreAuthApplicationState {
