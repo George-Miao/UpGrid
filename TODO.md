@@ -2,15 +2,8 @@
 
 The MVP is complete. This file records unfinished work for future agile iterations. Ordered from higher to lower priority.
 
-## Active Iteration
-
-- [x] TCP-connect, DNS-resolution, ICMP-echo, and TLS-certificate Targets are first-class domain, API, and WebUI types while existing HTTP Targets and persisted state remain compatible.
-- [x] Monitor workers execute each probe with the configured timeout and record useful endpoint, latency, success, and failure diagnostics.
-- [x] Domain, API, monitor, and browser tests cover type-specific validation and local probe fixtures; operator documentation explains configuration and ICMP privileges.
-
 ## Backlog
 
-- [ ] Add TCP-connect, DNS, ICMP, and TLS-certificate Target types.
 - [ ] Replace the static shared administrator username and password with replicated identities, API tokens and JWT.
 - [ ] Add safe Node drain, membership removal, and failed-Node replacement workflows.
 - [ ] Add alert acknowledgement, manual delivery retry, and richer alert-history filters.
