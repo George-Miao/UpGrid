@@ -97,7 +97,7 @@ export class UpgridApp extends AppController {
     .button:active { transform: translateY(1px); }
     .button:disabled { cursor: not-allowed; opacity: .65; }
     .button[aria-busy="true"] { cursor: wait; }
-    .icon-button { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; }
+    .icon-button { display: grid; width: 44px; height: 44px; min-height: 44px; place-items: center; padding: 0; }
     iconify-icon { display: inline-block; width: 18px; height: 18px; font-size: 18px; }
     .title-with-help { display: flex; align-items: center; gap: 3px; }
     .help-tooltip-wrap { position: relative; display: inline-flex; align-items: center; }
