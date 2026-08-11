@@ -31,6 +31,10 @@ The repository also publishes the generated snapshot at `docs/openapi.json` for 
 
 Target create and update requests accept an ordered `assertions` array. Supported `kind` values are `body_contains`, `body_regex`, `json_path`, `response_header`, `latency`, and `script`. The response returns the same ordered representation. Invalid regular expressions, JSONPath queries, scripts, header names, limits, and resource bounds are rejected before replication. See [Monitor services](/guides/targets/#assert-an-http-response) for fields and script variables.
 
+## HTTPS Target credentials
+
+HTTPS Target create and update requests accept nullable `tls_ca_secret_id`, `tls_client_certificate_secret_id`, and `tls_client_private_key_secret_id` fields. The custom CA Secret augments public WebPKI roots. Client certificate and private key Secrets form one mutual-TLS identity and must be configured together. These fields reject non-HTTPS URLs and `skip_tls_verification: true`. Responses return only the Secret IDs; plaintext remains write-only. See [Monitor services](/guides/targets/#trust-a-private-ca-or-use-mutual-tls) for PEM requirements and failure behavior.
+
 ## Node lifecycle
 
 `PUT /api/v1/nodes/{id}/drain` excludes a Node from new evaluation assignments. Existing assignments may finish; the Cluster response reports `draining` and `active_assignments` for each member. Cancel a drain by sending `{"draining":false}`.

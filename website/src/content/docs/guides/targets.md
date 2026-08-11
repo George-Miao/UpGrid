@@ -70,6 +70,28 @@ Create a reusable Secret from **Overview**, then copy the ID displayed beside it
 
 UpGrid decrypts the value only while building the outbound request. Target responses identify the Secret reference but never include its plaintext. See the [HTTP API reference](/reference/api/) for the complete Target request.
 
+## Trust a private CA or use mutual TLS
+
+Store PEM credentials as separate Secrets, then select them under **HTTPS trust and mutual TLS** while creating or editing an HTTPS Target:
+
+- **Custom CA bundle Secret** contains one or more PEM certificates. UpGrid adds them to its public WebPKI roots rather than replacing public trust.
+- **Client certificate Secret** contains the PEM client certificate chain.
+- **Client private key Secret** contains the matching PEM private key.
+
+Client certificate and private key Secrets must be configured together. Custom credentials are accepted only for `https://` Targets and cannot be combined with **Skip TLS verification**. Missing Secrets, malformed PEM, an empty CA bundle, a mismatched client key, an untrusted server, or a rejected client certificate produces an evaluation diagnostic without exposing plaintext.
+
+The API uses nullable Secret IDs:
+
+```json
+{
+  "tls_ca_secret_id": "0198f24c-7e91-7d50-9d74-35b71a34af10",
+  "tls_client_certificate_secret_id": "0198f24c-d837-7fa3-9ac3-7b5fe695472c",
+  "tls_client_private_key_secret_id": "0198f24d-165d-78f3-82cd-79ef0277ae09"
+}
+```
+
+The executing probe Node decrypts the referenced values only while constructing that Target's TLS client. API responses and the WebUI return only Secret IDs and names.
+
 ## Availability states
 
 - **Up** — the latest committed evaluations satisfy the Target policy.
