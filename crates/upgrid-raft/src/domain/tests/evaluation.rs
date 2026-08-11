@@ -39,24 +39,28 @@ pub(super) fn state_with_target() -> (ApplicationState, TargetId, NotificationCh
     let channel_id = NotificationChannelId(id(2));
     let target_id = TargetId(id(3));
     state
-        .apply(Command::PutSecret(Secret {
-            id: secret_id,
-            name: "telegram-token".to_owned(),
-            ciphertext: vec![1, 2, 3],
-        }))
-        .unwrap();
-    state
-        .apply(Command::PutNotificationChannel(NotificationChannel {
-            id: channel_id,
-            name: "Operations".to_owned(),
-            kind: NotificationChannelKind::Telegram {
-                bot_token: secret_id,
-                chat_id: "1234".to_owned(),
+        .apply(Command::CreateNotificationChannel {
+            channel: NotificationChannel {
+                id: channel_id,
+                name: "Operations".to_owned(),
+                kind: NotificationChannelKind::Telegram {
+                    bot_token: secret_id,
+                    chat_id: "1234".to_owned(),
+                },
             },
-        }))
+            generated_secret: Some(Secret {
+                id: secret_id,
+                name: "telegram-token".to_owned(),
+                ciphertext: vec![1, 2, 3],
+            }),
+            is_default: false,
+        })
         .unwrap();
     state
-        .apply(Command::CreateTarget(target(target_id, channel_id)))
+        .apply(Command::CreateTarget {
+            target: target(target_id, channel_id),
+            use_default_notifications: true,
+        })
         .unwrap();
     (state, target_id, channel_id)
 }
@@ -199,10 +203,11 @@ fn default_channels_apply_unless_target_opts_out() {
             is_default: true,
         })
         .unwrap();
+    let target = opted_out.targets[&target_id].target.clone();
     opted_out
-        .apply(Command::SetTargetDefaultNotifications {
-            target_id,
-            enabled: false,
+        .apply(Command::UpdateTarget {
+            target,
+            use_default_notifications: false,
         })
         .unwrap();
     for scheduled_at_ms in [1_000, 2_000, 3_000] {
@@ -292,10 +297,14 @@ fn targets_cannot_reference_missing_channels_or_secrets() {
     let target_id = TargetId(id(2));
     assert_eq!(
         state
-            .apply(Command::CreateTarget(target(target_id, channel_id)))
+            .apply(Command::CreateTarget {
+                target: target(target_id, channel_id),
+                use_default_notifications: false,
+            })
             .unwrap_err(),
         DomainError::NotificationChannelNotFound(channel_id)
     );
+    assert!(!state.default_notifications_disabled.contains(&target_id));
 
     let secret_id = SecretId(id(3));
     let channel = NotificationChannel {
@@ -308,10 +317,15 @@ fn targets_cannot_reference_missing_channels_or_secrets() {
     };
     assert_eq!(
         state
-            .apply(Command::PutNotificationChannel(channel))
+            .apply(Command::CreateNotificationChannel {
+                channel,
+                generated_secret: None,
+                is_default: true,
+            })
             .unwrap_err(),
         DomainError::SecretNotFound(secret_id)
     );
+    assert!(!state.default_notification_channels.contains(&channel_id));
 }
 
 #[test]
@@ -364,10 +378,10 @@ fn assignment_variants_preserve_existing_postcard_discriminants() {
     #[allow(dead_code)]
     #[derive(Serialize)]
     enum LegacyCommand {
-        PutSecret(Secret),
-        PutNotificationChannel(NotificationChannel),
-        CreateTarget(Target),
-        UpdateTarget(Target),
+        Secret(Secret),
+        NotificationChannel(NotificationChannel),
+        TargetCreate(Target),
+        TargetUpdate(Target),
         DeleteTarget(TargetId),
     }
 

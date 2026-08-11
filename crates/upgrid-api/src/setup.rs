@@ -1,22 +1,20 @@
 use std::sync::{Arc, Mutex};
 
 use axum::extract::{Request, State};
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::http::{StatusCode, header};
 use axum::middleware::{self, Next};
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
 use snafu::ResultExt;
 use tokio::sync::Notify;
 use upgrid_config::{Config, JoinLink, store_node_name};
 
 use crate::assets::{favicon, index, webui_script};
+use crate::auth::{unauthorized, verify_basic_credentials};
 use crate::error::{BindSnafu, ListenerSnafu, RuntimeSnafu, ServeSnafu, TlsSnafu};
 use crate::{
-    ApiError, CreateClusterRequest, Error, ErrorBody, JoinClusterRequest, JoinClusterView, Result,
-    SetupView,
+    ApiError, CreateClusterRequest, Error, JoinClusterRequest, JoinClusterView, Result, SetupView,
 };
 
 #[derive(Clone)]
@@ -185,27 +183,12 @@ fn accept(state: &SetupState, choice: OobeChoice) -> Result<(), ApiError> {
 }
 
 async fn require_auth(State(state): State<SetupState>, request: Request, next: Next) -> Response {
-    let authenticated = request
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Basic "))
-        .and_then(|value| STANDARD.decode(value).ok())
-        .and_then(|value| String::from_utf8(value).ok())
-        .is_some_and(|value| value == format!("{}:{}", state.username, state.password));
-    if authenticated {
+    if verify_basic_credentials(
+        request.headers().get(header::AUTHORIZATION),
+        &state.username,
+        &state.password,
+    ) {
         return next.run(request).await;
     }
-    let mut response = (
-        StatusCode::UNAUTHORIZED,
-        Json(ErrorBody {
-            error: "authentication required".to_owned(),
-        }),
-    )
-        .into_response();
-    response.headers_mut().insert(
-        header::WWW_AUTHENTICATE,
-        HeaderValue::from_static("Basic realm=\"UpGrid setup\""),
-    );
-    response
+    unauthorized("UpGrid setup")
 }

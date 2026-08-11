@@ -1,9 +1,19 @@
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Command {
     PutSecret(Secret),
-    PutNotificationChannel(NotificationChannel),
-    CreateTarget(Target),
-    UpdateTarget(Target),
+    CreateNotificationChannel {
+        channel: NotificationChannel,
+        generated_secret: Option<Secret>,
+        is_default: bool,
+    },
+    CreateTarget {
+        target: Target,
+        use_default_notifications: bool,
+    },
+    UpdateTarget {
+        target: Target,
+        use_default_notifications: bool,
+    },
     DeleteTarget(TargetId),
     RecordEvaluation(Evaluation),
     MarkAlertDelivered {
@@ -49,10 +59,6 @@ pub enum Command {
         channel_id: NotificationChannelId,
         is_default: bool,
     },
-    SetTargetDefaultNotifications {
-        target_id: TargetId,
-        enabled: bool,
-    },
     SyncNodeTargets(Vec<NodeTarget>),
     RecordNodeEvaluation(Evaluation),
 }
@@ -84,7 +90,6 @@ pub enum CommandResult {
     JoinTokenRevoked,
     NodeNameSet(Uuid),
     NotificationChannelDefaultSet(NotificationChannelId),
-    TargetDefaultNotificationsSet(TargetId),
     NodeTargetsSynced,
     NodeEvaluationAccepted {
         availability: AvailabilityState,

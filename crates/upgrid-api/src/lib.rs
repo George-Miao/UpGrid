@@ -4,15 +4,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 use std::time::Duration;
 
-use axum::extract::{Path, Request, State};
-use axum::http::{HeaderValue, StatusCode, header};
-use axum::middleware::{self, Next};
+use axum::extract::{Path, State};
+use axum::http::{StatusCode, header};
 use axum::response::sse::{Event, KeepAlive};
 use axum::response::{IntoResponse, Response, Sse};
 use axum::routing::get;
 use axum::{Json, Router};
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
 use serde::{Deserialize, Serialize};
 use upgrid_config::{Cipher, Config, JoinLink, Oobe, OobePhase, generate_join_token, now_ms};
 use upgrid_raft::domain::{
@@ -31,6 +28,8 @@ use utoipa_axum::routes;
 use uuid::Uuid;
 
 mod assets;
+mod auth;
+mod channels;
 mod error;
 mod join;
 mod model;

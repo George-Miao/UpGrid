@@ -1,3 +1,5 @@
+use base64::Engine as _;
+
 use super::*;
 
 #[utoipa::path(

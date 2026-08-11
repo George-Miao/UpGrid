@@ -3,7 +3,10 @@ fn assignment_batch_applies_every_valid_assignment() {
     let (mut state, first_target_id, channel_id) = state_with_target();
     let second_target_id = TargetId(id(20));
     state
-        .apply(Command::CreateTarget(target(second_target_id, channel_id)))
+        .apply(Command::CreateTarget {
+            target: target(second_target_id, channel_id),
+            use_default_notifications: true,
+        })
         .unwrap();
     let assignments = [first_target_id, second_target_id]
         .into_iter()
@@ -43,7 +46,12 @@ fn updating_a_target_preserves_runtime_state() {
     let mut updated = target(target_id, channel_id);
     updated.name = "Renamed".to_owned();
 
-    state.apply(Command::UpdateTarget(updated)).unwrap();
+    state
+        .apply(Command::UpdateTarget {
+            target: updated,
+            use_default_notifications: true,
+        })
+        .unwrap();
 
     let target_state = &state.targets[&target_id];
     assert_eq!(target_state.target.name, "Renamed");
@@ -296,5 +304,78 @@ fn node_names_are_trimmed_and_validated() {
             .is_err()
     );
 }
+
+#[test]
+fn invalid_channel_does_not_store_generated_secret() {
+    let mut state = ApplicationState::default();
+    let secret_id = SecretId(id(10));
+    let channel_id = NotificationChannelId(id(11));
+
+    assert!(matches!(
+        state.apply(Command::CreateNotificationChannel {
+            channel: NotificationChannel {
+                id: channel_id,
+                name: String::new(),
+                kind: NotificationChannelKind::Telegram {
+                    bot_token: secret_id,
+                    chat_id: "1234".to_owned(),
+                },
+            },
+            generated_secret: Some(Secret {
+                id: secret_id,
+                name: "telegram-token".to_owned(),
+                ciphertext: vec![1, 2, 3],
+            }),
+            is_default: true,
+        }),
+        Err(DomainError::InvalidNotificationChannel(_))
+    ));
+    assert!(!state.secrets.contains_key(&secret_id));
+    assert!(!state.notification_channels.contains_key(&channel_id));
+    assert!(!state.default_notification_channels.contains(&channel_id));
+}
+
+#[test]
+fn target_create_and_update_apply_default_policy_atomically() {
+    let (mut state, _, channel_id) = state_with_target();
+    let target_id = TargetId(id(12));
+    state
+        .apply(Command::CreateTarget {
+            target: target(target_id, channel_id),
+            use_default_notifications: false,
+        })
+        .unwrap();
+    assert!(state.targets.contains_key(&target_id));
+    assert!(state.default_notifications_disabled.contains(&target_id));
+
+    let mut invalid = state.targets[&target_id].target.clone();
+    invalid.name = "Rejected".to_owned();
+    invalid
+        .notification_channels
+        .insert(NotificationChannelId(id(13)));
+    assert_eq!(
+        state
+            .apply(Command::UpdateTarget {
+                target: invalid,
+                use_default_notifications: true,
+            })
+            .unwrap_err(),
+        DomainError::NotificationChannelNotFound(NotificationChannelId(id(13)))
+    );
+    assert_eq!(state.targets[&target_id].target.name, "Example");
+    assert!(state.default_notifications_disabled.contains(&target_id));
+
+    let mut updated = state.targets[&target_id].target.clone();
+    updated.name = "Updated".to_owned();
+    state
+        .apply(Command::UpdateTarget {
+            target: updated,
+            use_default_notifications: true,
+        })
+        .unwrap();
+    assert_eq!(state.targets[&target_id].target.name, "Updated");
+    assert!(!state.default_notifications_disabled.contains(&target_id));
+}
+
 use super::evaluation::{evaluation, id, state_with_target, target};
 use super::*;

@@ -1,6 +1,11 @@
+use axum::extract::{Request, State};
+use axum::middleware::{self, Next};
+use axum::response::Response;
 use snafu::ResultExt;
 
 use super::assets::*;
+use super::auth::{unauthorized, verify_basic_credentials};
+use super::channels::*;
 use super::join::*;
 use super::nodes::*;
 use super::resources::*;
@@ -116,6 +121,17 @@ async fn serve(
         axum::serve(listener, app).await.context(ServeSnafu)?;
     }
     Ok(())
+}
+
+async fn require_auth(State(state): State<WebState>, request: Request, next: Next) -> Response {
+    if verify_basic_credentials(
+        request.headers().get(header::AUTHORIZATION),
+        &state.username,
+        &state.password,
+    ) {
+        return next.run(request).await;
+    }
+    unauthorized("UpGrid")
 }
 
 fn api_routes() -> OpenApiRouter<WebState> {

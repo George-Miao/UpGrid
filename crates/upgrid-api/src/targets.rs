@@ -73,16 +73,13 @@ pub(super) async fn create_target(
     let id = TargetId(Uuid::now_v7());
     let use_default_channels = input.use_default_channels;
     let target = target_from_input(id, input)?;
-    state.cluster.apply(Command::CreateTarget(target)).await?;
-    if !use_default_channels {
-        state
-            .cluster
-            .apply(Command::SetTargetDefaultNotifications {
-                target_id: id,
-                enabled: false,
-            })
-            .await?;
-    }
+    state
+        .cluster
+        .apply(Command::CreateTarget {
+            target,
+            use_default_notifications: use_default_channels,
+        })
+        .await?;
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
     let view = snapshot
         .targets
@@ -114,12 +111,11 @@ pub(super) async fn update_target(
     let id = TargetId(id);
     let use_default_channels = input.use_default_channels;
     let target = target_from_input(id, input)?;
-    state.cluster.apply(Command::UpdateTarget(target)).await?;
     state
         .cluster
-        .apply(Command::SetTargetDefaultNotifications {
-            target_id: id,
-            enabled: use_default_channels,
+        .apply(Command::UpdateTarget {
+            target,
+            use_default_notifications: use_default_channels,
         })
         .await?;
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;

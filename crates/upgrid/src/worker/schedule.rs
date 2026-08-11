@@ -131,7 +131,12 @@ mod tests {
             notification_channels: BTreeSet::new(),
         };
         let mut state = ApplicationState::default();
-        state.apply(Command::CreateTarget(target)).unwrap();
+        state
+            .apply(Command::CreateTarget {
+                target,
+                use_default_notifications: true,
+            })
+            .unwrap();
         let voters = BTreeSet::from([Uuid::from_u128(1), Uuid::from_u128(2), Uuid::from_u128(3)]);
         let phase = crate::scheduler::phase_offset_ms(id, 1_000).unwrap();
         let first = plan(&state, &voters, phase + 10_000).pop().unwrap();

@@ -29,9 +29,19 @@ impl ApplicationState {
     pub fn apply(&mut self, command: Command) -> Result<CommandResult, DomainError> {
         match command {
             Command::PutSecret(secret) => self.put_secret(secret),
-            Command::PutNotificationChannel(channel) => self.put_notification_channel(channel),
-            Command::CreateTarget(target) => self.create_target(target),
-            Command::UpdateTarget(target) => self.update_target(target),
+            Command::CreateNotificationChannel {
+                channel,
+                generated_secret,
+                is_default,
+            } => self.create_notification_channel(channel, generated_secret, is_default),
+            Command::CreateTarget {
+                target,
+                use_default_notifications,
+            } => self.create_target(target, use_default_notifications),
+            Command::UpdateTarget {
+                target,
+                use_default_notifications,
+            } => self.update_target(target, use_default_notifications),
             Command::DeleteTarget(target_id) => {
                 self.targets
                     .remove(&target_id)
@@ -176,17 +186,6 @@ impl ApplicationState {
                 }
                 Ok(CommandResult::NotificationChannelDefaultSet(channel_id))
             }
-            Command::SetTargetDefaultNotifications { target_id, enabled } => {
-                if !self.targets.contains_key(&target_id) {
-                    return Err(DomainError::TargetNotFound(target_id));
-                }
-                if enabled {
-                    self.default_notifications_disabled.remove(&target_id);
-                } else {
-                    self.default_notifications_disabled.insert(target_id);
-                }
-                Ok(CommandResult::TargetDefaultNotificationsSet(target_id))
-            }
             Command::SyncNodeTargets(targets) => self.sync_node_targets(targets),
             Command::RecordEvaluation(evaluation) => self.record_evaluation(evaluation),
             Command::RecordNodeEvaluation(evaluation) => self.record_node_evaluation(evaluation),
@@ -219,42 +218,79 @@ impl ApplicationState {
         Ok(CommandResult::SecretStored(id))
     }
 
-    fn put_notification_channel(
+    fn create_notification_channel(
         &mut self,
         channel: NotificationChannel,
+        generated_secret: Option<Secret>,
+        is_default: bool,
     ) -> Result<CommandResult, DomainError> {
+        if let Some(secret) = &generated_secret {
+            secret.validate()?;
+        }
         channel.validate()?;
         for secret_id in channel.secret_ids() {
-            if !self.secrets.contains_key(&secret_id) {
+            let is_generated = generated_secret
+                .as_ref()
+                .is_some_and(|secret| secret.id == secret_id);
+            if !is_generated && !self.secrets.contains_key(&secret_id) {
                 return Err(DomainError::SecretNotFound(secret_id));
             }
         }
+
         let id = channel.id;
+        if let Some(secret) = generated_secret {
+            self.secrets.insert(secret.id, secret);
+        }
         self.notification_channels.insert(id, channel);
+        if is_default {
+            self.default_notification_channels.insert(id);
+        } else {
+            self.default_notification_channels.remove(&id);
+        }
         Ok(CommandResult::NotificationChannelStored(id))
     }
 
-    fn create_target(&mut self, target: Target) -> Result<CommandResult, DomainError> {
+    fn create_target(
+        &mut self,
+        target: Target,
+        use_default_notifications: bool,
+    ) -> Result<CommandResult, DomainError> {
         target.validate()?;
         if self.targets.contains_key(&target.id) {
             return Err(DomainError::TargetAlreadyExists(target.id));
         }
         self.validate_target_references(&target)?;
+
         let id = target.id;
         self.targets.insert(id, TargetState::new(target));
+        self.set_target_default_notifications(id, use_default_notifications);
         Ok(CommandResult::TargetCreated(id))
     }
 
-    fn update_target(&mut self, target: Target) -> Result<CommandResult, DomainError> {
+    fn update_target(
+        &mut self,
+        target: Target,
+        use_default_notifications: bool,
+    ) -> Result<CommandResult, DomainError> {
         target.validate()?;
         self.validate_target_references(&target)?;
         let target_state = self
             .targets
             .get_mut(&target.id)
             .ok_or(DomainError::TargetNotFound(target.id))?;
+
         let id = target.id;
         target_state.target = target;
+        self.set_target_default_notifications(id, use_default_notifications);
         Ok(CommandResult::TargetUpdated(id))
+    }
+
+    fn set_target_default_notifications(&mut self, id: TargetId, enabled: bool) {
+        if enabled {
+            self.default_notifications_disabled.remove(&id);
+        } else {
+            self.default_notifications_disabled.insert(id);
+        }
     }
 
     fn validate_target_references(&self, target: &Target) -> Result<(), DomainError> {

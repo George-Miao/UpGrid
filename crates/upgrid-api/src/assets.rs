@@ -39,33 +39,3 @@ pub(super) async fn favicon() -> impl IntoResponse {
         )),
     )
 }
-
-pub(super) async fn require_auth(
-    State(state): State<WebState>,
-    request: Request,
-    next: Next,
-) -> Response {
-    let authenticated = request
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Basic "))
-        .and_then(|value| STANDARD.decode(value).ok())
-        .and_then(|value| String::from_utf8(value).ok())
-        .is_some_and(|value| value == format!("{}:{}", state.username, state.password));
-    if authenticated {
-        return next.run(request).await;
-    }
-    let mut response = (
-        StatusCode::UNAUTHORIZED,
-        Json(ErrorBody {
-            error: "authentication required".to_owned(),
-        }),
-    )
-        .into_response();
-    response.headers_mut().insert(
-        header::WWW_AUTHENTICATE,
-        HeaderValue::from_static("Basic realm=\"UpGrid\""),
-    );
-    response
-}

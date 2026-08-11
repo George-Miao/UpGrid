@@ -74,13 +74,16 @@ mod tests {
             .state_machine
             .borrow_mut()
             .application
-            .apply(Command::CreateTarget(Target {
-                id: target_id,
-                name: "Example".to_owned(),
-                http: HttpTarget::get(Url::parse("https://example.com/health").unwrap()),
-                policy: EvaluationPolicy::default(),
-                notification_channels: BTreeSet::new(),
-            }))
+            .apply(Command::CreateTarget {
+                target: Target {
+                    id: target_id,
+                    name: "Example".to_owned(),
+                    http: HttpTarget::get(Url::parse("https://example.com/health").unwrap()),
+                    policy: EvaluationPolicy::default(),
+                    notification_channels: BTreeSet::new(),
+                },
+                use_default_notifications: true,
+            })
             .unwrap();
         state_machine.persist().unwrap();
         drop(state_machine);
@@ -103,13 +106,16 @@ mod tests {
         let target_id = TargetId(Uuid::now_v7());
         let mut application = ApplicationState::default();
         application
-            .apply(Command::CreateTarget(Target {
-                id: target_id,
-                name: "Migrated".to_owned(),
-                http: HttpTarget::get(Url::parse("https://example.com/health").unwrap()),
-                policy: EvaluationPolicy::default(),
-                notification_channels: BTreeSet::new(),
-            }))
+            .apply(Command::CreateTarget {
+                target: Target {
+                    id: target_id,
+                    name: "Migrated".to_owned(),
+                    http: HttpTarget::get(Url::parse("https://example.com/health").unwrap()),
+                    policy: EvaluationPolicy::default(),
+                    notification_channels: BTreeSet::new(),
+                },
+                use_default_notifications: true,
+            })
             .unwrap();
         let legacy = LegacyPersistedStateMachine {
             state_machine: LegacyStateMachineData {
@@ -143,13 +149,16 @@ mod tests {
         let target_id = TargetId(Uuid::now_v7());
         let mut application = ApplicationState::default();
         application
-            .apply(Command::CreateTarget(Target {
-                id: target_id,
-                name: "Previous".to_owned(),
-                http: HttpTarget::get(Url::parse("https://example.com/health").unwrap()),
-                policy: EvaluationPolicy::default(),
-                notification_channels: BTreeSet::new(),
-            }))
+            .apply(Command::CreateTarget {
+                target: Target {
+                    id: target_id,
+                    name: "Previous".to_owned(),
+                    http: HttpTarget::get(Url::parse("https://example.com/health").unwrap()),
+                    policy: EvaluationPolicy::default(),
+                    notification_channels: BTreeSet::new(),
+                },
+                use_default_notifications: true,
+            })
             .unwrap();
         let previous = PreviousPersistedStateMachine {
             state_machine: PreviousStateMachineData {
