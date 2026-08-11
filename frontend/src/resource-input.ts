@@ -1,4 +1,4 @@
-import type { TargetInput } from "./api.ts";
+import type { TargetInput, TargetKind } from "./api.ts";
 
 export type ChannelKind = "webhook" | "telegram" | "smtp";
 
@@ -38,11 +38,14 @@ export function channelInput(fields: FormData, kind: ChannelKind, update = false
   };
 }
 
-export function targetInput(fields: FormData, notificationChannelIds: string[] = [], useDefaultChannels = true): TargetInput {
+export function targetInput(fields: FormData, notificationChannelIds: string[] = [], useDefaultChannels = true, kind = String(fields.get("kind") ?? "http") as TargetKind): TargetInput {
+  const endpoint = String(fields.get("url"));
+  const url = kind === "http" ? endpoint : `${kind}://${endpoint.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")}`;
   return {
     name: String(fields.get("name")),
-    url: String(fields.get("url")),
-    method: String(fields.get("method")),
+    kind,
+    url,
+    method: String(fields.get("method") ?? "GET"),
     accepted_statuses: [{ start: 200, end: 299 }],
     follow_redirects: true,
     max_redirects: 5,

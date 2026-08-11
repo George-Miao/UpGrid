@@ -2124,6 +2124,9 @@
             "format": "int64",
             "minimum": 0
           },
+          "kind": {
+            "$ref": "#/components/schemas/TargetKindInput"
+          },
           "max_redirects": {
             "type": "integer",
             "format": "int32",
@@ -2276,6 +2279,27 @@
           }
         }
       },
+      "TargetKindInput": {
+        "type": "string",
+        "enum": [
+          "http",
+          "tcp",
+          "dns",
+          "icmp",
+          "tls"
+        ]
+      },
+      "TargetKindView": {
+        "type": "string",
+        "enum": [
+          "http",
+          "tcp",
+          "dns",
+          "icmp",
+          "tls",
+          "node"
+        ]
+      },
       "TargetView": {
         "type": "object",
         "required": [
@@ -2363,7 +2387,7 @@
             "minimum": 0
           },
           "kind": {
-            "type": "string"
+            "$ref": "#/components/schemas/TargetKindView"
           },
           "latest_evaluation": {
             "oneOf": [

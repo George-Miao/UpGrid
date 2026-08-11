@@ -16,7 +16,7 @@ use upgrid_raft::domain::{
     AlertDelivery, AlertKind, ApplicationState, AvailabilityState, Command, ConfigValue,
     DomainError, EvaluationPolicy, HttpTarget, NodeTargetState, NotificationChannel,
     NotificationChannelId, NotificationChannelKind, Secret, SecretId, SmtpSecurity, StatusRange,
-    Target, TargetId, TargetState,
+    Target, TargetId, TargetKind, TargetState,
 };
 use upgrid_raft::{ClusterError, Handle, hash_join_token};
 use url::Url;

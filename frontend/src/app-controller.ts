@@ -32,6 +32,7 @@ export class AppController extends AppState {
       path = `/api/v1/targets/${this.selected.id}`;
       input = {
         name: String(fields.get("name")),
+        kind: "http",
         url: String(fields.get("url")),
         method: String(fields.get("method")),
         accepted_statuses: String(fields.get("statuses"))
@@ -52,6 +53,10 @@ export class AppController extends AppState {
         notification_channel_ids: fields.getAll("channel_id").map(String),
         use_default_channels: fields.get("use_default_channels") === "on",
       };
+    }
+    if (this.selected.kind !== "http" && this.selected.kind !== "node") {
+      path = `/api/v1/targets/${this.selected.id}`;
+      input = targetInput(fields, fields.getAll("channel_id").map(String), fields.get("use_default_channels") === "on", this.selected.kind);
     }
     this.saving = true;
     try {

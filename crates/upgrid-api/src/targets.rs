@@ -209,6 +209,15 @@ async fn set_target_paused(
 
 pub(super) fn target_from_input(id: TargetId, input: PutTargetRequest) -> Result<Target, ApiError> {
     let url = Url::parse(&input.url).map_err(ApiError::bad_request)?;
+    let expected_kind = TargetKind::from(input.kind);
+    let actual_kind = TargetKind::from_scheme(url.scheme());
+    if actual_kind != Some(expected_kind) {
+        return Err(ApiError::bad_request(format!(
+            "target kind {} does not match URL scheme {}",
+            expected_kind.as_str(),
+            url.scheme()
+        )));
+    }
     Ok(Target {
         id,
         name: input.name,
@@ -242,4 +251,71 @@ pub(super) fn target_from_input(id: TargetId, input: PutTargetRequest) -> Result
             .map(NotificationChannelId)
             .collect(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::StatusCode;
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn target_input_accepts_every_explicit_kind() {
+        for (index, (kind, url, expected)) in [
+            ("http", "https://example.com/health", TargetKind::Http),
+            ("tcp", "tcp://database.internal:5432", TargetKind::Tcp),
+            ("dns", "dns://service.internal", TargetKind::Dns),
+            ("icmp", "icmp://192.0.2.1", TargetKind::Icmp),
+            ("tls", "tls://example.com:443", TargetKind::Tls),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let input = serde_json::from_value(json!({
+                "name": kind,
+                "kind": kind,
+                "url": url,
+            }))
+            .unwrap();
+
+            let target = target_from_input(TargetId(Uuid::from_u128(index as u128)), input)
+                .unwrap_or_else(|error| panic!("valid {kind} target rejected: {}", error.message));
+
+            assert_eq!(target.kind(), expected);
+        }
+    }
+
+    #[test]
+    fn target_input_defaults_legacy_requests_to_http() {
+        let input = serde_json::from_value(json!({
+            "name": "Legacy",
+            "url": "https://example.com/health",
+        }))
+        .unwrap();
+
+        let target = target_from_input(TargetId(Uuid::from_u128(1)), input)
+            .unwrap_or_else(|error| panic!("legacy HTTP target rejected: {}", error.message));
+
+        assert_eq!(target.kind(), TargetKind::Http);
+    }
+
+    #[test]
+    fn target_input_rejects_kind_and_scheme_mismatch() {
+        let input = serde_json::from_value(json!({
+            "name": "Database",
+            "kind": "tcp",
+            "url": "dns://database.internal",
+        }))
+        .unwrap();
+
+        let error = target_from_input(TargetId(Uuid::from_u128(1)), input).unwrap_err();
+
+        assert_eq!(error.status, StatusCode::BAD_REQUEST);
+        assert!(
+            error
+                .message
+                .contains("target kind tcp does not match URL scheme dns")
+        );
+    }
 }

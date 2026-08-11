@@ -171,6 +171,7 @@ export class UpgridApp extends AppController {
     form { display: grid; gap: 13px; padding: 20px 22px 22px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
     label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
+    [hidden] { display: none !important; }
     input, select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font-size: 16px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease; }
     input:focus, select:focus { border-color: var(--focus); }
     button:focus-visible, a:focus-visible, .target:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
@@ -464,6 +465,8 @@ export class UpgridApp extends AppController {
   }
 
   private renderTarget(target: Target) {
+    const isNode = target.kind === "node";
+    const isHttp = target.kind === "http";
     const latest = target.latest_evaluation;
     const history = target.history.slice(0, 16).reverse();
     const maxLatency = Math.max(1, ...history.map((item) => item.latency_ms));
@@ -471,21 +474,21 @@ export class UpgridApp extends AppController {
     return html`
       <div class="target-wrap">
         ${
-          target.kind === "http"
+          !isNode
             ? html`<input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} .checked=${this.selectedIds.has(target.id)} @change=${(event: Event) => this.toggleSelected(target.id, (event.target as HTMLInputElement).checked)} />`
             : html`<input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} disabled />`
         }
-        <button class=${`target ${target.kind === "node" ? "node-target" : ""}`} aria-label=${target.name} @click=${() => this.openTarget(target)}>
+        <button class=${`target ${isNode ? "node-target" : ""}`} aria-label=${target.name} @click=${() => this.openTarget(target)}>
           <i class="state ${state}" aria-label=${state}></i>
           <div>
-            <div class="target-title"><h3>${target.name}</h3>${target.kind === "node" ? html`<span class="badge">Node</span>` : nothing}</div>
-            <div class="meta">${target.paused ? "Paused · " : ""}${target.method} · ${target.url} · every ${target.interval_seconds}s</div>
+            <div class="target-title"><h3>${target.name}</h3><span class="badge">${target.kind.toUpperCase()}</span></div>
+            <div class="meta">${target.paused ? "Paused · " : ""}${isHttp ? `${target.method} · ` : ""}${target.url} · every ${target.interval_seconds}s</div>
           </div>
           <div class="target-side">
             ${history.length ? html`<div class="mini-chart" aria-hidden="true">${history.map((item) => html`<i class="mini-bar ${item.succeeded ? "up" : "down"}" style=${`height: ${Math.max(12, (item.latency_ms / maxLatency) * 100)}%`}></i>`)}</div>` : nothing}
             <div class="latency">
               <strong>${latest ? `${latest.latency_ms} ms` : "—"}</strong>
-              <span>${latest ? (target.kind === "node" ? (latest.succeeded ? "reachable" : "unreachable") : (latest.status_code ?? "network error")) : "waiting"}</span>
+              <span>${latest ? (isHttp ? (latest.status_code ?? "network error") : latest.succeeded ? "reachable" : "unreachable") : "waiting"}</span>
             </div>
           </div>
         </button>

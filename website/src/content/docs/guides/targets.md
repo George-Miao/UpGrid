@@ -1,23 +1,29 @@
 ---
 title: Monitor services
-description: Configure HTTP Targets, evaluation policy, and per-Target notification routing.
+description: Configure HTTP, TCP, DNS, ICMP, and TLS Targets with evaluation and notification policies.
 ---
 
-A Target describes one HTTP or HTTPS request and the policy that turns its evaluations into availability transitions.
+A Target describes an endpoint probe and the policy that turns its evaluations into availability transitions.
 
 ## Add a Target
 
-From **Overview**, select **Add target** and provide a name and URL. The WebUI also configures the HTTP method, polling interval, timeout, failure threshold, and notification routing.
+From **Overview**, select **Add target**, choose a type, and provide its endpoint:
 
-The HTTP API supports the complete Target policy:
+- **HTTP** — an `http://` or `https://` URL;
+- **TCP connect** — a host and explicit port, such as `database.internal:5432`;
+- **DNS resolution** — a hostname resolved through the Node's system resolver;
+- **ICMP echo** — a hostname or IP address;
+- **TLS certificate** — a hostname and explicit TLS port, such as `example.com:443`.
 
-- accepted status ranges;
-- literal or Secret-backed headers and request bodies;
-- redirect behavior and maximum redirects;
-- TLS certificate verification; and
-- a response-body substring requirement.
+Every type supports the polling interval, timeout, consecutive-failure threshold, and notification routing. HTTP Targets additionally support accepted status ranges, literal or Secret-backed headers and request bodies, redirects, TLS verification settings, and a response-body substring requirement. The default HTTP accepted range is `200–299`; the default transition threshold is three failures.
 
-The default accepted range is `200–299`; the default transition threshold is three failures.
+The HTTP API accepts an explicit `kind` plus the `url`; omitted kinds default to `http` for compatibility. Non-HTTP endpoints use matching `tcp://`, `dns://`, `icmp://`, or `tls://` schemes and do not accept HTTP request options.
+
+## Probe behavior
+
+TCP Targets succeed after establishing a connection. DNS Targets succeed when the system resolver returns at least one IPv4 or IPv6 address. TLS Targets complete a TLS handshake and validate the certificate chain, hostname, and validity period against the bundled public roots.
+
+ICMP Targets send an echo request. The UpGrid process needs permission to open ICMP sockets: grant `CAP_NET_RAW` on Linux, add `NET_RAW` to a container, or run under an equivalent platform policy. A missing permission or echo timeout is recorded in the Target's evaluation diagnostic.
 
 ## Use a Secret in request data
 

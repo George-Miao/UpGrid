@@ -9,9 +9,11 @@ use upgrid_config::Cipher;
 use upgrid_raft::Handle;
 use upgrid_raft::domain::{
     Command, Evaluation, EvaluationId, HttpEvaluationMetadata, MAX_DIAGNOSTIC_BYTES, Target,
+    TargetKind,
 };
 
 use super::http::{self, resolve, send};
+use super::network;
 use super::runtime::Clients;
 
 pub(super) async fn run(cluster: Handle, clients: Clients, cipher: Cipher) {
@@ -79,21 +81,37 @@ async fn evaluate(
     recorded_at_ms: u64,
 ) -> Evaluation {
     let started = Instant::now();
-    let outcome = match resolve(cluster, cipher, &target.http).await {
-        Ok(request) => match timeout(
-            Duration::from_millis(target.policy.timeout_ms),
-            send(clients, request),
-        )
-        .await
-        {
-            Ok(result) => result,
-            Err(_) => Err(http::Error::RequestTimeout),
-        },
-        Err(error) => Err(error),
+    let timeout_duration = Duration::from_millis(target.policy.timeout_ms);
+    let outcome = match target.kind() {
+        TargetKind::Http => {
+            ProbeOutcome::Http(match resolve(cluster, cipher, &target.http).await {
+                Ok(request) => match timeout(timeout_duration, send(clients, request)).await {
+                    Ok(result) => result,
+                    Err(_) => Err(http::Error::RequestTimeout),
+                },
+                Err(error) => Err(error),
+            })
+        }
+        kind => ProbeOutcome::Network(
+            match timeout(
+                timeout_duration,
+                network::probe(
+                    &clients.network_runtime,
+                    &target.http,
+                    kind,
+                    timeout_duration,
+                ),
+            )
+            .await
+            {
+                Ok(result) => result,
+                Err(_) => Err(network::Error::RequestTimeout),
+            },
+        ),
     };
     let latency_ms = started.elapsed().as_millis().try_into().unwrap_or(u64::MAX);
     let (succeeded, status_code, received_bytes, final_url, diagnostic) = match outcome {
-        Ok(response) => {
+        ProbeOutcome::Http(Ok(response)) => {
             let status_ok = target
                 .http
                 .accepted_statuses
@@ -122,7 +140,15 @@ async fn evaluate(
                 diagnostic,
             )
         }
-        Err(error) => (
+        ProbeOutcome::Http(Err(error)) => (
+            false,
+            None,
+            0,
+            target.http.url.clone(),
+            Some(error.to_string()),
+        ),
+        ProbeOutcome::Network(Ok(())) => (true, None, 0, target.http.url.clone(), None),
+        ProbeOutcome::Network(Err(error)) => (
             false,
             None,
             0,
@@ -146,6 +172,11 @@ async fn evaluate(
         },
         diagnostic: diagnostic.map(truncate),
     }
+}
+
+enum ProbeOutcome {
+    Http(Result<http::Response, http::Error>),
+    Network(Result<(), network::Error>),
 }
 
 fn truncate(value: String) -> String {

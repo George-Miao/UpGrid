@@ -42,9 +42,34 @@ impl From<&ConfigValue> for ConfigValueView {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum TargetKindInput {
+    #[default]
+    Http,
+    Tcp,
+    Dns,
+    Icmp,
+    Tls,
+}
+
+impl From<TargetKindInput> for TargetKind {
+    fn from(value: TargetKindInput) -> Self {
+        match value {
+            TargetKindInput::Http => Self::Http,
+            TargetKindInput::Tcp => Self::Tcp,
+            TargetKindInput::Dns => Self::Dns,
+            TargetKindInput::Icmp => Self::Icmp,
+            TargetKindInput::Tls => Self::Tls,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub(super) struct PutTargetRequest {
     pub(super) name: String,
+    #[serde(default)]
+    pub(super) kind: TargetKindInput,
     pub(super) url: String,
     #[serde(default = "default_method")]
     pub(super) method: String,
@@ -116,10 +141,33 @@ pub(super) struct EvaluationView {
     diagnostic: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum TargetKindView {
+    Http,
+    Tcp,
+    Dns,
+    Icmp,
+    Tls,
+    Node,
+}
+
+impl From<TargetKind> for TargetKindView {
+    fn from(value: TargetKind) -> Self {
+        match value {
+            TargetKind::Http => Self::Http,
+            TargetKind::Tcp => Self::Tcp,
+            TargetKind::Dns => Self::Dns,
+            TargetKind::Icmp => Self::Icmp,
+            TargetKind::Tls => Self::Tls,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub(super) struct TargetView {
     id: Uuid,
-    kind: String,
+    kind: TargetKindView,
     name: String,
     url: String,
     method: String,
@@ -147,7 +195,7 @@ impl TargetView {
         let target = &state.target;
         Self {
             id: target.id.0,
-            kind: "http".to_owned(),
+            kind: target.kind().into(),
             name: target.name.clone(),
             url: target.http.url.to_string(),
             method: target.http.method.clone(),
@@ -195,8 +243,8 @@ impl TargetView {
     pub(super) fn from_node(state: &NodeTargetState) -> Self {
         let target = &state.target;
         Self {
-            id: target.node_id,
-            kind: "node".to_owned(),
+            id: target.id().0,
+            kind: TargetKindView::Node,
             name: target.name.clone(),
             url: target.url.to_string(),
             method: "RPC".to_owned(),
@@ -246,5 +294,47 @@ fn availability_name(value: AvailabilityState) -> &'static str {
         AvailabilityState::Unknown => "unknown",
         AvailabilityState::Up => "up",
         AvailabilityState::Down => "down",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use serde_json::Value;
+    use upgrid_raft::domain::{
+        ApplicationState, EvaluationPolicy, HttpTarget, Target, TargetId, TargetState,
+    };
+
+    use super::*;
+
+    #[test]
+    fn target_view_reports_network_target_kind() {
+        let state = ApplicationState::default();
+        let target = Target {
+            id: TargetId(Uuid::from_u128(1)),
+            name: "Database".to_owned(),
+            http: HttpTarget::get(Url::parse("tcp://database.internal:5432").unwrap()),
+            policy: EvaluationPolicy::default(),
+            notification_channels: BTreeSet::new(),
+        };
+        let view = TargetView::from_state(
+            &state,
+            &TargetState {
+                target,
+                availability: AvailabilityState::Unknown,
+                consecutive_failures: 0,
+                latest_evaluation: None,
+                history: BTreeMap::new(),
+                paused: false,
+            },
+        );
+
+        let json = serde_json::to_value(view).unwrap();
+        assert_eq!(json["kind"], Value::String("tcp".to_owned()));
+        assert_eq!(
+            json["url"],
+            Value::String("tcp://database.internal:5432".to_owned())
+        );
     }
 }

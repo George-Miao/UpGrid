@@ -47,6 +47,22 @@ _Avoid_: Target name, URL
 A target identified by an HTTP or HTTPS URL and evaluated using HTTP response criteria.
 _Avoid_: Website, URL monitor
 
+**TCP Target**:
+A Target that succeeds when a TCP connection can be established to its host and port.
+_Avoid_: Port check
+
+**DNS Target**:
+A Target that succeeds when its hostname resolves to at least one address.
+_Avoid_: DNS check
+
+**ICMP Target**:
+A Target that succeeds when its host answers an ICMP echo request.
+_Avoid_: Ping
+
+**TLS Target**:
+A Target that succeeds when it completes a TLS handshake with a valid certificate for its hostname.
+_Avoid_: SSL check, certificate check
+
 **Evaluation**:
 A single cluster-wide assessment scheduled for a Target interval. Reassignment may execute it more than once, but only one result is authoritative.
 _Avoid_: Check, probe, ping

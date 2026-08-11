@@ -24,6 +24,7 @@ mod tests {
     fn target_input_preserves_extension_method_case() {
         let input = PutTargetRequest {
             name: "Example".to_owned(),
+            kind: TargetKindInput::Http,
             url: "https://example.com".to_owned(),
             method: "Example-Method".to_owned(),
             headers: BTreeMap::new(),

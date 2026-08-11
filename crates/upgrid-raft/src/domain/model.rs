@@ -1,10 +1,10 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use url::Url;
 use uuid::Uuid;
 
-use super::DomainError;
+use super::{DomainError, EvaluationPolicy, Target};
 
 pub const DEFAULT_HISTORY_RETENTION_MS: u64 = 24 * 60 * 60 * 1_000;
 pub const DEFAULT_OPERATION_RETENTION_MS: u64 = 10 * 60 * 1_000;
@@ -27,164 +27,6 @@ pub struct JoinTokenHash(pub [u8; 32]);
 pub enum ConfigValue {
     Literal(String),
     Secret(SecretId),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct StatusRange {
-    pub start: u16,
-    pub end: u16,
-}
-
-impl StatusRange {
-    pub fn new(start: u16, end: u16) -> Self {
-        Self { start, end }
-    }
-
-    pub fn contains(&self, status: u16) -> bool {
-        self.start <= status && status <= self.end
-    }
-
-    fn is_valid(&self) -> bool {
-        100 <= self.start && self.start <= self.end && self.end <= 599
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HttpTarget {
-    pub url: Url,
-    pub method: String,
-    pub headers: BTreeMap<String, ConfigValue>,
-    pub body: Option<ConfigValue>,
-    pub accepted_statuses: Vec<StatusRange>,
-    pub follow_redirects: bool,
-    pub max_redirects: u8,
-    pub body_contains: Option<String>,
-    pub skip_tls_verification: bool,
-}
-
-impl HttpTarget {
-    pub fn get(url: Url) -> Self {
-        Self {
-            url,
-            method: "GET".to_owned(),
-            headers: BTreeMap::new(),
-            body: None,
-            accepted_statuses: vec![StatusRange::new(200, 299)],
-            follow_redirects: true,
-            max_redirects: 5,
-            body_contains: None,
-            skip_tls_verification: false,
-        }
-    }
-
-    pub(super) fn validate(&self) -> Result<(), DomainError> {
-        if !matches!(self.url.scheme(), "http" | "https") {
-            return Err(DomainError::InvalidTarget(
-                "target URL must use http or https".to_owned(),
-            ));
-        }
-        if !is_http_token(&self.method) {
-            return Err(DomainError::InvalidTarget(
-                "HTTP method is not a valid token".to_owned(),
-            ));
-        }
-        if self.accepted_statuses.is_empty()
-            || self.accepted_statuses.iter().any(|range| !range.is_valid())
-        {
-            return Err(DomainError::InvalidTarget(
-                "accepted HTTP statuses must contain valid ranges".to_owned(),
-            ));
-        }
-        if self.follow_redirects && self.max_redirects == 0 {
-            return Err(DomainError::InvalidTarget(
-                "redirect limit must be greater than zero".to_owned(),
-            ));
-        }
-
-        let mut names = BTreeSet::new();
-        for name in self.headers.keys() {
-            if !is_http_token(name) {
-                return Err(DomainError::InvalidTarget(format!(
-                    "invalid HTTP header name: {name}"
-                )));
-            }
-            if !names.insert(name.to_ascii_lowercase()) {
-                return Err(DomainError::InvalidTarget(format!(
-                    "duplicate HTTP header name: {name}"
-                )));
-            }
-        }
-        Ok(())
-    }
-
-    pub(super) fn secret_ids(&self) -> impl Iterator<Item = SecretId> + '_ {
-        self.headers
-            .values()
-            .chain(self.body.iter())
-            .filter_map(|value| match value {
-                ConfigValue::Literal(_) => None,
-                ConfigValue::Secret(id) => Some(*id),
-            })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EvaluationPolicy {
-    pub interval_ms: u64,
-    pub timeout_ms: u64,
-    pub failure_threshold: u32,
-}
-
-impl Default for EvaluationPolicy {
-    fn default() -> Self {
-        Self {
-            interval_ms: 60_000,
-            timeout_ms: 10_000,
-            failure_threshold: 3,
-        }
-    }
-}
-
-impl EvaluationPolicy {
-    pub(super) fn validate(&self) -> Result<(), DomainError> {
-        if self.interval_ms == 0 {
-            return Err(DomainError::InvalidTarget(
-                "evaluation interval must be greater than zero".to_owned(),
-            ));
-        }
-        if self.timeout_ms == 0 {
-            return Err(DomainError::InvalidTarget(
-                "evaluation timeout must be greater than zero".to_owned(),
-            ));
-        }
-        if self.failure_threshold == 0 {
-            return Err(DomainError::InvalidTarget(
-                "failure threshold must be greater than zero".to_owned(),
-            ));
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Target {
-    pub id: TargetId,
-    pub name: String,
-    pub http: HttpTarget,
-    pub policy: EvaluationPolicy,
-    pub notification_channels: BTreeSet<NotificationChannelId>,
-}
-
-impl Target {
-    pub(super) fn validate(&self) -> Result<(), DomainError> {
-        if self.name.trim().is_empty() {
-            return Err(DomainError::InvalidTarget(
-                "target name must not be empty".to_owned(),
-            ));
-        }
-        self.http.validate()?;
-        self.policy.validate()
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

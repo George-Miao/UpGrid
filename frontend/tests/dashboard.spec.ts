@@ -113,6 +113,59 @@ test("creates a target from the embedded dashboard", async ({ page }) => {
   await expect(page.getByText("https://example.com/health")).toBeVisible();
 });
 
+test("creates and edits a TCP-connect target", async ({ page }) => {
+  await page.goto("/");
+  const service = new URL(page.url());
+  await page.getByRole("button", { name: "Add target" }).click();
+  const addTarget = page.getByRole("dialog", { name: "Add target" });
+
+  await addTarget.getByLabel("Method").fill("POST");
+  await addTarget.getByLabel("Type").selectOption("tcp");
+  await expect(addTarget.getByLabel("Method")).toBeHidden();
+  await expect(addTarget.getByLabel("Method")).toBeDisabled();
+  await expect(addTarget.getByLabel("URL")).toHaveAttribute("placeholder", "database.internal:5432");
+  await addTarget.getByLabel("Name").fill("Local TCP service");
+  await addTarget.getByLabel("URL").fill(`${service.hostname}:${service.port}`);
+  await addTarget.getByLabel("Interval (seconds)").fill("1");
+  await addTarget.getByLabel("Failures before Down").fill("1");
+  await addTarget.getByRole("button", { name: "Create target" }).click();
+
+  const target = page.getByRole("button", { name: "Local TCP service" });
+  await expect(target).toContainText("TCP");
+  await expect(target).toContainText(`tcp://${service.hostname}:${service.port}`);
+  await expect(target.locator(".state")).toHaveClass(/up/, { timeout: 15_000 });
+  await target.click();
+
+  const details = page.getByRole("dialog", { name: "Target details" });
+  await expect(details.getByLabel("Type")).toHaveValue("TCP");
+  await expect(details.getByLabel("Method")).toHaveCount(0);
+  await details.getByLabel("Name").fill("Renamed TCP service");
+  await details.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(page.getByRole("button", { name: "Renamed TCP service" })).toBeVisible();
+});
+
+test("creates DNS, ICMP, and TLS target kinds", async ({ page }) => {
+  await page.goto("/");
+  const service = new URL(page.url());
+  for (const [kind, endpoint] of [
+    ["dns", "localhost"],
+    ["icmp", "192.0.2.1"],
+    ["tls", `${service.hostname}:${service.port}`],
+  ] as const) {
+    await page.getByRole("button", { name: "Add target" }).click();
+    const dialog = page.getByRole("dialog", { name: "Add target" });
+    await dialog.getByLabel("Type").selectOption(kind);
+    await dialog.getByLabel("Name").fill(`${kind.toUpperCase()} target`);
+    await dialog.getByLabel("URL").fill(endpoint);
+    await dialog.getByRole("button", { name: "Create target" }).click();
+
+    const target = page.getByRole("button", { name: `${kind.toUpperCase()} target` });
+    await expect(target).toContainText(kind.toUpperCase());
+    await expect(target).toContainText(`${kind}://${endpoint}`);
+  }
+});
+
 test("edits, inspects, and deletes a target", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Add target" }).click();

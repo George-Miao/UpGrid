@@ -7,12 +7,14 @@ mod config_value;
 mod evaluation;
 mod model;
 mod state;
+mod target;
 
 pub use alert::*;
 pub use command::*;
 pub use config_value::*;
 pub use model::*;
 pub use state::*;
+pub use target::*;
 
 #[cfg(test)]
 mod tests;

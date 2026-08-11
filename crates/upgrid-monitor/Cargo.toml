@@ -10,9 +10,16 @@ cyper.workspace = true
 http.workspace = true
 rustls.workspace = true
 snafu.workspace = true
+surge-ping.workspace = true
 tracing.workspace = true
+tokio.workspace = true
 upgrid-config.workspace = true
 upgrid-raft.workspace = true
 upgrid-transport.workspace = true
 url.workspace = true
+webpki-roots.workspace = true
 uuid.workspace = true
+
+
+[dev-dependencies]
+rcgen.workspace = true

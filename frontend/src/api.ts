@@ -8,9 +8,11 @@ export interface Evaluation {
   diagnostic: string | null;
 }
 
+export type TargetKind = "http" | "tcp" | "dns" | "icmp" | "tls";
+
 export interface Target {
   id: string;
-  kind: "http" | "node";
+  kind: TargetKind | "node";
   name: string;
   url: string;
   method: string;
@@ -110,6 +112,7 @@ export interface Cluster {
 
 export interface TargetInput {
   name: string;
+  kind: TargetKind;
   url: string;
   method: string;
   accepted_statuses: Array<{ start: number; end: number }>;
