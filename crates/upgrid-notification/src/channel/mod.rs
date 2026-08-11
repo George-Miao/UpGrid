@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use http::StatusCode;
 use upgrid_config::Cipher;
 use upgrid_raft::domain::{
-    Alert, AlertKind, ApplicationState, ConfigValue, NotificationChannelKind,
+    Alert, AlertKind, ApplicationState, ConfigValue, NotificationChannelKind, resolve_config_value,
 };
 use url::Url;
 
@@ -104,20 +104,8 @@ fn resolve_value(
     cipher: &Cipher,
     value: &ConfigValue,
 ) -> Result<String, String> {
-    match value {
-        ConfigValue::Literal(value) => Ok(value.clone()),
-        ConfigValue::Secret(id) => state
-            .secrets
-            .get(id)
-            .ok_or_else(|| format!("secret {} no longer exists", id.0))
-            .and_then(|secret| {
-                cipher
-                    .open(&secret.ciphertext)
-                    .map_err(|error| format!("could not decrypt secret {}: {error}", id.0))
-                    .and_then(|plaintext| {
-                        String::from_utf8(plaintext)
-                            .map_err(|_| format!("secret {} is not UTF-8", id.0))
-                    })
-            }),
+    match resolve_config_value(state, cipher, value) {
+        Ok(value) => Ok(value),
+        Err(error) => Err(error.to_string()),
     }
 }

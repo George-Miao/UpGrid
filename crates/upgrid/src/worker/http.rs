@@ -3,7 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use http::{Method, StatusCode, header};
 use upgrid_config::Cipher;
 use upgrid_raft::Handle;
-use upgrid_raft::domain::{ApplicationState, ConfigValue, HttpTarget, MAX_RESPONSE_BYTES};
+use upgrid_raft::domain::{
+    ApplicationState, ConfigValue, HttpTarget, MAX_RESPONSE_BYTES, resolve_config_value,
+};
 use url::Url;
 
 use super::Clients;
@@ -68,21 +70,9 @@ fn resolve_value(
     cipher: &Cipher,
     value: &ConfigValue,
 ) -> Result<String, String> {
-    match value {
-        ConfigValue::Literal(value) => Ok(value.clone()),
-        ConfigValue::Secret(id) => state
-            .secrets
-            .get(id)
-            .ok_or_else(|| format!("secret {} no longer exists", id.0))
-            .and_then(|secret| {
-                cipher
-                    .open(&secret.ciphertext)
-                    .map_err(|error| format!("could not decrypt secret {}: {error}", id.0))
-                    .and_then(|plaintext| {
-                        String::from_utf8(plaintext)
-                            .map_err(|_| format!("secret {} is not UTF-8", id.0))
-                    })
-            }),
+    match resolve_config_value(state, cipher, value) {
+        Ok(value) => Ok(value),
+        Err(error) => Err(error.to_string()),
     }
 }
 
