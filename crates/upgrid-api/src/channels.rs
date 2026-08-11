@@ -1,6 +1,6 @@
-use super::*;
-
 use snafu::{ResultExt, Snafu};
+
+use super::*;
 
 #[derive(Debug, Snafu)]
 enum ChannelInputError {
@@ -8,9 +8,7 @@ enum ChannelInputError {
     InvalidUrl { source: url::ParseError },
 
     #[snafu(display("{source}"))]
-    SealSecret {
-        source: upgrid_config::CipherError,
-    },
+    SealSecret { source: upgrid_config::CipherError },
 }
 
 impl From<ChannelInputError> for ApiError {
