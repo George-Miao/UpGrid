@@ -44,5 +44,6 @@ uuid = { version = "1.17.0", features = ["serde", "v7"] }
 upgrid-api = { path = "crates/upgrid-api" }
 upgrid-config = { path = "crates/upgrid-config" }
 upgrid-notification = { path = "crates/upgrid-notification" }
+upgrid-monitor = { path = "crates/upgrid-monitor" }
 upgrid-raft = { path = "crates/upgrid-raft" }
 upgrid-transport = { path = "crates/upgrid-transport" }

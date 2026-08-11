@@ -1,17 +1,18 @@
 [package]
-name = "upgrid"
+name = "upgrid-monitor"
 publish = false
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-clap.workspace = true
 compio.workspace = true
+cyper.workspace = true
+http.workspace = true
+rustls.workspace = true
 snafu.workspace = true
 tracing.workspace = true
-tracing-subscriber.workspace = true
-upgrid-api.workspace = true
 upgrid-config.workspace = true
-upgrid-notification.workspace = true
-upgrid-monitor.workspace = true
 upgrid-raft.workspace = true
+upgrid-transport.workspace = true
+url.workspace = true
+uuid.workspace = true

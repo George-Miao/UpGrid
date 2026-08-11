@@ -15,8 +15,6 @@ use upgrid_raft::domain::{Command, DEFAULT_HISTORY_RETENTION_MS};
 
 mod bootstrap;
 mod error;
-mod scheduler;
-mod worker;
 
 use crate::error::{ClusterWriteSnafu, Error, Result};
 
@@ -59,6 +57,7 @@ fn log_filter(level: LevelFilter) -> Targets {
         .with_target("upgrid", level)
         .with_target("upgrid_api", level)
         .with_target("upgrid_notification", level)
+        .with_target("upgrid_monitor", level)
         .with_target("upgrid_raft", level)
         .with_target("upgrid_transport", level)
         .with_target("openraft", LevelFilter::OFF)
@@ -123,7 +122,7 @@ async fn run() -> Result<()> {
         oobe,
         startup_warning,
     )?;
-    worker::start(cluster.clone(), cipher.clone());
+    upgrid_monitor::start(cluster.clone(), cipher.clone());
     receiver.run(node).await;
     Err(Error::ClusterStopped)
 }

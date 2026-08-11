@@ -10,7 +10,7 @@ use upgrid_raft::domain::{
 use upgrid_raft::{ClusterError, Handle};
 use url::Url;
 
-use super::Clients;
+use super::runtime::Clients;
 
 #[derive(Debug, Snafu)]
 pub(super) enum Error {

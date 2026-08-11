@@ -1,9 +1,4 @@
-//! Target assignment and probe execution.
-
-mod http;
-mod node;
-mod probe;
-mod schedule;
+//! Monitor client setup and worker startup.
 
 use std::sync::Arc;
 
@@ -13,12 +8,15 @@ use upgrid_config::Cipher;
 use upgrid_raft::Handle;
 use upgrid_transport::SkipServerVerification;
 
+use crate::{node, probe, schedule};
+
 #[derive(Clone)]
-struct Clients {
-    verified: Client,
-    insecure: Client,
+pub(super) struct Clients {
+    pub(super) verified: Client,
+    pub(super) insecure: Client,
 }
 
+/// Starts Target scheduling and probe workers in the current Compio runtime.
 pub fn start(cluster: Handle, cipher: Cipher) {
     let insecure_tls = rustls::ClientConfig::builder()
         .dangerous()

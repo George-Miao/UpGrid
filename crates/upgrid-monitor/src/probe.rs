@@ -11,8 +11,8 @@ use upgrid_raft::domain::{
     Command, Evaluation, EvaluationId, HttpEvaluationMetadata, MAX_DIAGNOSTIC_BYTES, Target,
 };
 
-use super::Clients;
 use super::http::{self, resolve, send};
+use super::runtime::Clients;
 
 pub(super) async fn run(cluster: Handle, clients: Clients, cipher: Cipher) {
     let active = Rc::new(RefCell::new(BTreeSet::<EvaluationId>::new()));

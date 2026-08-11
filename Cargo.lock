@@ -3595,19 +3595,14 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "compio",
- "cyper",
- "http",
- "rustls",
  "snafu",
  "tracing",
  "tracing-subscriber",
  "upgrid-api",
  "upgrid-config",
+ "upgrid-monitor",
  "upgrid-notification",
  "upgrid-raft",
- "upgrid-transport",
- "url",
- "uuid",
 ]
 
 [[package]]
@@ -3644,6 +3639,23 @@ dependencies = [
  "ring",
  "serde",
  "snafu",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "upgrid-monitor"
+version = "0.1.0"
+dependencies = [
+ "compio",
+ "cyper",
+ "http",
+ "rustls",
+ "snafu",
+ "tracing",
+ "upgrid-config",
+ "upgrid-raft",
+ "upgrid-transport",
  "url",
  "uuid",
 ]

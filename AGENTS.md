@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-UpGrid is a Rust 2024 workspace with a Lit/TypeScript WebUI. Crates live under `crates/`: `upgrid` orchestrates the process, `upgrid-config` owns configuration and secrets, `upgrid-transport` owns QUIC and generic typed RPC streams, `upgrid-raft` owns consensus, persistence, and the replicated model, `upgrid-api` serves HTTP/OpenAPI, and `upgrid-notification` delivers alerts. Channel implementations belong in `crates/upgrid-notification/src/channel/`. UI source and browser tests live in `frontend/src/` and `frontend/tests/`; checked-in `frontend/dist/` assets are embedded by `upgrid-api`. Design decisions live under `docs/adr/`.
+UpGrid is a Rust 2024 workspace with a Lit/TypeScript WebUI. Crates live under `crates/`: `upgrid` orchestrates the process, `upgrid-config` owns configuration and secrets, `upgrid-transport` owns QUIC and generic typed RPC streams, `upgrid-raft` owns consensus, persistence, and the replicated model, `upgrid-monitor` schedules and executes checks, `upgrid-api` serves HTTP/OpenAPI, and `upgrid-notification` delivers alerts. Channel implementations belong in `crates/upgrid-notification/src/channel/`. UI source and browser tests live in `frontend/src/` and `frontend/tests/`; checked-in `frontend/dist/` assets are embedded by `upgrid-api`. Design decisions live under `docs/adr/`.
 
 ## Build, Test, and Development Commands
 
