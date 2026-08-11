@@ -18,7 +18,7 @@ impl From<ChannelInputError> for ApiError {
 }
 
 fn cluster_snapshot(
-    result: std::result::Result<ApplicationState, String>,
+    result: std::result::Result<ApplicationState, ClusterError>,
 ) -> std::result::Result<ApplicationState, ApiError> {
     match result {
         Ok(snapshot) => Ok(snapshot),
@@ -272,9 +272,7 @@ pub(super) async fn test_channel(
         Err(error @ upgrid_notification::TestError::Unavailable) => {
             return Err(ApiError::unavailable(error));
         }
-        Err(error @ upgrid_notification::TestError::Failed(_)) => {
-            return Err(ApiError::unprocessable(error));
-        }
+        Err(error) => return Err(ApiError::unprocessable(error)),
     }
     Ok(StatusCode::NO_CONTENT)
 }

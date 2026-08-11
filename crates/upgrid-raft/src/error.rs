@@ -2,11 +2,13 @@
 
 use std::path::PathBuf;
 
-use openraft::error::{ClientWriteError, Fatal, InitializeError, RaftError};
+use openraft::error::{ClientWriteError, Fatal, InitializeError, LinearizableReadError, RaftError};
+use openraft::metrics::WaitError;
 use snafu::Snafu;
 use tarpc::client::RpcError;
 use url::Url;
 
+use crate::UpgridNode;
 use crate::raft::TC;
 
 #[derive(Debug, Snafu)]
@@ -39,6 +41,34 @@ pub enum Error {
 
     #[snafu(display("RPC error: {}", source))]
     RpcError { source: RpcError },
+
+    #[snafu(display("leadership could not be established before the write deadline"))]
+    LeadershipDeadline,
+
+    #[snafu(display("timed out connecting to forwarded leader {node}"))]
+    ForwardConnectTimeout { node: UpgridNode },
+
+    #[snafu(display("Raft rejected a replicated write: {source}"))]
+    RaftWrite {
+        source: RaftError<TC, ClientWriteError<TC>>,
+    },
+
+    #[snafu(display("a linearizable read was unavailable: {source}"))]
+    LinearizableRead {
+        source: RaftError<TC, LinearizableReadError<TC>>,
+    },
+
+    #[snafu(display("linearizable read unavailable before the read deadline"))]
+    LinearizableReadDeadline,
+
+    #[snafu(display("timed out connecting to forwarded read leader {node}"))]
+    ForwardReadConnectTimeout { node: UpgridNode },
+
+    #[snafu(display("timed out waiting for the local read barrier: {source}"))]
+    ReadBarrier { source: WaitError },
+
+    #[snafu(display("Node RPC probe timed out for {node}"))]
+    NodeProbeTimeout { node: UpgridNode },
 
     #[snafu(display("Failed to open Raft log at {}: {}", path.display(), source))]
     RaftLogOpen {

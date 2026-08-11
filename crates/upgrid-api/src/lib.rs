@@ -114,7 +114,9 @@ impl From<ClusterError> for ApiError {
                 source: DomainError::TargetAlreadyExists(_),
             } => StatusCode::CONFLICT,
             ClusterError::Domain { .. } => StatusCode::UNPROCESSABLE_ENTITY,
-            ClusterError::Unavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
+            ClusterError::RuntimeStopped { .. }
+            | ClusterError::RuntimeResponse { .. }
+            | ClusterError::Operation { .. } => StatusCode::SERVICE_UNAVAILABLE,
         };
         Self {
             status,

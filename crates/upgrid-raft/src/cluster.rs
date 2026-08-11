@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use tokio::sync::{mpsc, oneshot, watch};
 use uuid::Uuid;
 
@@ -15,7 +15,7 @@ use crate::raft::Req;
 
 enum Request {
     Read {
-        reply: oneshot::Sender<Result<ApplicationState, String>>,
+        reply: oneshot::Sender<Result<ApplicationState, crate::Error>>,
     },
     LocalRead {
         reply: oneshot::Sender<ApplicationState>,
@@ -36,7 +36,7 @@ enum Request {
     ProbeNode {
         node_id: Uuid,
         url: String,
-        reply: oneshot::Sender<Result<(), String>>,
+        reply: oneshot::Sender<Result<(), crate::Error>>,
     },
 }
 
@@ -75,46 +75,43 @@ impl Handle {
         )
     }
 
-    pub async fn read(&self) -> Result<ApplicationState, String> {
+    pub async fn read(&self) -> Result<ApplicationState, ClusterError> {
         let (reply, response) = oneshot::channel();
         self.sender
             .send(Request::Read { reply })
-            .map_err(|_| "cluster runtime stopped".to_owned())?;
-        response
+            .ok()
+            .context(RuntimeStoppedSnafu { operation: "read" })?;
+        let result = response
             .await
-            .map_err(|_| "cluster runtime stopped before responding".to_owned())?
+            .context(RuntimeResponseSnafu { operation: "read" })?;
+        result.context(OperationSnafu)
     }
 
-    pub async fn local_read(&self) -> Result<ApplicationState, String> {
+    pub async fn local_read(&self) -> Result<ApplicationState, ClusterError> {
         let (reply, response) = oneshot::channel();
         self.sender
             .send(Request::LocalRead { reply })
-            .map_err(|_| "cluster runtime stopped".to_owned())?;
-        response
-            .await
-            .map_err(|_| "cluster runtime stopped before responding".to_owned())
+            .ok()
+            .context(RuntimeStoppedSnafu {
+                operation: "local read",
+            })?;
+        response.await.context(RuntimeResponseSnafu {
+            operation: "local read",
+        })
     }
 
     pub async fn apply(&self, command: Command) -> Result<CommandResult, ClusterError> {
         let (reply, response) = oneshot::channel();
-        if self
-            .sender
+        self.sender
             .send(Request::Write {
                 request: Box::new(Req::new(command)),
                 reply,
             })
-            .is_err()
-        {
-            return Err(ClusterError::Unavailable {
-                message: "cluster runtime stopped".to_owned(),
-            });
-        }
-        match response.await {
-            Ok(result) => result,
-            Err(_) => Err(ClusterError::Unavailable {
-                message: "cluster runtime stopped before responding".to_owned(),
-            }),
-        }
+            .ok()
+            .context(RuntimeStoppedSnafu { operation: "write" })?;
+        response
+            .await
+            .context(RuntimeResponseSnafu { operation: "write" })?
     }
 
     pub async fn is_leader(&self) -> bool {
@@ -125,27 +122,33 @@ impl Handle {
         response.await.unwrap_or(false)
     }
 
-    pub async fn voters(&self) -> Result<BTreeSet<Uuid>, String> {
+    pub async fn voters(&self) -> Result<BTreeSet<Uuid>, ClusterError> {
         let (reply, response) = oneshot::channel();
         self.sender
             .send(Request::Voters { reply })
-            .map_err(|_| "cluster runtime stopped".to_owned())?;
-        response
-            .await
-            .map_err(|_| "cluster runtime stopped before responding".to_owned())
+            .ok()
+            .context(RuntimeStoppedSnafu {
+                operation: "list voters",
+            })?;
+        response.await.context(RuntimeResponseSnafu {
+            operation: "list voters",
+        })
     }
 
-    pub async fn status(&self) -> Result<Status, String> {
+    pub async fn status(&self) -> Result<Status, ClusterError> {
         let (reply, response) = oneshot::channel();
         self.sender
             .send(Request::Status { reply })
-            .map_err(|_| "cluster runtime stopped".to_owned())?;
-        response
-            .await
-            .map_err(|_| "cluster runtime stopped before responding".to_owned())
+            .ok()
+            .context(RuntimeStoppedSnafu {
+                operation: "status",
+            })?;
+        response.await.context(RuntimeResponseSnafu {
+            operation: "status",
+        })
     }
 
-    pub async fn probe_node(&self, node_id: Uuid, url: String) -> Result<(), String> {
+    pub async fn probe_node(&self, node_id: Uuid, url: String) -> Result<(), ClusterError> {
         let (reply, response) = oneshot::channel();
         self.sender
             .send(Request::ProbeNode {
@@ -153,10 +156,14 @@ impl Handle {
                 url,
                 reply,
             })
-            .map_err(|_| "cluster runtime stopped".to_owned())?;
-        response
-            .await
-            .map_err(|_| "cluster runtime stopped before responding".to_owned())?
+            .ok()
+            .context(RuntimeStoppedSnafu {
+                operation: "probe Node",
+            })?;
+        let result = response.await.context(RuntimeResponseSnafu {
+            operation: "probe Node",
+        })?;
+        result.context(OperationSnafu)
     }
 
     pub fn version(&self) -> u64 {
@@ -176,8 +183,17 @@ fn changed(version: &AtomicU64, events: &watch::Sender<u64>) {
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub(crate)))]
 pub enum ClusterError {
-    #[snafu(display("{message}"))]
-    Unavailable { message: String },
+    #[snafu(display("Cluster runtime stopped before accepting {operation}"))]
+    RuntimeStopped { operation: &'static str },
+
+    #[snafu(display("Cluster runtime stopped before responding to {operation}: {source}"))]
+    RuntimeResponse {
+        operation: &'static str,
+        source: oneshot::error::RecvError,
+    },
+
+    #[snafu(display("{source}"))]
+    Operation { source: crate::Error },
 
     #[snafu(display("{source}"))]
     Domain { source: DomainError },
@@ -208,10 +224,11 @@ impl Receiver {
                     let _ = reply.send(node.local_application_state());
                 }
                 Some(Request::Write { request, reply }) => {
-                    let result = match node.write(*request).await {
-                        Ok(response) => response.result.context(DomainSnafu),
-                        Err(message) => Err(ClusterError::Unavailable { message }),
-                    };
+                    let result = node
+                        .write(*request)
+                        .await
+                        .context(OperationSnafu)
+                        .and_then(|response| response.result.context(DomainSnafu));
                     let _ = reply.send(result);
                 }
                 Some(Request::IsLeader { reply }) => {
@@ -243,5 +260,23 @@ impl Receiver {
                 changed(&self.version, &self.events);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[compio::test]
+    async fn stopped_runtime_returns_typed_error() {
+        let (handle, receiver) = Handle::new(Uuid::nil());
+        drop(receiver);
+
+        let error = handle.read().await.unwrap_err();
+
+        assert!(matches!(
+            error,
+            ClusterError::RuntimeStopped { operation: "read" }
+        ));
     }
 }

@@ -1,11 +1,11 @@
-use std::fmt;
 use std::time::Duration;
 
 use compio::runtime::spawn;
 use compio::time::timeout;
+use snafu::{OptionExt, ResultExt, Snafu};
 use tokio::sync::{mpsc, oneshot};
 
-use super::{Notifier, channel, send};
+use super::{ChannelError, Notifier, SendError, channel, send};
 
 struct Call {
     channel: channel::TestChannel,
@@ -24,28 +24,30 @@ impl Tester {
         let (reply, response) = oneshot::channel();
         self.sender
             .send(Call { channel, reply })
-            .map_err(|_| TestError::Unavailable)?;
-        response.await.map_err(|_| TestError::Unavailable)?
+            .ok()
+            .context(UnavailableSnafu)?;
+        response.await.ok().context(UnavailableSnafu)?
     }
 }
 
 /// Failure to execute or accept a channel test.
-#[derive(Debug)]
+#[derive(Debug, Snafu)]
 pub enum TestError {
+    #[snafu(display("notification runtime unavailable"))]
     Unavailable,
-    Failed(String),
-}
 
-impl fmt::Display for TestError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Unavailable => formatter.write_str("notification runtime unavailable"),
-            Self::Failed(message) => formatter.write_str(message),
-        }
-    }
-}
+    #[snafu(display("{source}"))]
+    Channel { source: ChannelError },
 
-impl std::error::Error for TestError {}
+    #[snafu(display("notification test timed out"))]
+    Timeout,
+
+    #[snafu(display("{source}"))]
+    Send { source: SendError },
+
+    #[snafu(display("notification endpoint rejected test with HTTP {status}"))]
+    Rejected { status: u16 },
+}
 
 pub(crate) struct Receiver {
     receiver: mpsc::UnboundedReceiver<Call>,
@@ -69,18 +71,17 @@ pub(crate) fn channel() -> (Tester, Receiver) {
 }
 
 async fn attempt(notifier: &Notifier, channel: &TestChannel) -> Result<(), TestError> {
-    let request = channel::test_request(channel).map_err(TestError::Failed)?;
-    let response = timeout(Duration::from_secs(15), send(&notifier.client, request))
-        .await
-        .map_err(|_| TestError::Failed("notification test timed out".to_owned()))?
-        .map_err(TestError::Failed)?;
+    let request = channel::test_request(channel).context(ChannelSnafu)?;
+    let response = match timeout(Duration::from_secs(15), send(&notifier.client, request)).await {
+        Ok(result) => result.context(SendSnafu)?,
+        Err(_) => return Err(TestError::Timeout),
+    };
     if channel::test_accepts(channel, response.status, &response.body) {
         return Ok(());
     }
-    Err(TestError::Failed(format!(
-        "notification endpoint rejected test with HTTP {}",
-        response.status.as_u16(),
-    )))
+    Err(TestError::Rejected {
+        status: response.status.as_u16(),
+    })
 }
 
 pub use channel::TestChannel;

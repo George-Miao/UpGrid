@@ -1,11 +1,12 @@
 use std::collections::BTreeMap;
 
 use serde_json::json;
+use snafu::ResultExt;
 use upgrid_config::Cipher;
 use upgrid_raft::domain::{Alert, AlertKind, ApplicationState, ConfigValue};
 use url::Url;
 
-use super::{ChannelTarget, Request, resolve_value};
+use super::{ChannelError, ChannelTarget, Request, WebhookBodySnafu, resolve_value};
 
 pub(super) struct Webhook<'a> {
     url: &'a Url,
@@ -24,7 +25,7 @@ impl ChannelTarget for Webhook<'_> {
         state: &ApplicationState,
         cipher: &Cipher,
         alert: &Alert,
-    ) -> Result<Request, String> {
+    ) -> Result<Request, ChannelError> {
         let mut headers = self
             .headers
             .iter()
@@ -51,7 +52,7 @@ impl ChannelTarget for Webhook<'_> {
                 "diagnostic": alert.evaluation.diagnostic,
             },
         }))
-        .map_err(|error| error.to_string())?;
+        .context(WebhookBodySnafu)?;
         Ok(Request {
             url: self.url.clone(),
             headers,
@@ -63,7 +64,7 @@ impl ChannelTarget for Webhook<'_> {
 pub(super) fn test_request(
     url: &Url,
     headers: &BTreeMap<String, String>,
-) -> Result<Request, String> {
+) -> Result<Request, ChannelError> {
     let mut headers = headers.clone();
     headers
         .entry("content-type".to_owned())
@@ -72,7 +73,7 @@ pub(super) fn test_request(
         "event": "test",
         "message": "UpGrid notification channel test",
     }))
-    .map_err(|error| error.to_string())?;
+    .context(WebhookBodySnafu)?;
     Ok(Request {
         url: url.clone(),
         headers,

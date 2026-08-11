@@ -1,14 +1,58 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use http::{Method, StatusCode, header};
+use snafu::{ResultExt, Snafu};
 use upgrid_config::Cipher;
-use upgrid_raft::Handle;
 use upgrid_raft::domain::{
-    ApplicationState, ConfigValue, HttpTarget, MAX_RESPONSE_BYTES, resolve_config_value,
+    ApplicationState, ConfigValue, ConfigValueError, HttpTarget, MAX_RESPONSE_BYTES,
+    resolve_config_value,
 };
+use upgrid_raft::{ClusterError, Handle};
 use url::Url;
 
 use super::Clients;
+
+#[derive(Debug, Snafu)]
+pub(super) enum Error {
+    #[snafu(display("{source}"))]
+    Cluster { source: ClusterError },
+
+    #[snafu(display("{source}"))]
+    ConfigValue { source: ConfigValueError },
+
+    #[snafu(display("invalid HTTP method {method}: {source}"))]
+    Method {
+        method: String,
+        source: http::method::InvalidMethod,
+    },
+
+    #[snafu(display("failed to construct HTTP request: {source}"))]
+    Request { source: cyper::Error },
+
+    #[snafu(display("invalid HTTP header {name}: {source}"))]
+    Header { name: String, source: cyper::Error },
+
+    #[snafu(display("HTTP request failed: {source}"))]
+    Send { source: cyper::Error },
+
+    #[snafu(display("redirect limit exceeded"))]
+    RedirectLimit,
+
+    #[snafu(display("invalid redirect {location}: {source}"))]
+    Redirect {
+        location: String,
+        source: url::ParseError,
+    },
+
+    #[snafu(display("failed to read HTTP response: {source}"))]
+    ResponseBody { source: cyper::Error },
+
+    #[snafu(display("response body exceeds {limit} bytes"))]
+    ResponseTooLarge { limit: u64 },
+
+    #[snafu(display("request timed out"))]
+    RequestTimeout,
+}
 
 pub(super) struct Request {
     method: Method,
@@ -31,8 +75,8 @@ pub(super) async fn resolve(
     cluster: &Handle,
     cipher: &Cipher,
     target: &HttpTarget,
-) -> Result<Request, String> {
-    let state = cluster.read().await?;
+) -> Result<Request, Error> {
+    let state = cluster.read().await.context(ClusterSnafu)?;
     let sensitive_headers = target
         .headers
         .iter()
@@ -53,8 +97,11 @@ pub(super) async fn resolve(
         .transpose()?
         .unwrap_or_default()
         .into_bytes();
+    let method = Method::from_bytes(target.method.as_bytes()).context(MethodSnafu {
+        method: target.method.clone(),
+    })?;
     Ok(Request {
-        method: Method::from_bytes(target.method.as_bytes()).map_err(|error| error.to_string())?,
+        method,
         url: target.url.clone(),
         headers,
         sensitive_headers,
@@ -69,14 +116,11 @@ fn resolve_value(
     state: &ApplicationState,
     cipher: &Cipher,
     value: &ConfigValue,
-) -> Result<String, String> {
-    match resolve_config_value(state, cipher, value) {
-        Ok(value) => Ok(value),
-        Err(error) => Err(error.to_string()),
-    }
+) -> Result<String, Error> {
+    resolve_config_value(state, cipher, value).context(ConfigValueSnafu)
 }
 
-pub(super) async fn send(clients: &Clients, mut request: Request) -> Result<Response, String> {
+pub(super) async fn send(clients: &Clients, mut request: Request) -> Result<Response, Error> {
     loop {
         let client = if request.skip_tls_verification {
             &clients.insecure
@@ -85,16 +129,16 @@ pub(super) async fn send(clients: &Clients, mut request: Request) -> Result<Resp
         };
         let mut builder = client
             .request(request.method.clone(), request.url.clone())
-            .map_err(|error| error.to_string())?;
+            .context(RequestSnafu)?;
         for (name, value) in &request.headers {
             builder = builder
                 .header(name.as_str(), value.as_str())
-                .map_err(|error| error.to_string())?;
+                .context(HeaderSnafu { name: name.clone() })?;
         }
         if !request.body.is_empty() {
             builder = builder.body(request.body.clone());
         }
-        let response = builder.send().await.map_err(|error| error.to_string())?;
+        let response = builder.send().await.context(SendSnafu)?;
         let status = response.status();
         let location = response
             .headers()
@@ -103,13 +147,14 @@ pub(super) async fn send(clients: &Clients, mut request: Request) -> Result<Resp
             .map(str::to_owned);
         if request.follow_redirects && status.is_redirection() && location.is_some() {
             if request.redirects_left == 0 {
-                return Err("redirect limit exceeded".to_owned());
+                return Err(Error::RedirectLimit);
             }
             request.redirects_left -= 1;
+            let location = location.unwrap_or_default();
             let next = request
                 .url
-                .join(location.as_deref().unwrap_or_default())
-                .map_err(|error| format!("invalid redirect: {error}"))?;
+                .join(&location)
+                .context(RedirectSnafu { location })?;
             if request.url.origin() != next.origin() {
                 strip_cross_origin_headers(&mut request.headers, &request.sensitive_headers);
             }
@@ -128,12 +173,16 @@ pub(super) async fn send(clients: &Clients, mut request: Request) -> Result<Resp
             .content_length()
             .is_some_and(|length| length > MAX_RESPONSE_BYTES)
         {
-            return Err(format!("response body exceeds {MAX_RESPONSE_BYTES} bytes"));
+            return Err(Error::ResponseTooLarge {
+                limit: MAX_RESPONSE_BYTES,
+            });
         }
         let url = request.url;
-        let body = response.bytes().await.map_err(|error| error.to_string())?;
+        let body = response.bytes().await.context(ResponseBodySnafu)?;
         if body.len() > MAX_RESPONSE_BYTES as usize {
-            return Err(format!("response body exceeds {MAX_RESPONSE_BYTES} bytes"));
+            return Err(Error::ResponseTooLarge {
+                limit: MAX_RESPONSE_BYTES,
+            });
         }
         return Ok(Response {
             status,

@@ -2,11 +2,15 @@ use std::collections::BTreeMap;
 
 use http::StatusCode;
 use serde_json::json;
+use snafu::ResultExt;
 use upgrid_config::Cipher;
 use upgrid_raft::domain::{Alert, ApplicationState, ConfigValue, SecretId};
 use url::Url;
 
-use super::{ChannelTarget, Request, alert_text, resolve_value};
+use super::{
+    ChannelError, ChannelTarget, Request, TelegramBodySnafu, TelegramUrlSnafu, alert_text,
+    resolve_value,
+};
 
 pub(super) struct Telegram<'a> {
     bot_token: SecretId,
@@ -25,7 +29,7 @@ impl ChannelTarget for Telegram<'_> {
         state: &ApplicationState,
         cipher: &Cipher,
         alert: &Alert,
-    ) -> Result<Request, String> {
+    ) -> Result<Request, ChannelError> {
         let token = resolve_value(state, cipher, &ConfigValue::Secret(self.bot_token))?;
         request(&token, self.chat_id, &alert_text(alert))
     }
@@ -35,7 +39,7 @@ impl ChannelTarget for Telegram<'_> {
     }
 }
 
-pub(super) fn test_request(bot_token: &str, chat_id: &str) -> Result<Request, String> {
+pub(super) fn test_request(bot_token: &str, chat_id: &str) -> Result<Request, ChannelError> {
     request(bot_token, chat_id, "UpGrid notification channel test")
 }
 
@@ -47,13 +51,13 @@ pub(super) fn accepts(status: StatusCode, body: &[u8]) -> bool {
             .unwrap_or(true)
 }
 
-fn request(bot_token: &str, chat_id: &str, text: &str) -> Result<Request, String> {
+fn request(bot_token: &str, chat_id: &str, text: &str) -> Result<Request, ChannelError> {
     let url = Url::parse(&format!(
         "https://api.telegram.org/bot{bot_token}/sendMessage"
     ))
-    .map_err(|error| error.to_string())?;
+    .context(TelegramUrlSnafu)?;
     let body = serde_json::to_vec(&json!({ "chat_id": chat_id, "text": text }))
-        .map_err(|error| error.to_string())?;
+        .context(TelegramBodySnafu)?;
     Ok(Request {
         url,
         headers: BTreeMap::from([("content-type".to_owned(), "application/json".to_owned())]),

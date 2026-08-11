@@ -196,22 +196,20 @@ impl Node {
         &self,
         command: crate::domain::Command,
     ) -> Result<crate::domain::CommandResult, ClusterError> {
-        let response = match self.write(Req::new(command)).await {
-            Ok(response) => response,
-            Err(message) => return Err(ClusterError::Unavailable { message }),
-        };
+        let response = self
+            .write(Req::new(command))
+            .await
+            .context(crate::cluster::OperationSnafu)?;
         response.result.context(DomainSnafu)
     }
 
-    pub(crate) async fn write(&self, request: Req) -> Result<Res, String> {
+    pub(crate) async fn write(&self, request: Req) -> Result<Res> {
         let deadline = Instant::now() + Duration::from_secs(5);
         let mut leader = None;
-        let mut last_transport_error = None;
+        let mut last_error = None;
         loop {
             if Instant::now() >= deadline {
-                return Err(last_transport_error.unwrap_or_else(|| {
-                    "leadership could not be established before deadline".to_owned()
-                }));
+                return Err(last_error.unwrap_or(Error::LeadershipDeadline));
             }
 
             let result = if let Some(forwarded_to) = leader.take() {
@@ -221,15 +219,15 @@ impl Node {
                 let client = match timeout(attempt_timeout, self.rpc.client(&forwarded_to)).await {
                     Ok(Ok(client)) => client,
                     Ok(Err(error)) => {
-                        last_transport_error = Some(error.to_string());
+                        last_error = Some(error);
                         self.rpc.invalidate(&forwarded_to);
                         sleep(Duration::from_millis(50)).await;
                         continue;
                     }
                     Err(_) => {
-                        last_transport_error = Some(format!(
-                            "timed out connecting to forwarded leader {forwarded_to}"
-                        ));
+                        last_error = Some(Error::ForwardConnectTimeout {
+                            node: forwarded_to.clone(),
+                        });
                         self.rpc.invalidate(&forwarded_to);
                         sleep(Duration::from_millis(50)).await;
                         continue;
@@ -242,8 +240,8 @@ impl Node {
                         .min(Duration::from_secs(1));
                 match client.client_write(context, request.clone()).await {
                     Ok(result) => result,
-                    Err(error) => {
-                        last_transport_error = Some(error.to_string());
+                    Err(source) => {
+                        last_error = Some(Error::RpcError { source });
                         self.rpc.invalidate(&forwarded_to);
                         sleep(Duration::from_millis(50)).await;
                         continue;
@@ -262,28 +260,26 @@ impl Node {
                         sleep(Duration::from_millis(50)).await;
                     }
                 }
-                Err(error) => return Err(error.to_string()),
+                Err(source) => return Err(Error::RaftWrite { source }),
             }
         }
     }
 
-    pub async fn read(&self) -> Result<crate::domain::ApplicationState, String> {
+    pub async fn read(&self) -> Result<crate::domain::ApplicationState> {
         let deadline = Instant::now() + Duration::from_secs(5);
         let mut last_error = None;
         loop {
             if Instant::now() >= deadline {
-                return Err(last_error.unwrap_or_else(|| {
-                    "linearizable read unavailable before deadline".to_owned()
-                }));
+                return Err(last_error.unwrap_or(Error::LinearizableReadDeadline));
             }
             match self.raft.ensure_linearizable(ReadPolicy::ReadIndex).await {
                 Ok(_) => return Ok(self.local_application_state()),
-                Err(error) => {
-                    let Some(leader) = error
+                Err(source) => {
+                    let Some(leader) = source
                         .forward_to_leader()
                         .and_then(|forward| forward.leader_node.clone())
                     else {
-                        last_error = Some(format!("linearizable read unavailable: {error}"));
+                        last_error = Some(Error::LinearizableRead { source });
                         sleep(Duration::from_millis(50)).await;
                         continue;
                     };
@@ -293,14 +289,15 @@ impl Node {
                     let client = match timeout(attempt_timeout, self.rpc.client(&leader)).await {
                         Ok(Ok(client)) => client,
                         Ok(Err(error)) => {
-                            last_error = Some(error.to_string());
+                            last_error = Some(error);
                             self.rpc.invalidate(&leader);
                             sleep(Duration::from_millis(50)).await;
                             continue;
                         }
                         Err(_) => {
-                            last_error =
-                                Some(format!("timed out connecting to forwarded leader {leader}"));
+                            last_error = Some(Error::ForwardReadConnectTimeout {
+                                node: leader.clone(),
+                            });
                             self.rpc.invalidate(&leader);
                             sleep(Duration::from_millis(50)).await;
                             continue;
@@ -313,13 +310,13 @@ impl Node {
                             .min(Duration::from_secs(1));
                     let read_log_id = match client.read_index(context).await {
                         Ok(Ok(log_id)) => log_id,
-                        Ok(Err(error)) => {
-                            last_error = Some(error.to_string());
+                        Ok(Err(source)) => {
+                            last_error = Some(Error::LinearizableRead { source });
                             sleep(Duration::from_millis(50)).await;
                             continue;
                         }
-                        Err(error) => {
-                            last_error = Some(error.to_string());
+                        Err(source) => {
+                            last_error = Some(Error::RpcError { source });
                             self.rpc.invalidate(&leader);
                             sleep(Duration::from_millis(50)).await;
                             continue;
@@ -336,7 +333,7 @@ impl Node {
                             "cluster API read barrier",
                         )
                         .await
-                        .map_err(|error| error.to_string())?;
+                        .context(ReadBarrierSnafu)?;
                     return Ok(self.local_application_state());
                 }
             }
@@ -347,28 +344,21 @@ impl Node {
         self.raft.current_leader().await == Some(self.id.id)
     }
 
-    pub async fn probe_node(&self, node_id: uuid::Uuid, url: &str) -> Result<(), String> {
+    pub async fn probe_node(&self, node_id: uuid::Uuid, url: &str) -> Result<()> {
         if node_id == self.id.id {
             return Ok(());
         }
-        let node = UpgridNode::parse(url).map_err(|error| error.to_string())?;
+        let node = UpgridNode::parse(url)?;
         let result = timeout(Duration::from_secs(2), async {
-            let client = self
-                .rpc
-                .client(&node)
-                .await
-                .map_err(|error| error.to_string())?;
-            client
-                .ping(Context::current())
-                .await
-                .map_err(|error| error.to_string())
+            let client = self.rpc.client(&node).await?;
+            client.ping(Context::current()).await.context(RpcSnafu)
         })
         .await;
         match result {
             Ok(result) => result,
             Err(_) => {
                 self.rpc.invalidate(&node);
-                Err("Node RPC timed out".to_owned())
+                Err(Error::NodeProbeTimeout { node })
             }
         }
     }

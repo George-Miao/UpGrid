@@ -12,7 +12,7 @@ use upgrid_raft::domain::{
 };
 
 use super::Clients;
-use super::http::{resolve, send};
+use super::http::{self, resolve, send};
 
 pub(super) async fn run(cluster: Handle, clients: Clients, cipher: Cipher) {
     let active = Rc::new(RefCell::new(BTreeSet::<EvaluationId>::new()));
@@ -80,13 +80,15 @@ async fn evaluate(
 ) -> Evaluation {
     let started = Instant::now();
     let outcome = match resolve(cluster, cipher, &target.http).await {
-        Ok(request) => timeout(
+        Ok(request) => match timeout(
             Duration::from_millis(target.policy.timeout_ms),
             send(clients, request),
         )
         .await
-        .map_err(|_| "request timed out".to_owned())
-        .and_then(|result| result),
+        {
+            Ok(result) => result,
+            Err(_) => Err(http::Error::RequestTimeout),
+        },
         Err(error) => Err(error),
     };
     let latency_ms = started.elapsed().as_millis().try_into().unwrap_or(u64::MAX);
@@ -120,7 +122,13 @@ async fn evaluate(
                 diagnostic,
             )
         }
-        Err(error) => (false, None, 0, target.http.url.clone(), Some(error)),
+        Err(error) => (
+            false,
+            None,
+            0,
+            target.http.url.clone(),
+            Some(error.to_string()),
+        ),
     };
     Evaluation {
         id: EvaluationId {

@@ -1,9 +1,11 @@
 use std::collections::BTreeMap;
 
 use http::StatusCode;
+use snafu::{ResultExt, Snafu};
 use upgrid_config::Cipher;
 use upgrid_raft::domain::{
-    Alert, AlertKind, ApplicationState, ConfigValue, NotificationChannelKind, resolve_config_value,
+    Alert, AlertKind, ApplicationState, ConfigValue, ConfigValueError, NotificationChannelKind,
+    resolve_config_value,
 };
 use url::Url;
 
@@ -23,6 +25,22 @@ pub enum TestChannel {
     },
 }
 
+#[derive(Debug, Snafu)]
+#[snafu(visibility(pub(crate)))]
+pub enum ChannelError {
+    #[snafu(display("{source}"))]
+    ConfigValue { source: ConfigValueError },
+
+    #[snafu(display("invalid Telegram endpoint: {source}"))]
+    TelegramUrl { source: url::ParseError },
+
+    #[snafu(display("failed to encode Telegram request: {source}"))]
+    TelegramBody { source: serde_json::Error },
+
+    #[snafu(display("failed to encode webhook request: {source}"))]
+    WebhookBody { source: serde_json::Error },
+}
+
 pub(crate) struct Request {
     pub(crate) url: Url,
     pub(crate) headers: BTreeMap<String, String>,
@@ -35,7 +53,7 @@ pub(crate) trait ChannelTarget {
         state: &ApplicationState,
         cipher: &Cipher,
         alert: &Alert,
-    ) -> Result<Request, String>;
+    ) -> Result<Request, ChannelError>;
 
     fn accepts(&self, status: StatusCode, _body: &[u8]) -> bool {
         status.is_success()
@@ -53,7 +71,7 @@ pub(crate) fn target(kind: &NotificationChannelKind) -> Box<dyn ChannelTarget + 
     }
 }
 
-pub(crate) fn test_request(channel: &TestChannel) -> Result<Request, String> {
+pub(crate) fn test_request(channel: &TestChannel) -> Result<Request, ChannelError> {
     match channel {
         TestChannel::Telegram { bot_token, chat_id } => telegram::test_request(bot_token, chat_id),
         TestChannel::Webhook { url, headers } => webhook::test_request(url, headers),
@@ -103,9 +121,6 @@ fn resolve_value(
     state: &ApplicationState,
     cipher: &Cipher,
     value: &ConfigValue,
-) -> Result<String, String> {
-    match resolve_config_value(state, cipher, value) {
-        Ok(value) => Ok(value),
-        Err(error) => Err(error.to_string()),
-    }
+) -> Result<String, ChannelError> {
+    resolve_config_value(state, cipher, value).context(ConfigValueSnafu)
 }

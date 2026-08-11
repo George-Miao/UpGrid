@@ -9,11 +9,13 @@ use compio::runtime::spawn;
 use compio::time::{sleep, timeout};
 use cyper::Client;
 use http::{Method, StatusCode, header};
+use snafu::{OptionExt, ResultExt, Snafu};
 use upgrid_config::{Cipher, now_ms};
-use upgrid_raft::Handle;
 use upgrid_raft::domain::{
     Alert, AlertDelivery, AlertId, Command, MAX_DIAGNOSTIC_BYTES, MAX_RESPONSE_BYTES,
+    NotificationChannelId,
 };
+use upgrid_raft::{ClusterError, Handle};
 
 mod channel;
 mod test;
@@ -22,6 +24,7 @@ mod test;
 #[path = "tests.rs"]
 mod notification_tests;
 
+pub use channel::ChannelError;
 use channel::Request;
 pub use test::{TestChannel, TestError, Tester};
 
@@ -44,9 +47,46 @@ struct Attempt {
     accepted: bool,
 }
 
+#[derive(Debug, Snafu)]
 enum DeliveryError {
-    Transient(String),
-    Permanent(String),
+    #[snafu(display("{source}"))]
+    Cluster { source: ClusterError },
+
+    #[snafu(display("channel {} no longer exists", channel_id.0))]
+    MissingChannel { channel_id: NotificationChannelId },
+
+    #[snafu(display("{source}"))]
+    Channel { source: ChannelError },
+
+    #[snafu(display("notification timed out"))]
+    Timeout,
+
+    #[snafu(display("{source}"))]
+    Transport { source: SendError },
+}
+
+impl DeliveryError {
+    fn is_transient(&self) -> bool {
+        matches!(self, Self::Timeout | Self::Transport { .. })
+    }
+}
+
+#[derive(Debug, Snafu)]
+pub enum SendError {
+    #[snafu(display("failed to construct notification request: {source}"))]
+    Request { source: cyper::Error },
+
+    #[snafu(display("invalid notification header {name}: {source}"))]
+    Header { name: String, source: cyper::Error },
+
+    #[snafu(display("notification request failed: {source}"))]
+    Send { source: cyper::Error },
+
+    #[snafu(display("failed to read notification response: {source}"))]
+    ResponseBody { source: cyper::Error },
+
+    #[snafu(display("response body exceeds {limit} bytes"))]
+    ResponseTooLarge { limit: u64 },
 }
 
 /// Starts alert delivery and channel testing in the current Compio runtime.
@@ -121,17 +161,15 @@ async fn deliver(cluster: &Handle, notifier: &Notifier, alert: Alert) {
                 response.status.as_u16()
             )),
         },
-        Err(DeliveryError::Transient(message)) => Command::RecordAlertFailure {
+        Err(error) => Command::RecordAlertFailure {
             alert_id: alert.id,
             attempted_at_ms,
-            retry_at_ms: retry_at_with_delay(&alert, attempted_at_ms, retry_delay_ms(&alert)),
-            diagnostic: truncate(message),
-        },
-        Err(DeliveryError::Permanent(message)) => Command::RecordAlertFailure {
-            alert_id: alert.id,
-            attempted_at_ms,
-            retry_at_ms: None,
-            diagnostic: truncate(message),
+            retry_at_ms: if error.is_transient() {
+                retry_at_with_delay(&alert, attempted_at_ms, retry_delay_ms(&alert))
+            } else {
+                None
+            },
+            diagnostic: truncate(error.to_string()),
         },
     };
     if let Err(error) = cluster.apply(command).await {
@@ -144,42 +182,35 @@ async fn attempt(
     notifier: &Notifier,
     alert: &Alert,
 ) -> Result<Attempt, DeliveryError> {
-    let state = cluster.read().await.map_err(DeliveryError::Permanent)?;
+    let state = cluster.read().await.context(ClusterSnafu)?;
     let configured = state
         .notification_channels
         .get(&alert.id.channel_id)
-        .ok_or_else(|| {
-            DeliveryError::Permanent(format!(
-                "channel {} no longer exists",
-                alert.id.channel_id.0
-            ))
+        .context(MissingChannelSnafu {
+            channel_id: alert.id.channel_id,
         })?;
     let target = channel::target(&configured.kind);
     let request = target
         .request(&state, &notifier.cipher, alert)
-        .map_err(DeliveryError::Permanent)?;
-    let response = timeout(Duration::from_secs(15), send(&notifier.client, request))
-        .await
-        .map_err(|_| DeliveryError::Transient("notification timed out".to_owned()))?
-        .map_err(DeliveryError::Transient)?;
+        .context(ChannelSnafu)?;
+    let response = match timeout(Duration::from_secs(15), send(&notifier.client, request)).await {
+        Ok(result) => result.context(TransportSnafu)?,
+        Err(_) => return Err(DeliveryError::Timeout),
+    };
     let accepted = target.accepts(response.status, &response.body);
     Ok(Attempt { response, accepted })
 }
 
-async fn send(client: &Client, request: Request) -> Result<Response, String> {
+async fn send(client: &Client, request: Request) -> Result<Response, SendError> {
     let mut builder = client
         .request(Method::POST, request.url)
-        .map_err(|error| error.to_string())?;
+        .context(RequestSnafu)?;
     for (name, value) in request.headers {
         builder = builder
             .header(name.as_str(), value.as_str())
-            .map_err(|error| error.to_string())?;
+            .context(HeaderSnafu { name })?;
     }
-    let response = builder
-        .body(request.body)
-        .send()
-        .await
-        .map_err(|error| error.to_string())?;
+    let response = builder.body(request.body).send().await.context(SendSnafu)?;
     let status = response.status();
     let retry_after_ms = response
         .headers()
@@ -190,11 +221,15 @@ async fn send(client: &Client, request: Request) -> Result<Response, String> {
         .content_length()
         .is_some_and(|length| length > MAX_RESPONSE_BYTES)
     {
-        return Err(format!("response body exceeds {MAX_RESPONSE_BYTES} bytes"));
+        return Err(SendError::ResponseTooLarge {
+            limit: MAX_RESPONSE_BYTES,
+        });
     }
-    let body = response.bytes().await.map_err(|error| error.to_string())?;
+    let body = response.bytes().await.context(ResponseBodySnafu)?;
     if body.len() > MAX_RESPONSE_BYTES as usize {
-        return Err(format!("response body exceeds {MAX_RESPONSE_BYTES} bytes"));
+        return Err(SendError::ResponseTooLarge {
+            limit: MAX_RESPONSE_BYTES,
+        });
     }
     Ok(Response {
         status,

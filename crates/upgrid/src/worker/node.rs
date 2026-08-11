@@ -1,15 +1,34 @@
 use std::time::Duration;
 
 use compio::time::sleep;
+use snafu::{ResultExt, Snafu};
 use upgrid_config::now_ms;
-use upgrid_raft::Handle;
 use upgrid_raft::domain::{
     Command, Evaluation, EvaluationId, EvaluationPolicy, HttpEvaluationMetadata, NodeTarget,
     TargetId,
 };
+use upgrid_raft::{ClusterError, Handle};
 use url::Url;
 
 use crate::scheduler::slot_at_or_before_ms;
+
+#[derive(Debug, Snafu)]
+enum Error {
+    #[snafu(display("could not read replicated Node state: {source}"))]
+    Read { source: ClusterError },
+
+    #[snafu(display("could not read Cluster status: {source}"))]
+    Status { source: ClusterError },
+
+    #[snafu(display("invalid URL for Node {node_id}: {source}"))]
+    NodeUrl {
+        node_id: uuid::Uuid,
+        source: url::ParseError,
+    },
+
+    #[snafu(display("could not update replicated Node state: {source}"))]
+    Apply { source: ClusterError },
+}
 
 const INTERVAL_MS: u64 = 10_000;
 const FAILURE_THRESHOLD: u32 = 3;
@@ -23,12 +42,12 @@ pub(super) async fn run(cluster: Handle) {
     }
 }
 
-async fn evaluate(cluster: &Handle) -> Result<(), String> {
+async fn evaluate(cluster: &Handle) -> Result<(), Error> {
     if !cluster.is_leader().await {
         return Ok(());
     }
-    let state = cluster.read().await?;
-    let status = cluster.status().await?;
+    let state = cluster.read().await.context(ReadSnafu)?;
+    let status = cluster.status().await.context(StatusSnafu)?;
     let targets = status
         .members
         .iter()
@@ -40,7 +59,7 @@ async fn evaluate(cluster: &Handle) -> Result<(), String> {
                     .get(node_id)
                     .cloned()
                     .unwrap_or_else(|| format!("Node {}", &node_id.to_string()[..8])),
-                url: Url::parse(url).map_err(|error| error.to_string())?,
+                url: Url::parse(url).context(NodeUrlSnafu { node_id: *node_id })?,
                 policy: EvaluationPolicy {
                     interval_ms: INTERVAL_MS,
                     timeout_ms: 2_000,
@@ -48,7 +67,7 @@ async fn evaluate(cluster: &Handle) -> Result<(), String> {
                 },
             })
         })
-        .collect::<Result<Vec<_>, String>>()?;
+        .collect::<Result<Vec<_>, Error>>()?;
     let current = state
         .node_targets
         .values()
@@ -58,7 +77,7 @@ async fn evaluate(cluster: &Handle) -> Result<(), String> {
         cluster
             .apply(Command::SyncNodeTargets(targets.clone()))
             .await
-            .map_err(|error| error.to_string())?;
+            .context(ApplySnafu)?;
     }
 
     let now = now_ms();
@@ -94,12 +113,12 @@ async fn evaluate(cluster: &Handle) -> Result<(), String> {
                 received_bytes: 0,
                 final_url: target.url,
             },
-            diagnostic: result.err(),
+            diagnostic: result.err().map(|error| error.to_string()),
         };
         cluster
             .apply(Command::RecordNodeEvaluation(evaluation))
             .await
-            .map_err(|error| error.to_string())?;
+            .context(ApplySnafu)?;
     }
     Ok(())
 }

@@ -3657,6 +3657,7 @@ dependencies = [
  "http",
  "httpdate",
  "serde_json",
+ "snafu",
  "tokio",
  "tracing",
  "upgrid-config",
