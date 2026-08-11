@@ -9,7 +9,6 @@ mod raft;
 mod rpc;
 mod state_machine;
 pub mod storage;
-#[cfg(test)]
 mod test;
 mod token;
 
