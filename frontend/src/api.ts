@@ -40,6 +40,7 @@ export interface Channel {
   name: string;
   kind: "telegram" | "webhook";
   destination: string;
+  headers: Record<string, ConfigValue>;
   default: boolean;
 }
 

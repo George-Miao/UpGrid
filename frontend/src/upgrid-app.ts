@@ -335,6 +335,7 @@ export class UpgridApp extends AppController {
             : this.activeSection === "alerts"
               ? renderAlertsPage(this.transitions, this.channels, {
                   create: () => this.openChannelDialog(),
+                  edit: (channel) => this.openChannelDialog(channel),
                   remove: (channel) => void this.deleteResource("channels", channel.id, channel.name),
                   setDefault: (channel, isDefault) => void this.setChannelDefault(channel, isDefault),
                 })
@@ -368,20 +369,23 @@ export class UpgridApp extends AppController {
         </form>
       </dialog>
       <dialog id="channel-dialog" aria-labelledby="channel-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><h2 id="channel-title">Add channel</h2><p>Send transitions through Telegram or a generic webhook.</p></div>
+        <div class="dialog-head"><h2 id="channel-title">${this.editingChannel ? "Edit channel" : "Add channel"}</h2><p>${this.editingChannel ? "Update this destination without changing its Channel type." : "Send transitions through Telegram or a generic webhook."}</p></div>
         <form @submit=${this.createChannel}>
-          <label>Type<select name="type" @change=${(event: Event) => {
+          <label>Type<select name="type" .value=${this.channelKind} ?disabled=${this.editingChannel !== undefined} @change=${(event: Event) => {
             this.channelKind = (event.target as HTMLSelectElement).value as "webhook" | "telegram";
             this.channelTestMessage = "";
           }}><option value="webhook">Webhook</option><option value="telegram">Telegram</option></select></label>
-          <label>Name<input name="name" placeholder="On-call" required /></label>
+          <label>Name<input name="name" placeholder="On-call" .value=${this.editingChannel?.name ?? ""} required /></label>
           ${
             this.channelKind === "webhook"
-              ? html`<label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/upgrid" data-test-required required /></label>`
-              : html`<label><span class="title-with-help">Bot token ${renderHelpTooltip("telegram-token-help", "About Telegram bot token storage", "Creating the Channel encrypts this token as an automatically managed Secret. Test sends use the entered value without storing it.")}</span><input name="bot_token" type="password" autocomplete="off" data-test-required required /></label><label>Chat ID<input name="chat_id" data-test-required required /></label>`
+              ? html`<label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/upgrid" .value=${this.editingChannel?.destination ?? ""} data-test-required required /></label>`
+              : html`<label><span class="title-with-help">Bot token ${renderHelpTooltip("telegram-token-help", "About Telegram bot token storage", this.editingChannel ? "Leave this blank to keep the automatically managed Secret, or enter a replacement token." : "Creating the Channel encrypts this token as an automatically managed Secret. Test sends use the entered value without storing it.")}</span><input name="bot_token" type="password" autocomplete="off" placeholder=${this.editingChannel ? "Leave blank to keep current token" : ""} ?required=${this.editingChannel === undefined} /></label><label>Chat ID<input name="chat_id" .value=${this.editingChannel?.destination ?? ""} data-test-required required /></label>`
           }
-          <label class="switch"><span>Default channel</span><input name="default" type="checkbox" role="switch" /></label>
-          <div class="dialog-actions">${this.channelTestMessage ? html`<span class="meta" role="status" style="margin-right:auto">${this.channelTestMessage}</span>` : nothing}<button class="button secondary" type="button" @click=${() => this.closeDialog("channel-dialog")}>Cancel</button><button class="button secondary" type="button" aria-busy=${this.testingChannel} ?disabled=${this.testingChannel || this.saving} @click=${this.testChannel}>${this.testingChannel ? "Sending…" : "Send test"}</button><button class="button" type="submit" ?disabled=${this.saving || this.testingChannel}>Create channel</button></div>
+          <label class="switch"><span>Default channel</span><input name="default" type="checkbox" role="switch" .checked=${this.editingChannel?.default ?? false} /></label>
+          <div class="dialog-actions">${this.channelTestMessage ? html`<span class="meta" role="status" style="margin-right:auto">${this.channelTestMessage}</span>` : nothing}<button class="button secondary" type="button" @click=${() => {
+            this.editingChannel = undefined;
+            this.closeDialog("channel-dialog");
+          }}>Cancel</button>${this.editingChannel ? nothing : html`<button class="button secondary" type="button" aria-busy=${this.testingChannel} ?disabled=${this.testingChannel || this.saving} @click=${this.testChannel}>${this.testingChannel ? "Sending…" : "Send test"}</button>`}<button class="button" type="submit" ?disabled=${this.saving || this.testingChannel}>${this.editingChannel ? "Save changes" : "Create channel"}</button></div>
         </form>
       </dialog>
       <dialog id="token-config-dialog" aria-labelledby="token-config-title" @click=${this.dismissOnBackdrop}>

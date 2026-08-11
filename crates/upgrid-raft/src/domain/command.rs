@@ -61,6 +61,11 @@ pub enum Command {
     },
     SyncNodeTargets(Vec<NodeTarget>),
     RecordNodeEvaluation(Evaluation),
+    UpdateNotificationChannel {
+        channel: NotificationChannel,
+        generated_secret: Option<Secret>,
+        is_default: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -95,6 +100,7 @@ pub enum CommandResult {
         availability: AvailabilityState,
         alerts: Vec<AlertId>,
     },
+    NotificationChannelUpdated(NotificationChannelId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

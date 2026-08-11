@@ -2,22 +2,24 @@ import type { TargetInput } from "./api.ts";
 
 export type ChannelKind = "webhook" | "telegram";
 
-export function channelInput(fields: FormData, kind: ChannelKind) {
-  return kind === "telegram"
-    ? {
-        type: "telegram",
-        name: fields.get("name"),
-        bot_token: fields.get("bot_token"),
-        chat_id: fields.get("chat_id"),
-        default: fields.get("default") === "on",
-      }
-    : {
-        type: "webhook",
-        name: fields.get("name"),
-        url: fields.get("url"),
-        headers: {},
-        default: fields.get("default") === "on",
-      };
+export function channelInput(fields: FormData, kind: ChannelKind, update = false) {
+  if (kind === "telegram") {
+    const botToken = String(fields.get("bot_token") ?? "");
+    return {
+      type: "telegram",
+      name: fields.get("name"),
+      bot_token: update && !botToken ? undefined : botToken,
+      chat_id: fields.get("chat_id"),
+      default: fields.get("default") === "on",
+    };
+  }
+  return {
+    type: "webhook",
+    name: fields.get("name"),
+    url: fields.get("url"),
+    headers: update ? undefined : {},
+    default: fields.get("default") === "on",
+  };
 }
 
 export function targetInput(fields: FormData, notificationChannelIds: string[] = [], useDefaultChannels = true): TargetInput {

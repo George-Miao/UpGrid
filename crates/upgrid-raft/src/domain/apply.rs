@@ -34,6 +34,11 @@ impl ApplicationState {
                 generated_secret,
                 is_default,
             } => self.create_notification_channel(channel, generated_secret, is_default),
+            Command::UpdateNotificationChannel {
+                channel,
+                generated_secret,
+                is_default,
+            } => self.update_notification_channel(channel, generated_secret, is_default),
             Command::CreateTarget {
                 target,
                 use_default_notifications,
@@ -248,6 +253,41 @@ impl ApplicationState {
             self.default_notification_channels.remove(&id);
         }
         Ok(CommandResult::NotificationChannelStored(id))
+    }
+
+    fn update_notification_channel(
+        &mut self,
+        channel: NotificationChannel,
+        generated_secret: Option<Secret>,
+        is_default: bool,
+    ) -> Result<CommandResult, DomainError> {
+        let id = channel.id;
+        if !self.notification_channels.contains_key(&id) {
+            return Err(DomainError::NotificationChannelNotFound(id));
+        }
+        if let Some(secret) = &generated_secret {
+            secret.validate()?;
+        }
+        channel.validate()?;
+        for secret_id in channel.secret_ids() {
+            let is_generated = generated_secret
+                .as_ref()
+                .is_some_and(|secret| secret.id == secret_id);
+            if !is_generated && !self.secrets.contains_key(&secret_id) {
+                return Err(DomainError::SecretNotFound(secret_id));
+            }
+        }
+
+        if let Some(secret) = generated_secret {
+            self.secrets.insert(secret.id, secret);
+        }
+        self.notification_channels.insert(id, channel);
+        if is_default {
+            self.default_notification_channels.insert(id);
+        } else {
+            self.default_notification_channels.remove(&id);
+        }
+        Ok(CommandResult::NotificationChannelUpdated(id))
     }
 
     fn create_target(

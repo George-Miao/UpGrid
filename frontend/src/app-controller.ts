@@ -117,11 +117,16 @@ export class AppController extends AppState {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const fields = new FormData(form);
-    const body = channelInput(fields, this.channelKind);
+    const editing = this.editingChannel;
+    const body = channelInput(fields, this.channelKind, editing !== undefined);
     this.saving = true;
     try {
-      await request<Channel>("/api/v1/channels", { method: "POST", body: JSON.stringify(body) });
+      await request<Channel>(editing ? `/api/v1/channels/${editing.id}` : "/api/v1/channels", {
+        method: editing ? "PUT" : "POST",
+        body: JSON.stringify(body),
+      });
       form.reset();
+      this.editingChannel = undefined;
       this.channelKind = "webhook";
       this.channelTestMessage = "";
       this.closeDialog("channel-dialog");
@@ -133,7 +138,9 @@ export class AppController extends AppState {
     }
   }
 
-  protected openChannelDialog(): void {
+  protected openChannelDialog(channel?: Channel): void {
+    this.editingChannel = channel;
+    this.channelKind = channel?.kind ?? "webhook";
     this.channelTestMessage = "";
     this.showDialog("channel-dialog");
   }

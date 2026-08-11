@@ -211,6 +211,92 @@
       }
     },
     "/api/v1/channels/{id}": {
+      "put": {
+        "operationId": "update_channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateChannelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "operationId": "delete_channel",
         "parameters": [
@@ -1489,6 +1575,7 @@
           "name",
           "kind",
           "destination",
+          "headers",
           "default"
         ],
         "properties": {
@@ -1497,6 +1584,15 @@
           },
           "destination": {
             "type": "string"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ConfigValueView"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
           },
           "id": {
             "type": "string",
@@ -2300,6 +2396,78 @@
             "type": "string"
           }
         }
+      },
+      "UpdateChannelRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "chat_id",
+              "type"
+            ],
+            "properties": {
+              "bot_token": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "chat_id": {
+                "type": "string"
+              },
+              "default": {
+                "type": "boolean"
+              },
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "telegram"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "url",
+              "type"
+            ],
+            "properties": {
+              "default": {
+                "type": "boolean"
+              },
+              "headers": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ConfigValueInput"
+                },
+                "propertyNames": {
+                  "type": "string"
+                }
+              },
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "webhook"
+                ]
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          }
+        ]
       }
     },
     "securitySchemes": {

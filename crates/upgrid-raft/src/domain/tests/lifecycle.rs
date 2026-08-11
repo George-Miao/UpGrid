@@ -336,6 +336,102 @@ fn invalid_channel_does_not_store_generated_secret() {
 }
 
 #[test]
+fn channel_update_preserves_or_replaces_existing_secret() {
+    let mut state = ApplicationState::default();
+    let secret_id = SecretId(id(10));
+    let channel_id = NotificationChannelId(id(11));
+    state
+        .apply(Command::CreateNotificationChannel {
+            channel: NotificationChannel {
+                id: channel_id,
+                name: "Primary".to_owned(),
+                kind: NotificationChannelKind::Telegram {
+                    bot_token: secret_id,
+                    chat_id: "1234".to_owned(),
+                },
+            },
+            generated_secret: Some(Secret {
+                id: secret_id,
+                name: "telegram-token".to_owned(),
+                ciphertext: vec![1, 2, 3],
+            }),
+            is_default: false,
+        })
+        .unwrap();
+
+    state
+        .apply(Command::UpdateNotificationChannel {
+            channel: NotificationChannel {
+                id: channel_id,
+                name: "Renamed".to_owned(),
+                kind: NotificationChannelKind::Telegram {
+                    bot_token: secret_id,
+                    chat_id: "1234".to_owned(),
+                },
+            },
+            generated_secret: None,
+            is_default: false,
+        })
+        .unwrap();
+    assert_eq!(state.secrets[&secret_id].ciphertext, vec![1, 2, 3]);
+
+    assert_eq!(
+        state
+            .apply(Command::UpdateNotificationChannel {
+                channel: NotificationChannel {
+                    id: channel_id,
+                    name: "Escalations".to_owned(),
+                    kind: NotificationChannelKind::Telegram {
+                        bot_token: secret_id,
+                        chat_id: "5678".to_owned(),
+                    },
+                },
+                generated_secret: Some(Secret {
+                    id: secret_id,
+                    name: "telegram-token".to_owned(),
+                    ciphertext: vec![4, 5, 6],
+                }),
+                is_default: true,
+            })
+            .unwrap(),
+        CommandResult::NotificationChannelUpdated(channel_id)
+    );
+    assert_eq!(state.notification_channels[&channel_id].name, "Escalations");
+    assert_eq!(state.secrets[&secret_id].ciphertext, vec![4, 5, 6]);
+    assert!(state.default_notification_channels.contains(&channel_id));
+}
+
+#[test]
+fn channel_update_rejects_missing_channel_without_storing_secret() {
+    let mut state = ApplicationState::default();
+    let secret_id = SecretId(id(10));
+    let channel_id = NotificationChannelId(id(11));
+
+    assert_eq!(
+        state
+            .apply(Command::UpdateNotificationChannel {
+                channel: NotificationChannel {
+                    id: channel_id,
+                    name: "Escalations".to_owned(),
+                    kind: NotificationChannelKind::Telegram {
+                        bot_token: secret_id,
+                        chat_id: "5678".to_owned(),
+                    },
+                },
+                generated_secret: Some(Secret {
+                    id: secret_id,
+                    name: "telegram-token".to_owned(),
+                    ciphertext: vec![4, 5, 6],
+                }),
+                is_default: true,
+            })
+            .unwrap_err(),
+        DomainError::NotificationChannelNotFound(channel_id)
+    );
+    assert!(!state.secrets.contains_key(&secret_id));
+}
+
+#[test]
 fn target_create_and_update_apply_default_policy_atomically() {
     let (mut state, _, channel_id) = state_with_target();
     let target_id = TargetId(id(12));

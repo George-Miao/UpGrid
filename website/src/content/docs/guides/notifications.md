@@ -36,6 +36,12 @@ Transition messages identify the Target and whether it moved up or down.
 
 Create a webhook Channel with its destination URL and optional literal or Secret-backed headers. UpGrid sends transition data to the endpoint and treats delivery separately from the evaluation that created the alert.
 
+## Edit a Channel
+
+Use **Edit** on the Alerts page to change a Channel's name, destination, and default status. A Channel's type cannot be changed.
+
+Telegram tokens remain write-only. Leave the token field blank to keep the current automatically managed Secret, or enter a new token to replace it. When updating a webhook through the HTTP API, omit `headers` to preserve its existing literal and Secret-backed headers.
+
 ## Default Channels
 
 Mark a Channel as **Default** to route all Targets to it unless a Target explicitly opts out. In a Target form, **Use default channels** selects and locks the current default Channels while still allowing extra Channels.

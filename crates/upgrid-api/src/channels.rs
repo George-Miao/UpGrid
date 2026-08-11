@@ -9,6 +9,9 @@ enum ChannelInputError {
 
     #[snafu(display("{source}"))]
     SealSecret { source: upgrid_config::CipherError },
+
+    #[snafu(display("Notification Channel type cannot be changed"))]
+    KindChanged,
 }
 
 impl From<ChannelInputError> for ApiError {
@@ -48,6 +51,26 @@ pub(super) enum PutChannelRequest {
 
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
+pub(super) enum UpdateChannelRequest {
+    Telegram {
+        name: String,
+        #[serde(default)]
+        bot_token: Option<String>,
+        chat_id: String,
+        #[serde(default, rename = "default")]
+        is_default: bool,
+    },
+    Webhook {
+        name: String,
+        url: String,
+        headers: Option<BTreeMap<String, ConfigValueInput>>,
+        #[serde(default, rename = "default")]
+        is_default: bool,
+    },
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub(super) enum TestChannelRequest {
     Telegram {
         bot_token: String,
@@ -72,21 +95,32 @@ pub(super) struct ChannelView {
     name: String,
     kind: String,
     destination: String,
+    headers: BTreeMap<String, ConfigValueView>,
     #[serde(rename = "default")]
     is_default: bool,
 }
 
 impl ChannelView {
     fn from_channel(channel: &NotificationChannel, is_default: bool) -> Self {
-        let (kind, destination) = match &channel.kind {
-            NotificationChannelKind::Telegram { chat_id, .. } => ("telegram", chat_id.clone()),
-            NotificationChannelKind::Webhook { url, .. } => ("webhook", url.to_string()),
+        let (kind, destination, headers) = match &channel.kind {
+            NotificationChannelKind::Telegram { chat_id, .. } => {
+                ("telegram", chat_id.clone(), BTreeMap::new())
+            }
+            NotificationChannelKind::Webhook { url, headers } => (
+                "webhook",
+                url.to_string(),
+                headers
+                    .iter()
+                    .map(|(name, value)| (name.clone(), ConfigValueView::from(value)))
+                    .collect(),
+            ),
         };
         Self {
             id: channel.id.0,
             name: channel.name.clone(),
             kind: kind.to_owned(),
             destination,
+            headers,
             is_default,
         }
     }
@@ -204,6 +238,120 @@ pub(super) async fn create_channel(
             snapshot.default_notification_channels.contains(&id),
         )),
     ))
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/v1/channels/{id}",
+    params(("id" = Uuid, Path)),
+    request_body = UpdateChannelRequest,
+    responses(
+        (status = 200, body = ChannelView),
+        (status = 400, body = ErrorBody),
+        (status = 401, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 422, body = ErrorBody),
+        (status = 503, body = ErrorBody),
+    )
+)]
+pub(super) async fn update_channel(
+    State(state): State<WebState>,
+    Path(id): Path<Uuid>,
+    Json(input): Json<UpdateChannelRequest>,
+) -> Result<Json<ChannelView>, ApiError> {
+    let id = NotificationChannelId(id);
+    let snapshot = cluster_snapshot(state.cluster.read().await)?;
+    let existing = snapshot
+        .notification_channels
+        .get(&id)
+        .ok_or_else(|| ApiError::not_found(format!("channel not found: {}", id.0)))?;
+    let (channel, generated_secret, is_default) = match (input, &existing.kind) {
+        (
+            UpdateChannelRequest::Telegram {
+                name,
+                bot_token,
+                chat_id,
+                is_default,
+            },
+            NotificationChannelKind::Telegram {
+                bot_token: secret_id,
+                ..
+            },
+        ) => {
+            let generated_secret = bot_token
+                .map(|token| -> Result<Secret, ChannelInputError> {
+                    Ok(Secret {
+                        id: *secret_id,
+                        name: format!("telegram-{}", id.0),
+                        ciphertext: state
+                            .cipher
+                            .seal(token.as_bytes())
+                            .context(SealSecretSnafu)?,
+                    })
+                })
+                .transpose()?;
+            (
+                NotificationChannel {
+                    id,
+                    name,
+                    kind: NotificationChannelKind::Telegram {
+                        bot_token: *secret_id,
+                        chat_id,
+                    },
+                },
+                generated_secret,
+                is_default,
+            )
+        }
+        (
+            UpdateChannelRequest::Webhook {
+                name,
+                url,
+                headers,
+                is_default,
+            },
+            NotificationChannelKind::Webhook {
+                headers: existing_headers,
+                ..
+            },
+        ) => (
+            NotificationChannel {
+                id,
+                name,
+                kind: NotificationChannelKind::Webhook {
+                    url: Url::parse(&url).context(InvalidUrlSnafu)?,
+                    headers: headers
+                        .map(|headers| {
+                            headers
+                                .into_iter()
+                                .map(|(key, value)| (key, ConfigValue::from(value)))
+                                .collect()
+                        })
+                        .unwrap_or_else(|| existing_headers.clone()),
+                },
+            },
+            None,
+            is_default,
+        ),
+        _ => return Err(ChannelInputError::KindChanged.into()),
+    };
+    state
+        .cluster
+        .apply(Command::UpdateNotificationChannel {
+            channel,
+            generated_secret,
+            is_default,
+        })
+        .await?;
+    let snapshot = cluster_snapshot(state.cluster.read().await)?;
+    let channel = snapshot
+        .notification_channels
+        .get(&id)
+        .expect("updated channel exists");
+    Ok(Json(ChannelView::from_channel(
+        channel,
+        snapshot.default_notification_channels.contains(&id),
+    )))
 }
 
 #[utoipa::path(

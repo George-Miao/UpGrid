@@ -75,6 +75,66 @@ test("tests a channel and places its type beside the name", async ({ page }) => 
   await expect(row).not.toBeVisible();
 });
 
+test("edits a channel while preserving omitted configuration", async ({ page }) => {
+  const suffix = Date.now();
+  const createdName = `Editable webhook ${suffix}`;
+  const updatedName = `Updated webhook ${suffix}`;
+  const created = await page.request.post("/api/v1/channels", {
+    data: {
+      type: "webhook",
+      name: createdName,
+      url: webhookUrl,
+      headers: { "x-upgrid-test": "retained" },
+      default: false,
+    },
+  });
+  expect(created.status()).toBe(201);
+  const channel = (await created.json()) as { id: string };
+
+  const retained = await page.request.put(`/api/v1/channels/${channel.id}`, {
+    data: {
+      type: "webhook",
+      name: createdName,
+      url: webhookUrl,
+      default: false,
+    },
+  });
+  expect(retained.status()).toBe(200);
+  await expect(retained.json()).resolves.toMatchObject({
+    headers: { "x-upgrid-test": { kind: "literal", value: "retained" } },
+  });
+
+  await page.goto("/alerts");
+  const row = page.getByRole("region", { name: "Notification channels" }).locator(".resource", {
+    hasText: createdName,
+  });
+  await row.getByRole("button", { name: `Edit channel ${createdName}` }).click();
+  const dialog = page.getByRole("dialog", { name: "Edit channel" });
+  await expect(dialog.getByLabel("Type")).toBeDisabled();
+  await expect(dialog.getByLabel("Type")).toHaveValue("webhook");
+  await expect(dialog.getByLabel("Name")).toHaveValue(createdName);
+  await dialog.getByLabel("Name").fill(updatedName);
+  await dialog.getByLabel("Webhook URL").fill(`${webhookUrl}?updated=${suffix}`);
+  await dialog.getByRole("switch", { name: "Default channel" }).check();
+  await dialog.getByRole("button", { name: "Save changes" }).click();
+
+  const updated = page.getByRole("region", { name: "Notification channels" }).locator(".resource", {
+    hasText: updatedName,
+  });
+  await expect(updated).toContainText(`?updated=${suffix}`);
+  await expect(updated.getByRole("switch", { name: `Default channel ${updatedName}` })).toBeChecked();
+
+  const missing = await page.request.put("/api/v1/channels/00000000-0000-0000-0000-000000000000", {
+    data: {
+      type: "webhook",
+      name: "Missing",
+      url: webhookUrl,
+      default: false,
+    },
+  });
+  expect(missing.status()).toBe(404);
+});
+
 test("uses trash icons for secret and Target deletion", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Add secret" }).click();
