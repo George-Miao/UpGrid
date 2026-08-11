@@ -2,12 +2,6 @@
 
 The MVP is complete. This file records unfinished work for future agile iterations. Ordered from higher to lower priority.
 
-## Active Iteration
-
-- [x] Extract Target scheduling, HTTP and Node probing, and monitor worker startup into `upgrid-monitor`.
-- [x] Keep `upgrid` focused on process orchestration and start monitoring through `upgrid_monitor::start`.
-- [x] Preserve monitoring behavior with focused tests, workspace checks, Rust policy checks, and a live smoke test.
-
 ## Backlog
 
 - [ ] Support editing existing Notification Channels.
