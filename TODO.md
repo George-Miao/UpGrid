@@ -4,14 +4,12 @@ The MVP is complete. This file records unfinished work for future agile iteratio
 
 ## Active Iteration
 
-- [ ] Draining a Node excludes it from new evaluation assignments while in-flight work finishes; forced drain releases failed-Node assignments for immediate reassignment.
-- [ ] Membership removal rejects the local Node and final voter, requires a completed drain unless forced, and converges Raft membership plus derived Node Targets.
-- [ ] The HTTP API and WebUI expose drain, cancel, removal, and failed-Node replacement guidance; domain, scheduler, API, and live three-Node tests cover the workflow.
+- [ ] HTTP Targets store ordered regex, JSONPath, response-header, latency-threshold, and sandboxed script assertions with validation and backward-compatible state migration.
+- [ ] Probe workers evaluate every configured assertion deterministically with bounded resources and actionable failure diagnostics.
+- [ ] The HTTP API and WebUI create and edit every assertion kind; domain, probe, API, and browser tests plus operator documentation cover the workflow.
 
 ## Backlog
 
-- [ ] Add alert acknowledgement, manual delivery retry, and richer alert-history filters.
-- [ ] Add regex, JSONPath, response-header, latency-threshold, and scripted HTTP assertions.
 - [ ] Support custom HTTPS CA bundles and mutual-TLS Target credentials.
 - [ ] Add optional multi-location evaluation and result aggregation.
 - [ ] Add long-term history aggregation and external archival.
