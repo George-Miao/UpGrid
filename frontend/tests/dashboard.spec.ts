@@ -150,6 +150,8 @@ test("creates and edits ordered HTTP assertions", async ({ page }) => {
   await edit.getByLabel("Assertion 5 maximum milliseconds").fill("30000");
   await edit.getByLabel("Assertion 6 script").fill("status == 200 && latency_ms < 30000");
   await edit.getByRole("button", { name: "Move assertion 6 up" }).click();
+  await expect(edit.getByLabel("Assertion 5 script")).toBeVisible();
+  await expect(edit.getByLabel("Assertion 6 maximum milliseconds")).toBeVisible();
   await edit.getByRole("button", { name: "Save changes" }).click();
 
   const updated = (await (await page.request.get(`/api/v1/targets/${created.id}`)).json()).assertions;
@@ -157,6 +159,50 @@ test("creates and edits ordered HTTP assertions", async ({ page }) => {
   expect(updated[2]).toMatchObject({ path: "$.ready", expected: "true" });
   expect(updated[3]).toMatchObject({ name: "server", value: "UpGrid" });
   expect(updated[4]).toMatchObject({ source: "status == 200 && latency_ms < 30000" });
+});
+
+test("creates and edits custom HTTPS trust and mutual TLS Secrets", async ({ page }) => {
+  await page.goto("/");
+  const createSecret = async (name: string, value: string) => {
+    await page.getByRole("button", { name: "Add secret" }).click();
+    const dialog = page.getByRole("dialog", { name: "Add secret" });
+    await dialog.getByLabel("Name").fill(name);
+    await dialog.getByLabel("Value").fill(value);
+    await dialog.getByRole("button", { name: "Create secret" }).click();
+  };
+  await createSecret("Browser private CA", "private-ca-pem");
+  await createSecret("Browser client certificate", "client-certificate-pem");
+  await createSecret("Browser client private key", "client-private-key-pem");
+
+  await page.getByRole("button", { name: "Add target" }).click();
+  const create = page.getByRole("dialog", { name: "Add target" });
+  await create.getByLabel("Name").fill("Mutual TLS target");
+  await create.getByLabel("URL").fill("https://example.com/health");
+  await create.getByLabel("Custom CA bundle Secret").selectOption({ label: "Browser private CA" });
+  await create.getByLabel("Client certificate Secret").selectOption({ label: "Browser client certificate" });
+  await create.getByLabel("Client private key Secret").selectOption({ label: "Browser client private key" });
+  await create.getByRole("button", { name: "Create target" }).click();
+
+  const created = (await (await page.request.get("/api/v1/targets")).json()).find((target: { name: string }) => target.name === "Mutual TLS target");
+  expect(created).toMatchObject({
+    tls_ca_secret_id: expect.any(String),
+    tls_client_certificate_secret_id: expect.any(String),
+    tls_client_private_key_secret_id: expect.any(String),
+  });
+  await expect(page.getByText("private-ca-pem")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Mutual TLS target" }).click();
+  const edit = page.getByRole("dialog", { name: "Target details" });
+  await expect(edit.getByLabel("Custom CA bundle Secret")).toHaveValue(created.tls_ca_secret_id);
+  await expect(edit.getByLabel("Client certificate Secret")).toHaveValue(created.tls_client_certificate_secret_id);
+  await expect(edit.getByLabel("Client private key Secret")).toHaveValue(created.tls_client_private_key_secret_id);
+  await edit.getByLabel("Custom CA bundle Secret").selectOption("");
+  await edit.getByRole("button", { name: "Save changes" }).click();
+
+  const updated = await (await page.request.get(`/api/v1/targets/${created.id}`)).json();
+  expect(updated.tls_ca_secret_id).toBeNull();
+  expect(updated.tls_client_certificate_secret_id).toBe(created.tls_client_certificate_secret_id);
+  expect(updated.tls_client_private_key_secret_id).toBe(created.tls_client_private_key_secret_id);
 });
 
 test("creates and edits a TCP-connect target", async ({ page }) => {
@@ -206,7 +252,7 @@ test("creates DNS, ICMP, and TLS target kinds", async ({ page }) => {
     await dialog.getByLabel("URL").fill(endpoint);
     await dialog.getByRole("button", { name: "Create target" }).click();
 
-    const target = page.getByRole("button", { name: `${kind.toUpperCase()} target` });
+    const target = page.getByRole("button", { name: `${kind.toUpperCase()} target`, exact: true });
     await expect(target).toContainText(kind.toUpperCase());
     await expect(target).toContainText(`${kind}://${endpoint}`);
   }
@@ -277,7 +323,7 @@ test("configures notification resources and creates a join command", async ({ pa
   await page.getByRole("dialog", { name: "Add secret" }).getByLabel("Name").fill("Webhook token");
   await page.getByRole("dialog", { name: "Add secret" }).getByLabel("Value").fill("not-returned-by-api");
   await page.getByRole("button", { name: "Create secret" }).click();
-  await expect(page.getByText("Webhook token")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Secrets", exact: true }).getByText("Webhook token", { exact: true })).toBeVisible();
 
   await page.getByRole("link", { name: "Alerts" }).click();
   await page.getByRole("button", { name: "Add channel" }).click();
@@ -293,7 +339,7 @@ test("configures notification resources and creates a join command", async ({ pa
   await page.getByRole("link", { name: "Overview" }).click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete secret Webhook token" }).click();
-  await expect(page.getByText("Webhook token")).not.toBeVisible();
+  await expect(page.getByRole("region", { name: "Secrets", exact: true }).getByText("Webhook token", { exact: true })).not.toBeVisible();
 
   await page.getByRole("link", { name: "Cluster" }).click();
   await expect(page.getByRole("button", { name: "Add node" })).toHaveCount(0);

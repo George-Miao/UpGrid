@@ -53,6 +53,9 @@ export class AppController extends AppState {
         body: this.selected.body?.kind === "literal" ? this.selected.body.value : this.selected.body ? { secret_id: this.selected.body.secret_id } : null,
         assertions,
         skip_tls_verification: fields.get("skip_tls_verification") === "on",
+        tls_ca_secret_id: String(fields.get("tls_ca_secret_id") ?? "") || null,
+        tls_client_certificate_secret_id: String(fields.get("tls_client_certificate_secret_id") ?? "") || null,
+        tls_client_private_key_secret_id: String(fields.get("tls_client_private_key_secret_id") ?? "") || null,
         notification_channel_ids: fields.getAll("channel_id").map(String),
         use_default_channels: fields.get("use_default_channels") === "on",
       };

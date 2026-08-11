@@ -25,6 +25,9 @@ export interface Target {
   max_redirects: number;
   assertions: HttpAssertion[];
   skip_tls_verification: boolean;
+  tls_ca_secret_id: string | null;
+  tls_client_certificate_secret_id: string | null;
+  tls_client_private_key_secret_id: string | null;
   availability: "unknown" | "up" | "down";
   consecutive_failures: number;
   interval_seconds: number;
@@ -159,6 +162,9 @@ export interface TargetInput {
   body: string | { secret_id: string } | null;
   assertions: HttpAssertion[];
   skip_tls_verification: boolean;
+  tls_ca_secret_id: string | null;
+  tls_client_certificate_secret_id: string | null;
+  tls_client_private_key_secret_id: string | null;
   notification_channel_ids: string[];
   use_default_channels: boolean;
 }

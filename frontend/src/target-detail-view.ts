@@ -3,8 +3,8 @@ import closeIcon from "@iconify-icons/lucide/x";
 import deleteIcon from "@iconify-icons/lucide/trash-2";
 import pauseIcon from "@iconify-icons/lucide/pause";
 import playIcon from "@iconify-icons/lucide/play";
-import type { Channel, ClusterMember, Target } from "./api.ts";
-import { renderChannelFields } from "./target-form-view.ts";
+import type { Channel, ClusterMember, Secret, Target } from "./api.ts";
+import { renderChannelFields, renderTlsSecretFields } from "./target-form-view.ts";
 
 interface Actions {
   backdrop: (event: MouseEvent) => void;
@@ -16,7 +16,7 @@ interface Actions {
   pause: (paused: boolean) => void;
 }
 
-export function renderTargetDetail(target: Target, saving: boolean, dirty: boolean, members: ClusterMember[], channels: Channel[], actions: Actions) {
+export function renderTargetDetail(target: Target, saving: boolean, dirty: boolean, members: ClusterMember[], channels: Channel[], secrets: Secret[], actions: Actions) {
   const isNode = target.kind === "node";
   const isHttp = target.kind === "http";
   const statuses = target.accepted_statuses.map((range) => (range.start === range.end ? range.start : `${range.start}-${range.end}`)).join(",");
@@ -51,6 +51,7 @@ export function renderTargetDetail(target: Target, saving: boolean, dirty: boole
                     <http-assertion-editor name="assertions" target-id=${target.id} .assertions=${target.assertions}></http-assertion-editor>
                     <div class="row"><label class="check"><input name="follow_redirects" type="checkbox" .checked=${target.follow_redirects} @change=${actions.redirects} />Follow redirects</label><label>Maximum redirects<input name="max_redirects" type="number" min="0" .value=${String(target.max_redirects)} ?disabled=${!target.follow_redirects} required /></label></div>
                     <label class="check"><input name="skip_tls_verification" type="checkbox" .checked=${target.skip_tls_verification} />Skip TLS verification</label>
+                    ${renderTlsSecretFields(secrets, target.tls_ca_secret_id, target.tls_client_certificate_secret_id, target.tls_client_private_key_secret_id)}
                   `
                   : nothing
               }

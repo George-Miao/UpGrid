@@ -393,14 +393,14 @@ export class UpgridApp extends AppController {
               : this.renderClusterPage()
         }
       </main>${renderFooter()}
-      ${renderTargetForm(this.channels, this.saving, {
+      ${renderTargetForm(this.channels, this.secrets, this.saving, {
         backdrop: (event) => this.dismissOnBackdrop(event),
         close: () => this.closeTargetDialog(),
         create: (event) => void this.createTarget(event),
       })}
       ${
         this.selected
-          ? renderTargetDetail(this.selected, this.saving, this.detailDirty, this.cluster?.members ?? [], this.channels, {
+          ? renderTargetDetail(this.selected, this.saving, this.detailDirty, this.cluster?.members ?? [], this.channels, this.secrets, {
               backdrop: (event) => this.dismissOnBackdrop(event),
               close: () => this.closeDetailDialog(),
               update: (event) => void this.updateTarget(event),

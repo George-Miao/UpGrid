@@ -56,7 +56,15 @@ export function targetInput(fields: FormData, notificationChannelIds: string[] =
     body: null,
     assertions,
     skip_tls_verification: false,
+    tls_ca_secret_id: optionalId(fields, "tls_ca_secret_id"),
+    tls_client_certificate_secret_id: optionalId(fields, "tls_client_certificate_secret_id"),
+    tls_client_private_key_secret_id: optionalId(fields, "tls_client_private_key_secret_id"),
     notification_channel_ids: notificationChannelIds,
     use_default_channels: useDefaultChannels,
   };
+}
+
+function optionalId(fields: FormData, name: string): string | null {
+  const value = String(fields.get(name) ?? "");
+  return value || null;
 }

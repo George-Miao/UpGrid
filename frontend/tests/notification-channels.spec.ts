@@ -87,7 +87,7 @@ test("explains Secret usage from related forms", async ({ page }) => {
   const targetTooltip = targetDialog.locator("#target-secret-help");
   await expect(targetTooltip).toBeHidden();
   await targetDialog.getByRole("button", { name: "About Target Secrets" }).focus();
-  await expect(targetTooltip).toContainText("headers and request bodies");
+  await expect(targetTooltip).toContainText("request bodies, custom CA bundles");
   await expect(targetTooltip).toBeVisible();
   await targetDialog.getByRole("button", { name: "Cancel" }).click();
 
