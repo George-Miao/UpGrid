@@ -2,6 +2,7 @@
 
 mod alert;
 mod apply;
+mod assertion;
 mod auth;
 mod command;
 mod config_value;
@@ -11,6 +12,7 @@ mod state;
 mod target;
 
 pub use alert::*;
+pub use assertion::*;
 pub use auth::*;
 pub use command::*;
 pub use config_value::*;

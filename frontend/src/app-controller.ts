@@ -1,13 +1,15 @@
 import { type Alert, type ApiToken, type Channel, type ClusterMember, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type Secret, type Session, type Setup, type Target, type TargetInput, request } from "./api.ts";
 import { AppState } from "./app-state.ts";
 import { channelInput, targetInput } from "./resource-input.ts";
+import type { HttpAssertionEditor } from "./http-assertion-editor.ts";
 
 export class AppController extends AppState {
   protected async createTarget(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const fields = new FormData(form);
-    const input = targetInput(fields, fields.getAll("channel_id").map(String), fields.get("use_default_channels") === "on");
+    const assertions = form.querySelector<HttpAssertionEditor>("http-assertion-editor")?.value ?? [];
+    const input = targetInput(fields, fields.getAll("channel_id").map(String), fields.get("use_default_channels") === "on", undefined, assertions);
     this.saving = true;
     try {
       await request<Target>("/api/v1/targets", { method: "POST", body: JSON.stringify(input) });
@@ -25,6 +27,7 @@ export class AppController extends AppState {
     event.preventDefault();
     if (!this.selected) return;
     const fields = new FormData(event.currentTarget as HTMLFormElement);
+    const assertions = (event.currentTarget as HTMLFormElement).querySelector<HttpAssertionEditor>("http-assertion-editor")?.value ?? [];
     let path = `/api/v1/nodes/${this.selected.id}`;
     let input: TargetInput | { name: string } = { name: String(fields.get("name")) };
     if (this.selected.kind === "http") {
@@ -48,7 +51,7 @@ export class AppController extends AppState {
         failure_threshold: Number(fields.get("failures")),
         headers: Object.fromEntries(Object.entries(this.selected.headers).map(([name, value]) => [name, value.kind === "literal" ? value.value : { secret_id: value.secret_id }])),
         body: this.selected.body?.kind === "literal" ? this.selected.body.value : this.selected.body ? { secret_id: this.selected.body.secret_id } : null,
-        body_contains: String(fields.get("body_contains")) || null,
+        assertions,
         skip_tls_verification: fields.get("skip_tls_verification") === "on",
         notification_channel_ids: fields.getAll("channel_id").map(String),
         use_default_channels: fields.get("use_default_channels") === "on",
@@ -56,7 +59,7 @@ export class AppController extends AppState {
     }
     if (this.selected.kind !== "http" && this.selected.kind !== "node") {
       path = `/api/v1/targets/${this.selected.id}`;
-      input = targetInput(fields, fields.getAll("channel_id").map(String), fields.get("use_default_channels") === "on", this.selected.kind);
+      input = targetInput(fields, fields.getAll("channel_id").map(String), fields.get("use_default_channels") === "on", this.selected.kind, assertions);
     }
     this.saving = true;
     try {

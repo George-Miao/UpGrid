@@ -48,7 +48,7 @@ export function renderTargetDetail(target: Target, saving: boolean, dirty: boole
                 isHttp
                   ? html`
                     <div class="row"><label>Method<input name="method" .value=${target.method} required /></label><label>Expected statuses<input name="statuses" .value=${statuses} required /></label></div>
-                    <label>Body must contain<input name="body_contains" .value=${target.body_contains ?? ""} /></label>
+                    <http-assertion-editor name="assertions" target-id=${target.id} .assertions=${target.assertions}></http-assertion-editor>
                     <div class="row"><label class="check"><input name="follow_redirects" type="checkbox" .checked=${target.follow_redirects} @change=${actions.redirects} />Follow redirects</label><label>Maximum redirects<input name="max_redirects" type="number" min="0" .value=${String(target.max_redirects)} ?disabled=${!target.follow_redirects} required /></label></div>
                     <label class="check"><input name="skip_tls_verification" type="checkbox" .checked=${target.skip_tls_verification} />Skip TLS verification</label>
                   `

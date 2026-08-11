@@ -8,6 +8,8 @@ export interface Evaluation {
   diagnostic: string | null;
 }
 
+export type HttpAssertion = { kind: "body_contains"; value: string } | { kind: "body_regex"; pattern: string } | { kind: "json_path"; path: string; expected: string | null } | { kind: "response_header"; name: string; value: string | null } | { kind: "latency"; max_ms: number } | { kind: "script"; source: string };
+
 export type TargetKind = "http" | "tcp" | "dns" | "icmp" | "tls";
 
 export interface Target {
@@ -21,7 +23,7 @@ export interface Target {
   accepted_statuses: Array<{ start: number; end: number }>;
   follow_redirects: boolean;
   max_redirects: number;
-  body_contains: string | null;
+  assertions: HttpAssertion[];
   skip_tls_verification: boolean;
   availability: "unknown" | "up" | "down";
   consecutive_failures: number;
@@ -155,7 +157,7 @@ export interface TargetInput {
   failure_threshold: number;
   headers: Record<string, string | { secret_id: string }>;
   body: string | { secret_id: string } | null;
-  body_contains: string | null;
+  assertions: HttpAssertion[];
   skip_tls_verification: boolean;
   notification_channel_ids: string[];
   use_default_channels: boolean;

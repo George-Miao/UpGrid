@@ -113,6 +113,52 @@ test("creates a target from the embedded dashboard", async ({ page }) => {
   await expect(page.getByText("https://example.com/health")).toBeVisible();
 });
 
+test("creates and edits ordered HTTP assertions", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add target" }).click();
+  const create = page.getByRole("dialog", { name: "Add target" });
+  await create.getByLabel("Name").fill("Assertion target");
+  await create.getByLabel("URL").fill(new URL("/healthz", page.url()).toString());
+
+  for (let index = 0; index < 6; index += 1) {
+    await create.getByRole("button", { name: "Add assertion" }).click();
+  }
+  const kinds = ["body_contains", "body_regex", "json_path", "response_header", "latency", "script"];
+  for (const [index, kind] of kinds.entries()) {
+    await create.getByLabel(`Assertion ${index + 1} type`).selectOption(kind);
+  }
+  await create.getByLabel("Assertion 1 required text").fill("ok");
+  await create.getByLabel("Assertion 2 regular expression").fill("ok|healthy");
+  await create.getByLabel("Assertion 3 JSONPath").fill("$.healthy");
+  await create.getByLabel("Assertion 4 header name").fill("content-type");
+  await create.getByLabel("Assertion 5 maximum milliseconds").fill("60000");
+  await create.getByLabel("Assertion 6 script").fill("status >= 200");
+  await create.getByRole("button", { name: "Create target" }).click();
+
+  const created = (await (await page.request.get("/api/v1/targets")).json()).find((target: { name: string }) => target.name === "Assertion target");
+  expect(created.assertions.map((assertion: { kind: string }) => assertion.kind)).toEqual(kinds);
+
+  await page.getByRole("button", { name: "Assertion target" }).click();
+  const edit = page.getByRole("dialog", { name: "Target details" });
+  await edit.getByLabel("Assertion 1 required text").fill("healthy");
+  await expect(edit.getByRole("button", { name: "Save changes" })).toBeEnabled();
+  await edit.getByLabel("Assertion 2 regular expression").fill("healthy|ready");
+  await edit.getByLabel("Assertion 3 JSONPath").fill("$.ready");
+  await edit.getByLabel("Assertion 3 expected value").fill("true");
+  await edit.getByLabel("Assertion 4 header name").fill("server");
+  await edit.getByLabel("Assertion 4 header value").fill("UpGrid");
+  await edit.getByLabel("Assertion 5 maximum milliseconds").fill("30000");
+  await edit.getByLabel("Assertion 6 script").fill("status == 200 && latency_ms < 30000");
+  await edit.getByRole("button", { name: "Move assertion 6 up" }).click();
+  await edit.getByRole("button", { name: "Save changes" }).click();
+
+  const updated = (await (await page.request.get(`/api/v1/targets/${created.id}`)).json()).assertions;
+  expect(updated.map((assertion: { kind: string }) => assertion.kind)).toEqual(["body_contains", "body_regex", "json_path", "response_header", "script", "latency"]);
+  expect(updated[2]).toMatchObject({ path: "$.ready", expected: "true" });
+  expect(updated[3]).toMatchObject({ name: "server", value: "UpGrid" });
+  expect(updated[4]).toMatchObject({ source: "status == 200 && latency_ms < 30000" });
+});
+
 test("creates and edits a TCP-connect target", async ({ page }) => {
   await page.goto("/");
   const service = new URL(page.url());

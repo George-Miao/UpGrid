@@ -1,4 +1,4 @@
-import type { TargetInput, TargetKind } from "./api.ts";
+import type { HttpAssertion, TargetInput, TargetKind } from "./api.ts";
 
 export type ChannelKind = "webhook" | "telegram" | "smtp";
 
@@ -38,7 +38,7 @@ export function channelInput(fields: FormData, kind: ChannelKind, update = false
   };
 }
 
-export function targetInput(fields: FormData, notificationChannelIds: string[] = [], useDefaultChannels = true, kind = String(fields.get("kind") ?? "http") as TargetKind): TargetInput {
+export function targetInput(fields: FormData, notificationChannelIds: string[] = [], useDefaultChannels = true, kind = String(fields.get("kind") ?? "http") as TargetKind, assertions: HttpAssertion[] = []): TargetInput {
   const endpoint = String(fields.get("url"));
   const url = kind === "http" ? endpoint : `${kind}://${endpoint.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")}`;
   return {
@@ -54,7 +54,7 @@ export function targetInput(fields: FormData, notificationChannelIds: string[] =
     failure_threshold: Number(fields.get("failures")),
     headers: {},
     body: null,
-    body_contains: null,
+    assertions,
     skip_tls_verification: false,
     notification_channel_ids: notificationChannelIds,
     use_default_channels: useDefaultChannels,

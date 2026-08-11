@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use upgrid_config::{Cipher, Config, JoinLink, Oobe, OobePhase, generate_join_token, now_ms};
 use upgrid_raft::domain::{
     AlertDelivery, AlertKind, ApplicationState, AvailabilityState, Command, ConfigValue,
-    DomainError, EvaluationPolicy, HttpTarget, NodeTargetState, NotificationChannel,
+    DomainError, EvaluationPolicy, HttpAssertion, HttpTarget, NodeTargetState, NotificationChannel,
     NotificationChannelId, NotificationChannelKind, Secret, SecretId, SmtpSecurity, StatusRange,
     Target, TargetId, TargetKind, TargetState,
 };

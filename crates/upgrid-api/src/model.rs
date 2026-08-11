@@ -6,6 +6,73 @@ pub(super) struct StatusRangeInput {
     pub(super) end: u16,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub(super) enum HttpAssertionModel {
+    BodyContains {
+        value: String,
+    },
+    BodyRegex {
+        pattern: String,
+    },
+    JsonPath {
+        path: String,
+        #[serde(default)]
+        expected: Option<String>,
+    },
+    ResponseHeader {
+        name: String,
+        #[serde(default)]
+        value: Option<String>,
+    },
+    Latency {
+        max_ms: u64,
+    },
+    Script {
+        source: String,
+    },
+}
+
+impl From<HttpAssertionModel> for HttpAssertion {
+    fn from(value: HttpAssertionModel) -> Self {
+        match value {
+            HttpAssertionModel::BodyContains { value } => Self::BodyContains { value },
+            HttpAssertionModel::BodyRegex { pattern } => Self::BodyRegex { pattern },
+            HttpAssertionModel::JsonPath { path, expected } => Self::JsonPath { path, expected },
+            HttpAssertionModel::ResponseHeader { name, value } => {
+                Self::ResponseHeader { name, value }
+            }
+            HttpAssertionModel::Latency { max_ms } => Self::Latency { max_ms },
+            HttpAssertionModel::Script { source } => Self::Script { source },
+        }
+    }
+}
+
+impl From<&HttpAssertion> for HttpAssertionModel {
+    fn from(value: &HttpAssertion) -> Self {
+        match value {
+            HttpAssertion::BodyContains { value } => Self::BodyContains {
+                value: value.clone(),
+            },
+            HttpAssertion::BodyRegex { pattern } => Self::BodyRegex {
+                pattern: pattern.clone(),
+            },
+            HttpAssertion::JsonPath { path, expected } => Self::JsonPath {
+                path: path.clone(),
+                expected: expected.clone(),
+            },
+            HttpAssertion::ResponseHeader { name, value } => Self::ResponseHeader {
+                name: name.clone(),
+                value: value.clone(),
+            },
+            HttpAssertion::Latency { max_ms } => Self::Latency { max_ms: *max_ms },
+            HttpAssertion::Script { source } => Self::Script {
+                source: source.clone(),
+            },
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(untagged)]
 pub(super) enum ConfigValueInput {
@@ -84,7 +151,7 @@ pub(super) struct PutTargetRequest {
     #[serde(default = "default_redirects")]
     pub(super) max_redirects: u8,
     #[serde(default)]
-    pub(super) body_contains: Option<String>,
+    pub(super) assertions: Vec<HttpAssertionModel>,
     #[serde(default)]
     pub(super) skip_tls_verification: bool,
     #[serde(default = "default_interval_seconds")]
@@ -176,7 +243,7 @@ pub(super) struct TargetView {
     accepted_statuses: Vec<StatusRangeInput>,
     follow_redirects: bool,
     max_redirects: u8,
-    body_contains: Option<String>,
+    assertions: Vec<HttpAssertionModel>,
     skip_tls_verification: bool,
     interval_seconds: u64,
     timeout_seconds: u64,
@@ -217,7 +284,12 @@ impl TargetView {
                 .collect(),
             follow_redirects: target.http.follow_redirects,
             max_redirects: target.http.max_redirects,
-            body_contains: target.http.body_contains.clone(),
+            assertions: target
+                .http
+                .assertions
+                .iter()
+                .map(HttpAssertionModel::from)
+                .collect(),
             skip_tls_verification: target.http.skip_tls_verification,
             interval_seconds: target.policy.interval_ms / 1_000,
             timeout_seconds: target.policy.timeout_ms / 1_000,
@@ -253,7 +325,7 @@ impl TargetView {
             accepted_statuses: Vec::new(),
             follow_redirects: false,
             max_redirects: 0,
-            body_contains: None,
+            assertions: Vec::new(),
             skip_tls_verification: false,
             interval_seconds: target.policy.interval_ms / 1_000,
             timeout_seconds: target.policy.timeout_ms / 1_000,

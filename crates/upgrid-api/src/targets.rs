@@ -237,7 +237,7 @@ pub(super) fn target_from_input(id: TargetId, input: PutTargetRequest) -> Result
                 .collect(),
             follow_redirects: input.follow_redirects,
             max_redirects: input.max_redirects,
-            body_contains: input.body_contains,
+            assertions: input.assertions.into_iter().map(Into::into).collect(),
             skip_tls_verification: input.skip_tls_verification,
         },
         policy: EvaluationPolicy {

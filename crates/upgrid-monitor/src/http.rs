@@ -67,6 +67,7 @@ pub(super) struct Request {
 
 pub(super) struct Response {
     pub status: StatusCode,
+    pub headers: BTreeMap<String, String>,
     pub body: Vec<u8>,
     pub url: Url,
 }
@@ -177,6 +178,19 @@ pub(super) async fn send(clients: &Clients, mut request: Request) -> Result<Resp
                 limit: MAX_RESPONSE_BYTES,
             });
         }
+        let mut headers = BTreeMap::<String, String>::new();
+        for (name, value) in response.headers() {
+            let Ok(value) = value.to_str() else {
+                continue;
+            };
+            headers
+                .entry(name.as_str().to_ascii_lowercase())
+                .and_modify(|current| {
+                    current.push_str(", ");
+                    current.push_str(value);
+                })
+                .or_insert_with(|| value.to_owned());
+        }
         let url = request.url;
         let body = response.bytes().await.context(ResponseBodySnafu)?;
         if body.len() > MAX_RESPONSE_BYTES as usize {
@@ -185,6 +199,7 @@ pub(super) async fn send(clients: &Clients, mut request: Request) -> Result<Resp
             });
         }
         return Ok(Response {
+            headers,
             status,
             body: body.to_vec(),
             url,

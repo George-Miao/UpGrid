@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use super::model::is_http_token;
-use super::{ConfigValue, DomainError, NotificationChannelId, SecretId, TargetId};
+use super::{
+    ConfigValue, DomainError, HttpAssertion, MAX_HTTP_ASSERTIONS, NotificationChannelId, SecretId,
+    TargetId,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StatusRange {
@@ -35,7 +38,7 @@ pub struct HttpTarget {
     pub accepted_statuses: Vec<StatusRange>,
     pub follow_redirects: bool,
     pub max_redirects: u8,
-    pub body_contains: Option<String>,
+    pub assertions: Vec<HttpAssertion>,
     pub skip_tls_verification: bool,
 }
 
@@ -49,7 +52,7 @@ impl HttpTarget {
             accepted_statuses: vec![StatusRange::new(200, 299)],
             follow_redirects: true,
             max_redirects: 5,
-            body_contains: None,
+            assertions: Vec::new(),
             skip_tls_verification: false,
         }
     }
@@ -84,6 +87,14 @@ impl HttpTarget {
             return Err(DomainError::InvalidTarget(
                 "redirect limit must be greater than zero".to_owned(),
             ));
+        }
+        if self.assertions.len() > MAX_HTTP_ASSERTIONS {
+            return Err(DomainError::InvalidTarget(format!(
+                "HTTP Targets accept at most {MAX_HTTP_ASSERTIONS} assertions"
+            )));
+        }
+        for assertion in &self.assertions {
+            assertion.validate()?;
         }
 
         let mut names = BTreeSet::new();
@@ -132,7 +143,7 @@ impl HttpTarget {
             || self.accepted_statuses != defaults.accepted_statuses
             || self.follow_redirects != defaults.follow_redirects
             || self.max_redirects != defaults.max_redirects
-            || self.body_contains != defaults.body_contains
+            || self.assertions != defaults.assertions
             || self.skip_tls_verification != defaults.skip_tls_verification
         {
             return Err(DomainError::InvalidTarget(format!(

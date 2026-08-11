@@ -6,6 +6,7 @@ import deleteIcon from "@iconify-icons/lucide/trash-2";
 import closeIcon from "@iconify-icons/lucide/x";
 import "iconify-icon";
 import "./setup-flow.ts";
+import "./http-assertion-editor.ts";
 import type { ClusterMember, Target } from "./api.ts";
 import { AppController } from "./app-controller.ts";
 import { renderAlertsPage } from "./alerts-view.ts";

@@ -63,6 +63,76 @@ fn rejects_malformed_non_http_endpoints() {
 }
 
 #[test]
+fn validates_http_assertions_before_replication() {
+    let valid = [
+        HttpAssertion::BodyContains {
+            value: "healthy".to_owned(),
+        },
+        HttpAssertion::BodyRegex {
+            pattern: r#""healthy"\s*:\s*true"#.to_owned(),
+        },
+        HttpAssertion::JsonPath {
+            path: "$.services[0].healthy".to_owned(),
+            expected: Some("true".to_owned()),
+        },
+        HttpAssertion::ResponseHeader {
+            name: "content-type".to_owned(),
+            value: Some("application/json".to_owned()),
+        },
+        HttpAssertion::Latency { max_ms: 500 },
+        HttpAssertion::Script {
+            source: "status == 200 && latency_ms < 500".to_owned(),
+        },
+    ];
+    let mut valid_target = target(30, "https://example.com/health");
+    valid_target.http.assertions = valid.into();
+    let mut state = ApplicationState::default();
+    state
+        .apply(Command::CreateTarget {
+            target: valid_target,
+            use_default_notifications: true,
+        })
+        .unwrap();
+
+    for assertion in [
+        HttpAssertion::BodyRegex {
+            pattern: "(".to_owned(),
+        },
+        HttpAssertion::JsonPath {
+            path: "$[".to_owned(),
+            expected: None,
+        },
+        HttpAssertion::Latency { max_ms: 0 },
+        HttpAssertion::Script {
+            source: "let =".to_owned(),
+        },
+        HttpAssertion::Script {
+            source: "while true {}".to_owned(),
+        },
+    ] {
+        let mut invalid = target(31, "https://example.com/health");
+        invalid.http.assertions.push(assertion);
+        assert!(matches!(
+            ApplicationState::default().apply(Command::CreateTarget {
+                target: invalid,
+                use_default_notifications: true,
+            }),
+            Err(DomainError::InvalidTarget(_))
+        ));
+    }
+
+    let mut too_many = target(32, "https://example.com/health");
+    too_many.http.assertions = vec![HttpAssertion::Latency { max_ms: 1 }; MAX_HTTP_ASSERTIONS + 1];
+    assert!(matches!(
+        ApplicationState::default().apply(Command::CreateTarget {
+            target: too_many,
+            use_default_notifications: true,
+        }),
+        Err(DomainError::InvalidTarget(_))
+    ));
+}
+
+#[test]
 fn target_kind_addition_preserves_legacy_http_encoding() {
     #[derive(Serialize)]
     struct LegacyTarget {

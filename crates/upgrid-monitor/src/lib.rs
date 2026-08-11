@@ -1,5 +1,6 @@
 //! Target scheduling and probe execution for an UpGrid Cluster.
 
+mod assertion;
 mod http;
 mod network;
 mod node;

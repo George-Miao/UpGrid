@@ -2901,6 +2901,132 @@
           }
         }
       },
+      "HttpAssertionModel": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "body_contains"
+                ]
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "pattern",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "body_regex"
+                ]
+              },
+              "pattern": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "path",
+              "kind"
+            ],
+            "properties": {
+              "expected": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "json_path"
+                ]
+              },
+              "path": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "response_header"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "max_ms",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "latency"
+                ]
+              },
+              "max_ms": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "source",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "script"
+                ]
+              },
+              "source": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
       "IdentityView": {
         "type": "object",
         "required": [
@@ -3176,6 +3302,12 @@
               "$ref": "#/components/schemas/StatusRangeInput"
             }
           },
+          "assertions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HttpAssertionModel"
+            }
+          },
           "body": {
             "oneOf": [
               {
@@ -3184,12 +3316,6 @@
               {
                 "$ref": "#/components/schemas/ConfigValueInput"
               }
-            ]
-          },
-          "body_contains": {
-            "type": [
-              "string",
-              "null"
             ]
           },
           "failure_threshold": {
@@ -3458,6 +3584,7 @@
           "accepted_statuses",
           "follow_redirects",
           "max_redirects",
+          "assertions",
           "skip_tls_verification",
           "interval_seconds",
           "timeout_seconds",
@@ -3476,6 +3603,12 @@
               "$ref": "#/components/schemas/StatusRangeInput"
             }
           },
+          "assertions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HttpAssertionModel"
+            }
+          },
           "availability": {
             "type": "string"
           },
@@ -3487,12 +3620,6 @@
               {
                 "$ref": "#/components/schemas/ConfigValueView"
               }
-            ]
-          },
-          "body_contains": {
-            "type": [
-              "string",
-              "null"
             ]
           },
           "consecutive_failures": {

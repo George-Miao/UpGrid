@@ -117,23 +117,19 @@ async fn evaluate(
                 .accepted_statuses
                 .iter()
                 .any(|range| range.contains(response.status.as_u16()));
-            let body_ok = target
-                .http
-                .body_contains
-                .as_ref()
-                .is_none_or(|needle| String::from_utf8_lossy(&response.body).contains(needle));
+            let assertion_diagnostic =
+                crate::assertion::evaluate(&target.http.assertions, &response, latency_ms);
             let diagnostic = if !status_ok {
                 Some(format!(
                     "HTTP status {} is outside accepted ranges",
                     response.status.as_u16()
                 ))
-            } else if !body_ok {
-                Some("response body does not contain the required text".to_owned())
             } else {
-                None
+                assertion_diagnostic
             };
+            let succeeded = status_ok && diagnostic.is_none();
             (
-                status_ok && body_ok,
+                succeeded,
                 Some(response.status.as_u16()),
                 response.body.len() as u64,
                 response.url,

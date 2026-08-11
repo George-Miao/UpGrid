@@ -27,6 +27,10 @@ curl --header "Authorization: Bearer upgrid_REDACTED" \
 
 The repository also publishes the generated snapshot at `docs/openapi.json` for review and tooling.
 
+## HTTP Target assertions
+
+Target create and update requests accept an ordered `assertions` array. Supported `kind` values are `body_contains`, `body_regex`, `json_path`, `response_header`, `latency`, and `script`. The response returns the same ordered representation. Invalid regular expressions, JSONPath queries, scripts, header names, limits, and resource bounds are rejected before replication. See [Monitor services](/guides/targets/#assert-an-http-response) for fields and script variables.
+
 ## Node lifecycle
 
 `PUT /api/v1/nodes/{id}/drain` excludes a Node from new evaluation assignments. Existing assignments may finish; the Cluster response reports `draining` and `active_assignments` for each member. Cancel a drain by sending `{"draining":false}`.

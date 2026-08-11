@@ -35,7 +35,7 @@ mod tests {
             }],
             follow_redirects: true,
             max_redirects: 5,
-            body_contains: None,
+            assertions: Vec::new(),
             skip_tls_verification: false,
             interval_seconds: 60,
             timeout_seconds: 10,

@@ -101,7 +101,7 @@ export function renderTargetForm(channels: Channel[], saving: boolean, actions: 
           <label>Type<select name="kind" @change=${selectTargetKind}><option value="http">HTTP</option><option value="tcp">TCP connect</option><option value="dns">DNS resolution</option><option value="icmp">ICMP echo</option><option value="tls">TLS certificate</option></select></label>
           <label>URL / endpoint<input name="url" type="url" placeholder=${endpointPlaceholders.http} required /></label>
         </div>
-        <label data-http-options>Method<input name="method" value="GET" required /></label>
+        <div data-http-options><label>Method<input name="method" value="GET" required /></label><http-assertion-editor name="assertions" target-id="new"></http-assertion-editor></div>
         <div class="row">
           <label>Interval (seconds)<input name="interval" type="number" min="1" value="60" required /></label>
           <label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label>
