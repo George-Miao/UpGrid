@@ -7,17 +7,36 @@ A Target describes one HTTP or HTTPS request and the policy that turns its evalu
 
 ## Add a Target
 
-From **Overview**, select **Add target** and provide a name and URL. UpGrid supports every HTTP method and lets you configure:
+From **Overview**, select **Add target** and provide a name and URL. The WebUI also configures the HTTP method, polling interval, timeout, failure threshold, and notification routing.
+
+The HTTP API supports the complete Target policy:
 
 - accepted status ranges;
 - literal or Secret-backed headers and request bodies;
-- polling interval and timeout;
 - redirect behavior and maximum redirects;
-- TLS certificate verification;
-- a response-body substring requirement; and
-- the number of consecutive failures required before the Target becomes down.
+- TLS certificate verification; and
+- a response-body substring requirement.
 
 The default accepted range is `200–299`; the default transition threshold is three failures.
+
+## Use a Secret in request data
+
+Create a reusable Secret from **Overview**, then copy the ID displayed beside its name. In a Target create or update request, use a `secret_id` object instead of a literal string for any header value or for the request body:
+
+```json
+{
+  "headers": {
+    "authorization": {
+      "secret_id": "0198f24c-7e91-7d50-9d74-35b71a34af10"
+    }
+  },
+  "body": {
+    "secret_id": "0198f24c-7e91-7d50-9d74-35b71a34af10"
+  }
+}
+```
+
+UpGrid decrypts the value only while building the outbound request. Target responses identify the Secret reference but never include its plaintext. See the [HTTP API reference](/reference/api/) for the complete Target request.
 
 ## Availability states
 

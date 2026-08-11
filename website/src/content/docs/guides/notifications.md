@@ -7,21 +7,34 @@ Notification Channels receive availability transitions for service Targets and C
 
 ## Store credentials as Secrets
 
-Create reusable Secrets from **Overview** before configuring credentials such as bot tokens or authorization headers. Secret values are write-only in the API and encrypted in replicated state.
+Create reusable Secrets from **Overview**. Their plaintext values are encrypted before replication and are write-only: the API lists each Secret's name and ID but never returns its value.
+
+Webhook headers can reference a reusable Secret through the HTTP API. Use a `secret_id` object instead of a literal header value:
+
+```json
+{
+  "type": "webhook",
+  "name": "On-call",
+  "url": "https://hooks.example.com/upgrid",
+  "headers": {
+    "authorization": {
+      "secret_id": "0198f24c-7e91-7d50-9d74-35b71a34af10"
+    }
+  }
+}
+```
+
+See the [HTTP API reference](/reference/api/) for the complete Channel request.
 
 ## Telegram
 
-Create a Telegram Channel with:
+Create a Telegram Channel with a descriptive name, a Bot API token, and the destination chat ID. When the Channel is created, UpGrid encrypts the token as an automatically managed Secret in the same replicated operation. A **Test send** uses the token currently entered in the form without storing it.
 
-- a descriptive name;
-- a Bot API token, preferably referenced through a Secret; and
-- the destination chat ID.
-
-Use **Test send** in the Channel form before saving. Transition messages identify the Target and whether it moved up or down.
+Transition messages identify the Target and whether it moved up or down.
 
 ## Webhook
 
-Create a webhook Channel with its destination URL and optional headers. UpGrid sends transition data to the endpoint and treats delivery separately from the evaluation that created the alert.
+Create a webhook Channel with its destination URL and optional literal or Secret-backed headers. UpGrid sends transition data to the endpoint and treats delivery separately from the evaluation that created the alert.
 
 ## Default Channels
 

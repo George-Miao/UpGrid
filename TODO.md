@@ -2,7 +2,6 @@
 
 The MVP is complete. This file records unfinished work for future agile iterations. Ordered from higher to lower priority.
 
-- [ ] Better explain how secrets can be used, both in website and frontend (in the form of info icon & tooltip).
 - [ ] Split monitoring-related code into upgrid-monitor, structured like upgrid-notification.
 - [ ] Support editing existing Notification Channels.
 - [ ] Add support to email notification channel, via SMTP
