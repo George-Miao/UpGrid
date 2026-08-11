@@ -2,9 +2,14 @@
 
 The MVP is complete. This file records unfinished work for future agile iterations. Ordered from higher to lower priority.
 
+## Active Iteration
+
+- [ ] Operator identities and their password verifiers are replicated; new Clusters create the first administrator during setup and existing Clusters migrate their configured administrator once.
+- [ ] Login issues short-lived signed JWT sessions, protected routes accept JWTs or revocable API tokens, and Basic authentication no longer guards a running Cluster.
+- [ ] Administrators can manage identities and API tokens through the HTTP API and WebUI; domain, API, migration, and browser tests cover authentication, revocation, and secret redaction.
+
 ## Backlog
 
-- [ ] Replace the static shared administrator username and password with replicated identities, API tokens and JWT.
 - [ ] Add safe Node drain, membership removal, and failed-Node replacement workflows.
 - [ ] Add alert acknowledgement, manual delivery retry, and richer alert-history filters.
 - [ ] Add regex, JSONPath, response-header, latency-threshold, and scripted HTTP assertions.
