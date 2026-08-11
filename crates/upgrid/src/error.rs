@@ -37,6 +37,11 @@ pub enum Error {
 
     #[snafu(transparent)]
     Cipher { source: upgrid_config::CipherError },
+
+    #[snafu(transparent)]
+    Authentication {
+        source: upgrid_raft::domain::AuthenticationError,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

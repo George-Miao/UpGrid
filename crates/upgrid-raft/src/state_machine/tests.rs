@@ -361,4 +361,33 @@ mod tests {
         assert!(migrated.node_targets.is_empty());
         fs::remove_dir_all(directory).unwrap();
     }
+    #[test]
+    fn pre_authentication_state_is_migrated_without_losing_cluster_data() {
+        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("raft-state.postcard");
+        let node_id = Uuid::now_v7();
+        let mut application = ApplicationState::default();
+        application
+            .node_names
+            .insert(node_id, "migrated-node".to_owned());
+        let previous = PreAuthPersistedStateMachine {
+            state_machine: PreAuthStateMachineData {
+                last_applied_log: None,
+                last_membership: StoredMembership::default(),
+                application: application.into(),
+            },
+            current_snapshot: None,
+            snapshot_idx: 0,
+        };
+        let mut encoded = PRE_AUTH_STATE_MAGIC.to_vec();
+        encoded.extend_from_slice(&postcard::to_stdvec(&previous).unwrap());
+        fs::write(&path, encoded).unwrap();
+
+        let migrated = StateMachine::open(&path).unwrap().application_state();
+        assert_eq!(migrated.node_names[&node_id], "migrated-node");
+        assert!(migrated.identities.is_empty());
+        assert!(migrated.api_tokens.is_empty());
+        fs::remove_dir_all(directory).unwrap();
+    }
 }

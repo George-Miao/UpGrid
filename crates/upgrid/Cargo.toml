@@ -15,3 +15,4 @@ upgrid-config.workspace = true
 upgrid-notification.workspace = true
 upgrid-monitor.workspace = true
 upgrid-raft.workspace = true
+uuid.workspace = true

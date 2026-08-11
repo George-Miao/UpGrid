@@ -17,8 +17,6 @@ bind = "127.0.0.1:8080"
 raft_url = "up://node-1.internal:11451"
 data_dir = "/var/lib/upgrid"
 node_name = "edge-shanghai"
-username = "admin"
-password = "replace-this-password"
 history_retention_hours = 24
 tls_cert = "/etc/upgrid/api-chain.pem"
 tls_key = "/etc/upgrid/api-key.pem"
@@ -35,18 +33,14 @@ Start with `upgrid --config /etc/upgrid.toml` or set `UPGRID_CONFIG=/etc/upgrid.
 | `data_dir` | `UPGRID_DATA_DIR` | `--data-dir` | `upgrid-data` |
 | `node_name` | `UPGRID_NODE_NAME` | `--node-name` | generated friendly name |
 | `username` | `UPGRID_USERNAME` | `--username` | `admin` |
-| `password` | `UPGRID_PASSWORD` | `--password` | `upgrid` |
+| `password` | `UPGRID_PASSWORD` | `--password` | unset |
 | `new_cluster` | `UPGRID_NEW_CLUSTER` | `--new-cluster` | `false` |
 | `join` | `UPGRID_JOIN` | `--join` | unset |
 | `history_retention_hours` | `UPGRID_HISTORY_RETENTION_HOURS` | `--history-retention-hours` | 24 hours for a new Cluster |
 | `tls_cert` | `UPGRID_TLS_CERT` | `--tls-cert` | unset |
 | `tls_key` | `UPGRID_TLS_KEY` | `--tls-key` | unset |
 
-`new_cluster` and `join` are mutually exclusive. `tls_cert` and `tls_key` must always be configured together.
-
-:::danger
-The built-in credentials are development conveniences, not safe production credentials. Set a unique password and restrict any credential-bearing configuration file to the service account.
-:::
+`new_cluster` and `join` are mutually exclusive. `tls_cert` and `tls_key` must always be configured together. `username` and `password` create the first Operator Identity during unattended `new_cluster` setup. They are also used once to migrate a pre-authentication Cluster whose replicated state contains no identities; remove credential-bearing configuration after migration.
 
 ## Deployment key
 

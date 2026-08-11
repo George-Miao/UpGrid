@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { type Channel, type Setup, request } from "./api.ts";
+import { ApiRequestError, type Channel, type Setup, request } from "./api.ts";
 import { channelInput, targetInput } from "./resource-input.ts";
 
 @customElement("upgrid-setup")
@@ -26,7 +26,9 @@ export class UpgridSetup extends LitElement {
     .cluster-panel { border: 1px solid var(--line); border-radius: 16px; background: var(--panel-surface); box-shadow: 0 16px 48px var(--panel-shadow); overflow: hidden; }
     .cluster-identity, .cluster-create, .cluster-join { padding: 15px 18px; }
     .cluster-identity { border-bottom: 1px solid var(--line); }
-    .cluster-create { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+    .cluster-create { display: grid; gap: 14px; }
+    .cluster-create-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+    .cluster-create button { justify-self: end; }
     .cluster-copy h2 { margin: 0; font-size: 17px; }
     .cluster-copy p { margin: 2px 0 0; color: var(--muted); }
     .cluster-divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
@@ -49,7 +51,19 @@ export class UpgridSetup extends LitElement {
     .secondary { background: transparent; color: var(--muted); border-color: var(--line); }
     .notice { margin-bottom: 16px; border: 1px solid var(--notice-border); border-radius: 10px; background: var(--notice-bg); color: var(--notice-text); padding: 10px 12px; }
     .count { display: inline-block; margin-top: 6px; color: var(--green); font-size: 12px; }
-    @media (max-width: 620px) { .row, .cluster-join-fields { grid-template-columns: 1fr; } .cluster-create { align-items: stretch; flex-direction: column; } .cluster-create button, .cluster-join button { justify-self: end; } }
+    @media (max-width: 620px) { .row, .cluster-create-fields, .cluster-join-fields { grid-template-columns: 1fr; } .cluster-create button, .cluster-join button { justify-self: end; } }
+    @media (max-height: 650px) and (min-width: 621px) {
+      h1 { margin: 2px 0 4px; font-size: 30px; }
+      .lead { margin-bottom: 8px; font-size: 13px; }
+      .cluster-identity, .cluster-create, .cluster-join { padding: 8px 14px; }
+      .cluster-create { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+      .cluster-create .cluster-copy { grid-column: 1 / -1; }
+      .cluster-create button { align-self: end; }
+      .cluster-copy p { display: none; }
+      .cluster-join { grid-template-columns: auto minmax(0, 1fr); align-items: end; }
+      input, button { min-height: 38px; }
+      .cluster-join-fields button { height: 44px; }
+    }
   `;
 
   connectedCallback(): void {
@@ -77,7 +91,18 @@ export class UpgridSetup extends LitElement {
   private async createCluster(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     if (!window.confirm("Create a new single-Node Cluster?")) return;
-    await this.choose("/api/v1/setup/new-cluster", { node_name: this.submittedNodeName() });
+    const fields = new FormData(event.currentTarget as HTMLFormElement);
+    const adminUsername = String(fields.get("admin_username") ?? "").trim();
+    const adminPassword = String(fields.get("admin_password") ?? "");
+    await this.choose(
+      "/api/v1/setup/new-cluster",
+      {
+        node_name: this.submittedNodeName(),
+        admin_username: adminUsername,
+        admin_password: adminPassword,
+      },
+      { username: adminUsername, password: adminPassword },
+    );
   }
 
   private async joinCluster(event: SubmitEvent): Promise<void> {
@@ -90,28 +115,40 @@ export class UpgridSetup extends LitElement {
     });
   }
 
-  private async choose(path: string, body: object): Promise<void> {
+  private async choose(path: string, body: object, login?: { username: string; password: string }): Promise<void> {
     this.saving = true;
     this.error = "";
     try {
       await request(path, { method: "POST", body: JSON.stringify(body) });
-      await this.waitForCluster();
+      await this.waitForCluster(login);
     } catch (error) {
       this.fail(error);
       this.saving = false;
     }
   }
 
-  private async waitForCluster(): Promise<void> {
+  private async waitForCluster(login?: { username: string; password: string }): Promise<void> {
     for (let attempt = 0; attempt < 120; attempt += 1) {
-      await new Promise((resolve) => window.setTimeout(resolve, 250));
+      const { promise, resolve } = Promise.withResolvers<void>();
+      window.setTimeout(resolve, 250);
+      await promise;
       try {
+        if (login) {
+          await request("/api/v1/auth/login", {
+            method: "POST",
+            body: JSON.stringify(login),
+          });
+        }
         const setup = await request<Setup>("/api/v1/setup");
         if (setup.cluster_ready) {
           this.changed(setup);
           return;
         }
-      } catch {
+      } catch (error) {
+        if (!login && error instanceof ApiRequestError && error.status === 401) {
+          window.location.assign("/");
+          return;
+        }
         // The setup listener is replaced by the configured Cluster API.
       }
     }
@@ -178,7 +215,11 @@ export class UpgridSetup extends LitElement {
           <label for="setup-node-name">Node name<input id="setup-node-name" .value=${this.setup.node_name} required /></label>
         </div>
         <form class="cluster-create" @submit=${this.createCluster}>
-          <div class="cluster-copy"><h2>Start a new Cluster</h2><p>This Node becomes the first voting member.</p></div>
+          <div class="cluster-copy"><h2>Start a new Cluster</h2><p>Create its first replicated administrator identity.</p></div>
+          <div class="cluster-create-fields">
+            <label>Administrator username<input name="admin_username" autocomplete="username" value="admin" required /></label>
+            <label>Administrator password<input name="admin_password" type="password" minlength="12" autocomplete="new-password" required /></label>
+          </div>
           <button type="submit" ?disabled=${this.saving}>${this.saving ? "Setting up…" : "Create new Cluster"}</button>
         </form>
         <div class="cluster-divider"><span>Or</span></div>

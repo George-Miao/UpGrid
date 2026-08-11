@@ -1,4 +1,4 @@
-import { type Channel, type JoinLink, type JoinToken, type Secret, type Setup, type Target, type TargetInput, request } from "./api.ts";
+import { type ApiToken, type Channel, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type Secret, type Session, type Setup, type Target, type TargetInput, request } from "./api.ts";
 import { AppState } from "./app-state.ts";
 import { channelInput, targetInput } from "./resource-input.ts";
 
@@ -210,6 +210,81 @@ export class AppController extends AppState {
     }
   }
 
+  protected async createIdentity(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const fields = new FormData(form);
+    await this.saveResource(async () => {
+      await request<Identity>("/api/v1/identities", {
+        method: "POST",
+        body: JSON.stringify({
+          username: String(fields.get("username") ?? ""),
+          password: String(fields.get("password") ?? ""),
+        }),
+      });
+      form.reset();
+    });
+  }
+
+  protected async updateIdentity(identity: Identity, event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const fields = new FormData(event.currentTarget as HTMLFormElement);
+    const password = String(fields.get("password") ?? "");
+    await this.saveResource(async () => {
+      await request<Identity>(`/api/v1/identities/${identity.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          username: String(fields.get("username") ?? ""),
+          password: password || null,
+        }),
+      });
+      if (identity.id === this.session?.identity_id && password) {
+        await this.logout();
+      }
+    });
+  }
+
+  protected async deleteIdentity(identity: Identity): Promise<void> {
+    if (!window.confirm(`Delete identity ${identity.username}? Its API Tokens will also be revoked.`)) return;
+    await this.saveResource(() => request(`/api/v1/identities/${identity.id}`, { method: "DELETE" }));
+  }
+
+  protected async createApiToken(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const fields = new FormData(form);
+    await this.saveResource(async () => {
+      const expires = Number(fields.get("expires_in_days"));
+      const created = await request<CreatedApiToken>("/api/v1/api-tokens", {
+        method: "POST",
+        body: JSON.stringify({
+          name: String(fields.get("name") ?? ""),
+          expires_in_seconds: expires ? expires * 86_400 : null,
+        }),
+      });
+      this.newApiToken = created.value;
+      form.reset();
+    });
+  }
+
+  protected async revokeApiToken(token: ApiToken): Promise<void> {
+    if (!window.confirm(`Revoke API Token ${token.name}?`)) return;
+    await this.saveResource(() => request(`/api/v1/api-tokens/${token.id}`, { method: "DELETE" }));
+  }
+
+  private async saveResource(action: () => Promise<unknown>): Promise<void> {
+    this.saving = true;
+    this.error = "";
+    try {
+      await action();
+      if (this.session) await this.refresh();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.saving = false;
+    }
+  }
+
   protected async setupChanged(event: CustomEvent<Setup>): Promise<void> {
     const setup = event.detail;
     this.setup = setup;
@@ -217,6 +292,7 @@ export class AppController extends AppState {
     window.history.replaceState(null, "", setup.path);
     if (setup.setup) {
       if (setup.cluster_ready) {
+        this.session = await request<Session>("/api/v1/auth/session");
         await this.refresh();
         this.connectEvents();
       }

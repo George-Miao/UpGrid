@@ -51,8 +51,7 @@ server_pid=$!
 
 ready=false
 for _ in $(seq 1 100); do
-  if curl -fsS -u admin:test-password \
-    "http://127.0.0.1:${api_base_port}/api/v1/targets" >/dev/null; then
+  if curl -fsS "http://127.0.0.1:${api_base_port}/healthz" >/dev/null; then
     ready=true
     break
   fi
@@ -67,19 +66,51 @@ if [[ "$ready" != true ]]; then
   cat "$server_log"
   exit 1
 fi
+curl -fsS \
+  --cookie-jar "$test_data/session.cookies" \
+  --header "content-type: application/json" \
+  --data '{"username":"admin","password":"test-password"}' \
+  "http://127.0.0.1:${api_base_port}/api/v1/auth/login" >/dev/null
+session_cookie=$(sed -n 's/^#HttpOnly_127\.0\.0\.1[[:space:]].*[[:space:]]upgrid_session[[:space:]]\(.*\)$/\1/p' "$test_data/session.cookies")
+if [[ -z "$session_cookie" ]]; then
+  echo "UpGrid did not issue a browser session cookie" >&2
+  exit 1
+fi
+jq --null-input --arg value "$session_cookie" '{
+  cookies: [{
+    name: "upgrid_session",
+    value: $value,
+    domain: "127.0.0.1",
+    path: "/",
+    expires: -1,
+    httpOnly: true,
+    secure: false,
+    sameSite: "Strict"
+  }],
+  origins: []
+}' >"$test_data/storage-state.json"
+created_token=$(curl -fsS \
+  --cookie "$test_data/session.cookies" \
+  --header "content-type: application/json" \
+  --data '{"name":"WebUI test harness"}' \
+  "http://127.0.0.1:${api_base_port}/api/v1/api-tokens")
+api_token=$(printf '%s' "$created_token" | sed -n 's/.*"value":"\([^"]*\)".*/\1/p')
+if [[ -z "$api_token" ]]; then
+  echo "UpGrid did not issue a WebUI test API Token" >&2
+  exit 1
+fi
+
 
 "$target_directory/debug/upgrid" \
   --bind "127.0.0.1:$((api_base_port + 1))" \
   --raft-url "up://127.0.0.1:$((raft_base_port + 1))" \
   --data-dir "$test_data/joining-data" \
-  --username admin \
-  --password test-password \
   >"$setup_log" 2>&1 &
 setup_pid=$!
 
 ready=false
 for _ in $(seq 1 100); do
-  if curl -fsS -u admin:test-password "http://127.0.0.1:$((api_base_port + 1))/" >/dev/null; then
+  if curl -fsS "http://127.0.0.1:$((api_base_port + 1))/" >/dev/null; then
     ready=true
     break
   fi
@@ -99,14 +130,12 @@ fi
   --bind "127.0.0.1:$((api_base_port + 2))" \
   --raft-url "up://127.0.0.1:$((raft_base_port + 2))" \
   --data-dir "$test_data/new-data" \
-  --username admin \
-  --password test-password \
   >"$new_setup_log" 2>&1 &
 new_setup_pid=$!
 
 ready=false
 for _ in $(seq 1 100); do
-  if curl -fsS -u admin:test-password "http://127.0.0.1:$((api_base_port + 2))/" >/dev/null; then
+  if curl -fsS "http://127.0.0.1:$((api_base_port + 2))/" >/dev/null; then
     ready=true
     break
   fi
@@ -133,7 +162,7 @@ fi
 warning_pid=$!
 ready=false
 for _ in $(seq 1 100); do
-  if curl -fsS -u admin:test-password "http://127.0.0.1:$((api_base_port + 3))/api/v1/setup" >/dev/null; then
+  if curl -fsS "http://127.0.0.1:$((api_base_port + 3))/healthz" >/dev/null; then
     ready=true
     break
   fi
@@ -156,13 +185,11 @@ warning_pid=""
   --bind "127.0.0.1:$((api_base_port + 3))" \
   --raft-url "up://127.0.0.1:$((raft_base_port + 3))" \
   --data-dir "$test_data/warning-data" \
-  --username admin \
-  --password test-password \
   >"$warning_log" 2>&1 &
 warning_pid=$!
 ready=false
 for _ in $(seq 1 100); do
-  if curl -fsS -u admin:test-password "http://127.0.0.1:$((api_base_port + 3))/api/v1/setup" >/dev/null; then
+  if curl -fsS "http://127.0.0.1:$((api_base_port + 3))/healthz" >/dev/null; then
     ready=true
     break
   fi
@@ -183,6 +210,5 @@ UPGRID_UI_URL="http://127.0.0.1:${api_base_port}" \
   UPGRID_NEW_SETUP_URL="http://127.0.0.1:$((api_base_port + 2))" \
   UPGRID_WARNING_URL="http://127.0.0.1:$((api_base_port + 3))" \
   UPGRID_EXPECTED_RAFT_URL="up://127.0.0.1:${raft_base_port}" \
-  UPGRID_USERNAME=admin \
-  UPGRID_PASSWORD=test-password \
+  UPGRID_STORAGE_STATE="$test_data/storage-state.json" \
   pnpm --dir "$workspace/frontend" test "$@"

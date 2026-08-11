@@ -66,6 +66,11 @@ pub enum Command {
         generated_secret: Option<Secret>,
         is_default: bool,
     },
+    CreateIdentity(OperatorIdentity),
+    UpdateIdentity(OperatorIdentity),
+    DeleteIdentity(IdentityId),
+    CreateApiToken(ApiToken),
+    RevokeApiToken(ApiTokenId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,6 +106,11 @@ pub enum CommandResult {
         alerts: Vec<AlertId>,
     },
     NotificationChannelUpdated(NotificationChannelId),
+    IdentityCreated(IdentityId),
+    IdentityUpdated(IdentityId),
+    IdentityDeleted(IdentityId),
+    ApiTokenCreated(ApiTokenId),
+    ApiTokenRevoked(ApiTokenId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -117,6 +127,12 @@ pub enum DomainError {
     AlertNotFound(AlertId),
     InvalidJoinToken,
     InvalidNodeName(String),
+    InvalidIdentity(String),
+    IdentityAlreadyExists(IdentityId),
+    IdentityNotFound(IdentityId),
+    InvalidApiToken(String),
+    ApiTokenAlreadyExists(ApiTokenId),
+    ApiTokenNotFound(ApiTokenId),
 }
 
 impl Display for DomainError {
@@ -126,7 +142,9 @@ impl Display for DomainError {
             | Self::InvalidSecret(message)
             | Self::InvalidNotificationChannel(message)
             | Self::InvalidEvaluation(message)
-            | Self::InvalidAlert(message) => formatter.write_str(message),
+            | Self::InvalidAlert(message)
+            | Self::InvalidIdentity(message)
+            | Self::InvalidApiToken(message) => formatter.write_str(message),
             Self::TargetAlreadyExists(id) => write!(formatter, "target already exists: {}", id.0),
             Self::TargetNotFound(id) => write!(formatter, "target not found: {}", id.0),
             Self::SecretNotFound(id) => write!(formatter, "secret not found: {}", id.0),
@@ -142,6 +160,14 @@ impl Display for DomainError {
                 formatter.write_str("join token is invalid, expired, or revoked")
             }
             Self::InvalidNodeName(message) => formatter.write_str(message),
+            Self::IdentityAlreadyExists(id) => {
+                write!(formatter, "identity already exists: {}", id.0)
+            }
+            Self::IdentityNotFound(id) => write!(formatter, "identity not found: {}", id.0),
+            Self::ApiTokenAlreadyExists(id) => {
+                write!(formatter, "API token already exists: {}", id.0)
+            }
+            Self::ApiTokenNotFound(id) => write!(formatter, "API token not found: {}", id.0),
         }
     }
 }
@@ -153,6 +179,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{
-    AlertId, AvailabilityState, Evaluation, EvaluationAssignment, EvaluationId, JoinTokenHash,
-    NodeTarget, NotificationChannel, NotificationChannelId, Secret, SecretId, Target, TargetId,
+    AlertId, ApiToken, ApiTokenId, AvailabilityState, Evaluation, EvaluationAssignment,
+    EvaluationId, IdentityId, JoinTokenHash, NodeTarget, NotificationChannel,
+    NotificationChannelId, OperatorIdentity, Secret, SecretId, Target, TargetId,
 };

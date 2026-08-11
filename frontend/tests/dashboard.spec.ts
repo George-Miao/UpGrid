@@ -314,6 +314,9 @@ test("shows the local Raft topology and leader", async ({ page }) => {
 
 test("dismisses a startup compatibility warning", async ({ page }) => {
   await page.goto(process.env.UPGRID_WARNING_URL ?? "http://127.0.0.1:18083");
+  await page.getByLabel("Username").fill("admin");
+  await page.getByLabel("Password").fill("test-password");
+  await page.getByRole("button", { name: "Sign in" }).click();
   const warning = page.getByRole("status");
   await expect(warning).toContainText("Configured Join Token is invalid");
   await warning.getByRole("button", { name: "Dismiss" }).click();
@@ -551,10 +554,13 @@ test("keeps dashboard routes inside OOBE before Cluster setup", async ({ page })
 });
 
 test("creates a Cluster and optional resources through OOBE", async ({ page }) => {
+  await page.context().clearCookies();
   await page.goto(process.env.UPGRID_NEW_SETUP_URL ?? "http://127.0.0.1:18082");
   await expect(page).toHaveURL(/\/setup$/);
   const setup = page.getByRole("region", { name: "UpGrid setup" });
   await setup.getByRole("textbox", { name: "Node name" }).first().fill("playwright-primary");
+  await setup.getByRole("textbox", { name: "Administrator username" }).fill("playwright-admin");
+  await setup.getByLabel("Administrator password").fill("playwright-password");
   page.once("dialog", (dialog) => dialog.accept());
   await setup.getByRole("button", { name: "Create new Cluster" }).click();
 

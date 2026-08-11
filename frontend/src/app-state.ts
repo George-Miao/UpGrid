@@ -3,7 +3,7 @@ import { state } from "lit/decorators.js";
 import darkIcon from "@iconify-icons/lucide/moon";
 import systemIcon from "@iconify-icons/lucide/palette";
 import brightIcon from "@iconify-icons/lucide/sun";
-import { type Alert, type Channel, type Cluster, type JoinToken, type Secret, type Setup, type Target, type Transition, request } from "./api.ts";
+import { ApiRequestError, type Alert, type ApiToken, type Channel, type Cluster, type Identity, type JoinToken, type Secret, type Session, type Setup, type Target, type Transition, request } from "./api.ts";
 
 const themes = ["system", "dark", "bright"] as const;
 type Theme = (typeof themes)[number];
@@ -42,6 +42,11 @@ export class AppState extends LitElement {
   @state() protected secrets: Secret[] = [];
   @state() protected cluster?: Cluster;
   @state() protected joinTokens: JoinToken[] = [];
+  @state() protected identities: Identity[] = [];
+  @state() protected apiTokens: ApiToken[] = [];
+  @state() protected session?: Session;
+  @state() protected authReady = false;
+  @state() protected newApiToken = "";
   @state() protected error = "";
   @state() protected live = false;
   @state() protected saving = false;
@@ -95,23 +100,63 @@ export class AppState extends LitElement {
   private async start(): Promise<void> {
     try {
       const setup = await request<Setup>("/api/v1/setup");
-      this.setup = setup;
-      this.setupMode = setup.setup;
-      if (this.setupMode) {
-        window.history.replaceState(null, "", setup.path);
-        if (setup.cluster_ready) {
-          await this.refresh();
-          this.connectEvents();
-        } else {
-          this.live = true;
-        }
-        return;
+      if (setup.cluster_ready) {
+        this.session = await request<Session>("/api/v1/auth/session");
       }
-      await this.refresh();
-      this.connectEvents();
+      await this.activate(setup);
+    } catch (error) {
+      if (!(error instanceof ApiRequestError) || error.status !== 401) {
+        this.error = error instanceof Error ? error.message : String(error);
+      }
+    }
+    this.authReady = true;
+  }
+
+  private async activate(setup: Setup): Promise<void> {
+    this.setup = setup;
+    this.setupMode = setup.setup;
+    if (this.setupMode) {
+      window.history.replaceState(null, "", setup.path);
+      if (setup.cluster_ready) {
+        await this.refresh();
+        this.connectEvents();
+      } else {
+        this.live = true;
+      }
+      return;
+    }
+    await this.refresh();
+    this.connectEvents();
+  }
+
+  protected async login(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const fields = new FormData(event.currentTarget as HTMLFormElement);
+    this.saving = true;
+    this.error = "";
+    try {
+      this.session = await request<Session>("/api/v1/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          username: String(fields.get("username") ?? ""),
+          password: String(fields.get("password") ?? ""),
+        }),
+      });
+      await this.activate(await request<Setup>("/api/v1/setup"));
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.saving = false;
     }
+  }
+
+  protected async logout(): Promise<void> {
+    await request("/api/v1/auth/logout", { method: "POST" });
+    this.events?.close();
+    this.session = undefined;
+    this.live = false;
+    this.setupMode = false;
+    window.history.replaceState(null, "", "/");
   }
 
   protected connectEvents(): void {
@@ -141,7 +186,7 @@ export class AppState extends LitElement {
 
   protected async refresh(): Promise<void> {
     try {
-      [this.targets, this.channels, this.alerts, this.transitions, this.secrets, this.cluster, this.joinTokens] = await Promise.all([
+      [this.targets, this.channels, this.alerts, this.transitions, this.secrets, this.cluster, this.joinTokens, this.identities, this.apiTokens] = await Promise.all([
         request<Target[]>("/api/v1/targets"),
         request<Channel[]>("/api/v1/channels"),
         request<Alert[]>("/api/v1/alerts"),
@@ -149,6 +194,8 @@ export class AppState extends LitElement {
         request<Secret[]>("/api/v1/secrets"),
         request<Cluster>("/api/v1/cluster"),
         request<JoinToken[]>("/api/v1/join-tokens"),
+        request<Identity[]>("/api/v1/identities"),
+        request<ApiToken[]>("/api/v1/api-tokens"),
       ]);
       this.error = "";
     } catch (error) {

@@ -1,9 +1,11 @@
 use snafu::ResultExt;
 use upgrid_config::{
     Cipher, Config, JoinIntent, Oobe, OobePhase, load_or_create_cipher, load_or_create_node_id,
-    load_or_create_node_name,
+    load_or_create_node_name, now_ms,
 };
+use upgrid_raft::domain::{Command, IdentityId, OperatorIdentity, PasswordVerifier};
 use upgrid_raft::{Identity, Node, UpgridNode};
+use uuid::Uuid;
 
 use crate::error::{DataDirectorySnafu, Error, Result};
 
@@ -36,6 +38,7 @@ pub async fn prepare(mut config: Config) -> Result<Ready> {
         let cipher = load_or_create_cipher(&config.data_dir, manual_cipher.as_ref(), false)?;
         let identity = Identity::with_id(node_id, config.raft_url.as_str())?;
         let node = Node::open(identity, &config.data_dir, &cipher).await?;
+        seed_initial_identity(&node, &config.username, &config.password).await?;
         let startup_warning = config
             .join
             .as_ref()
@@ -64,20 +67,26 @@ pub async fn prepare(mut config: Config) -> Result<Ready> {
         }
         None if config.new_cluster => upgrid_api::OobeChoice::NewCluster {
             node_name: node_name.clone(),
+            admin_username: config.username.clone(),
+            admin_password: config.password.clone(),
         },
         None => upgrid_api::wait_for_oobe(&config, &node_name)?,
     };
-    let join = match choice {
-        upgrid_api::OobeChoice::NewCluster { node_name: chosen } => {
+    let (join, initial_identity) = match choice {
+        upgrid_api::OobeChoice::NewCluster {
+            node_name: chosen,
+            admin_username,
+            admin_password,
+        } => {
             node_name = chosen;
-            None
+            (None, Some((admin_username, admin_password)))
         }
         upgrid_api::OobeChoice::Join {
             node_name: chosen,
             link,
         } => {
             node_name = chosen;
-            Some(*link)
+            (Some(*link), None)
         }
     };
     let bootstrapping = join.is_none();
@@ -97,6 +106,9 @@ pub async fn prepare(mut config: Config) -> Result<Ready> {
     } else {
         node.start_cluster().await?;
     }
+    if let Some((username, password)) = initial_identity {
+        seed_initial_identity(&node, &username, &password).await?;
+    }
     oobe.set(if explicit {
         OobePhase::Complete
     } else {
@@ -112,6 +124,25 @@ pub async fn prepare(mut config: Config) -> Result<Ready> {
         startup_warning: None,
         bootstrapping,
     })
+}
+
+async fn seed_initial_identity(node: &Node, username: &str, password: &str) -> Result<()> {
+    if !node.local_application_state().identities.is_empty() {
+        return Ok(());
+    }
+    let identity = OperatorIdentity {
+        id: IdentityId(Uuid::now_v7()),
+        username: username.to_owned(),
+        password: PasswordVerifier::create(password)?,
+        auth_version: 1,
+        created_at_ms: now_ms(),
+    };
+    if let Err(error) = node.apply(Command::CreateIdentity(identity)).await
+        && node.local_application_state().identities.is_empty()
+    {
+        return Err(error.into());
+    }
+    Ok(())
 }
 
 fn ignored_join_warning(

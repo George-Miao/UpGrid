@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use super::core::StoredSnapshot;
 use crate::domain::{
     DefaultChannelApplicationState, LegacyApplicationState, NamedApplicationState,
-    PreviousApplicationState, TokenApplicationState, TransitionApplicationState,
+    PreAuthApplicationState, PreviousApplicationState, TokenApplicationState,
+    TransitionApplicationState,
 };
 use crate::raft::TC;
 
@@ -26,6 +27,11 @@ macro_rules! version {
     };
 }
 
+version!(
+    PreAuthStateMachineData,
+    PreAuthPersistedStateMachine,
+    PreAuthApplicationState
+);
 version!(
     DefaultChannelStateMachineData,
     DefaultChannelPersistedStateMachine,

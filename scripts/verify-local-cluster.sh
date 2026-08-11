@@ -35,8 +35,6 @@ start_node() {
     --raft-url "up://127.0.0.1:${raft_port}" \
     --data-dir "${test_root}/node-${number}" \
     --node-name "test-node-${number}" \
-    --username "$username" \
-    --password "$password" \
     "$@" >"${test_root}/node-${number}.log" 2>&1 &
   pids+=("$!")
 }
@@ -45,8 +43,8 @@ wait_for_api() {
   local port="$1"
   local pid="$2"
   local attempts=0
-  until curl --fail --silent --max-time 6 --user "${username}:${password}" \
-    "http://127.0.0.1:${port}/api/v1/targets" >/dev/null; do
+  until curl --fail --silent --max-time 6 \
+    "http://127.0.0.1:${port}/healthz" >/dev/null; do
     if ! kill -0 "$pid" 2>/dev/null; then
       echo "Node process for API port ${port} exited" >&2
       return 1
@@ -60,10 +58,22 @@ wait_for_api() {
   done
 }
 
-start_node 1 --new-cluster --secret-key "$secret_key"
+start_node 1 --new-cluster --secret-key "$secret_key" --username "$username" --password "$password"
 wait_for_api "$api_base_port" "${pids[0]}"
+curl --fail --silent \
+  --cookie-jar "${test_root}/session.cookies" \
+  --header 'content-type: application/json' \
+  --data "{\"username\":\"${username}\",\"password\":\"${password}\"}" \
+  "http://127.0.0.1:${api_base_port}/api/v1/auth/login" >/dev/null
+created_token="$(curl --fail --silent \
+  --cookie "${test_root}/session.cookies" \
+  --header 'content-type: application/json' \
+  --data '{"name":"Local Cluster verifier"}' \
+  "http://127.0.0.1:${api_base_port}/api/v1/api-tokens")"
+api_token="$(printf '%s' "$created_token" | jq --raw-output '.value')"
 
-join_token="$(curl --fail --silent --user "${username}:${password}" \
+
+join_token="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
   --header 'content-type: application/json' \
   --data '{"expires_in_seconds":300}' \
   "http://127.0.0.1:${api_base_port}/api/v1/join-tokens")"
@@ -79,14 +89,14 @@ for number in $(seq 2 "$node_count"); do
   wait_for_api "$((api_base_port + number - 1))" "${pids[number - 1]}"
 done
 
-cluster="$(curl --fail --silent --user "${username}:${password}" \
+cluster="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
   "http://127.0.0.1:${api_base_port}/api/v1/cluster")"
 if (( $(printf '%s' "$cluster" | jq '[.members[].name | select(startswith("test-node-"))] | length') != node_count )); then
   echo "Configured Node names are missing from Cluster topology: ${cluster}" >&2
   exit 1
 fi
 
-curl --fail --silent --user "${username}:${password}" \
+curl --fail --silent --header "authorization: Bearer ${api_token}" \
   --request DELETE \
   "http://127.0.0.1:${api_base_port}/api/v1/join-tokens/${join_token_id}" >/dev/null
 
@@ -117,7 +127,7 @@ if (( node_count >= 3 )); then
   start_node 3 --join "$join_link"
   matching_restart_pid="${pids[${#pids[@]} - 1]}"
   wait_for_api "$((api_base_port + 2))" "$matching_restart_pid"
-  setup_state="$(curl --fail --silent --user "${username}:${password}" \
+  setup_state="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
     "http://127.0.0.1:$((api_base_port + 2))/api/v1/setup")"
   if [[ "$(printf '%s' "$setup_state" | jq --raw-output '.warning')" != "null" ]]; then
     echo "Matching persisted Join Token unexpectedly produced a warning: ${setup_state}" >&2
@@ -129,7 +139,7 @@ if (( node_count >= 3 )); then
   start_node 3 --join "not-a-valid-join-token"
   existing_restart_pid="${pids[${#pids[@]} - 1]}"
   wait_for_api "$((api_base_port + 2))" "$existing_restart_pid"
-  setup_state="$(curl --fail --silent --user "${username}:${password}" \
+  setup_state="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
     "http://127.0.0.1:$((api_base_port + 2))/api/v1/setup")"
   if [[ "$(printf '%s' "$setup_state" | jq --raw-output '.warning')" != *"invalid"* ]]; then
     echo "Invalid persisted Join Token did not produce a WebUI warning: ${setup_state}" >&2
@@ -148,14 +158,14 @@ sleep "$settle_seconds"
 
 target_count=12
 for number in $(seq 1 "$target_count"); do
-  curl --fail --silent --user "${username}:${password}" \
+  curl --fail --silent --header "authorization: Bearer ${api_token}" \
     --header 'content-type: application/json' \
     --data "{\"name\":\"Cluster verification ${number}\",\"url\":\"http://127.0.0.1:${api_base_port}/healthz?target=${number}\",\"method\":\"GET\",\"interval_seconds\":60,\"timeout_seconds\":10,\"failure_threshold\":3}" \
     "http://127.0.0.1:$((api_base_port + 1))/api/v1/targets" >/dev/null
 done
 
 attempts=0
-until response="$(curl --fail --silent --user "${username}:${password}" \
+until response="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
   "http://127.0.0.1:${api_base_port}/api/v1/targets")" \
   && (( $(printf '%s' "$response" | jq '[.[] | select(.name | startswith("Cluster verification ")) | select(.latest_evaluation != null)] | length') == target_count )); do
   attempts=$((attempts + 1))
@@ -167,7 +177,7 @@ until response="$(curl --fail --silent --user "${username}:${password}" \
 done
 
 for offset in $(seq 0 "$((node_count - 1))"); do
-  response="$(curl --fail --silent --user "${username}:${password}" \
+  response="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
     "http://127.0.0.1:$((api_base_port + offset))/api/v1/targets")"
   if [[ "$response" != *'"name":"Cluster verification 1"'* ]]; then
     echo "Replicated Target missing from Node $((offset + 1)): ${response}" >&2
@@ -183,8 +193,7 @@ if (( node_count > 1 && executor_count < 2 )); then
 fi
 
 UPGRID_API_URL="http://127.0.0.1:${api_base_port}" \
-UPGRID_USERNAME="$username" \
-UPGRID_PASSWORD="$password" \
+UPGRID_API_TOKEN="$api_token" \
   "${script_dir}/verify-reference-workload.sh"
 
 if (( node_count >= 3 )); then
@@ -192,14 +201,14 @@ if (( node_count >= 3 )); then
   wait "${pids[0]}" 2>/dev/null || true
   sleep 7
 
-  create_response="$(curl --fail --silent --user "${username}:${password}" \
+  create_response="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
     --header 'content-type: application/json' \
     --data "{\"name\":\"Failover verification\",\"url\":\"http://127.0.0.1:$((api_base_port + 1))/healthz\",\"interval_seconds\":60,\"timeout_seconds\":10,\"failure_threshold\":3}" \
     "http://127.0.0.1:$((api_base_port + 1))/api/v1/targets")"
   failover_target_id="$(printf '%s' "$create_response" | jq --raw-output '.id')"
 
   attempts=0
-  until response="$(curl --fail --silent --user "${username}:${password}" \
+  until response="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
     "http://127.0.0.1:$((api_base_port + 1))/api/v1/targets/${failover_target_id}")" \
     && [[ "$response" == *'"latest_evaluation":{'* ]]; do
     attempts=$((attempts + 1))
@@ -210,7 +219,7 @@ if (( node_count >= 3 )); then
     sleep 0.1
   done
 
-  response="$(curl --fail --silent --user "${username}:${password}" \
+  response="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
     "http://127.0.0.1:$((api_base_port + 2))/api/v1/targets")"
   if [[ "$response" != *'"name":"Failover verification"'* ]]; then
     echo "Failover write did not replicate to the remaining follower" >&2

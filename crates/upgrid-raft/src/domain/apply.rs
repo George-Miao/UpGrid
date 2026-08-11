@@ -28,6 +28,16 @@ impl ApplicationState {
 
     pub fn apply(&mut self, command: Command) -> Result<CommandResult, DomainError> {
         match command {
+            Command::CreateIdentity(identity) => self.create_identity(identity),
+            Command::UpdateIdentity(identity) => self.update_identity(identity),
+            Command::DeleteIdentity(identity_id) => self.delete_identity(identity_id),
+            Command::CreateApiToken(token) => self.create_api_token(token),
+            Command::RevokeApiToken(token_id) => {
+                self.api_tokens
+                    .remove(&token_id)
+                    .ok_or(DomainError::ApiTokenNotFound(token_id))?;
+                Ok(CommandResult::ApiTokenRevoked(token_id))
+            }
             Command::PutSecret(secret) => self.put_secret(secret),
             Command::CreateNotificationChannel {
                 channel,

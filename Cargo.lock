@@ -3739,6 +3739,7 @@ dependencies = [
  "upgrid-monitor",
  "upgrid-notification",
  "upgrid-raft",
+ "uuid",
 ]
 
 [[package]]
@@ -3750,6 +3751,7 @@ dependencies = [
  "axum-server",
  "base64 0.22.1",
  "futures-core",
+ "ring",
  "serde",
  "serde_json",
  "snafu",
@@ -3823,6 +3825,7 @@ dependencies = [
 name = "upgrid-raft"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "compio",
  "openraft",
  "openraft-rt-compio",

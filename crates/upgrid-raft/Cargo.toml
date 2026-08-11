@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+base64.workspace = true
 compio.workspace = true
 openraft.workspace = true
 openraft-rt-compio.workspace = true

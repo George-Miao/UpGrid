@@ -104,6 +104,30 @@ export interface Setup {
   target_count: number;
 }
 
+export interface Session {
+  identity_id: string;
+  username: string;
+  expires_at_ms: number;
+}
+
+export interface Identity {
+  id: string;
+  username: string;
+  created_at_ms: number;
+}
+
+export interface ApiToken {
+  id: string;
+  identity_id: string;
+  name: string;
+  created_at_ms: number;
+  expires_at_ms: number | null;
+}
+
+export interface CreatedApiToken extends ApiToken {
+  value: string;
+}
+
 export interface Cluster {
   leader_node_id: string | null;
   local_node_id: string;
@@ -129,6 +153,16 @@ export interface TargetInput {
   use_default_channels: boolean;
 }
 
+export class ApiRequestError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -139,7 +173,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(body.error || response.statusText);
+    throw new ApiRequestError(response.status, body.error || response.statusText);
   }
   return response.status === 204 ? (undefined as T) : response.json();
 }

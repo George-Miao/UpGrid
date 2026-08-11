@@ -68,7 +68,7 @@ impl Default for RawConfig {
             data_dir: PathBuf::from("upgrid-data"),
             node_name: None,
             username: "admin".to_owned(),
-            password: "upgrid".to_owned(),
+            password: String::new(),
             secret_key: None,
             history_retention_hours: None,
             tls_cert: None,

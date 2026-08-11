@@ -12,12 +12,10 @@ docker run --name upgrid \
   --publish 8080:8080 \
   --publish 11451:11451/udp \
   --volume upgrid-data:/var/lib/upgrid \
-  --env UPGRID_USERNAME=admin \
-  --env UPGRID_PASSWORD='replace-this-password' \
   ghcr.io/george-miao/upgrid:v0.1.0
 ```
 
-The image listens for HTTP on port `8080`, exposes QUIC/Raft on UDP port `11451`, and stores durable state in `/var/lib/upgrid`. Set `UPGRID_RAFT_URL` to an advertised hostname reachable by every Node before building a multi-Node Cluster.
+The image listens for HTTP on port `8080`, exposes QUIC/Raft on UDP port `11451`, and stores durable state in `/var/lib/upgrid`. Open `/setup` to create the Cluster's first Operator Identity. Set `UPGRID_RAFT_URL` to an advertised hostname reachable by every Node before building a multi-Node Cluster.
 
 See the [environment-variable reference](/reference/configuration/#settings) for every supported `UPGRID_` setting and its default.
 

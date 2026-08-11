@@ -19,6 +19,18 @@ _Avoid_: Instance, server, peer
 The consistent user-facing interface exposed by every node for interacting with deployment-owned data.
 _Avoid_: Node API, leader API
 
+**Operator Identity**:
+A replicated human administrator account that authenticates to the Cluster API and owns its API Tokens.
+_Avoid_: User, shared administrator, Node identity
+
+**Session**:
+A short-lived login authorization for one Operator Identity, encoded as a signed JWT and invalidated when that identity's authentication version changes.
+_Avoid_: Login token, cookie
+
+**API Token**:
+A named, revocable bearer authorization owned by one Operator Identity; only its verifier is retained after issuance.
+_Avoid_: API key, personal access token, Join Token
+
 **Secret**:
 A named confidential value referenced by Target or notification configuration and never revealed after submission.
 _Avoid_: Credential, token, password

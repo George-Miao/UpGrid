@@ -106,12 +106,6 @@ async fn run() -> Result<()> {
             .await
             .context(ClusterWriteSnafu)?;
     }
-    if config.username == "admin" && config.password == "upgrid" {
-        tracing::warn!(
-            "using default credentials; set UPGRID_USERNAME and UPGRID_PASSWORD before exposing \
-             the API"
-        );
-    }
     let (cluster, receiver) = Handle::new(node_id);
     let notifications = upgrid_notification::start(cluster.clone(), cipher.clone());
     upgrid_api::start(

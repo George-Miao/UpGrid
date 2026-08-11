@@ -44,7 +44,7 @@ The same options are available as `UPGRID_TLS_CERT` and `UPGRID_TLS_KEY`, or `--
 - Expose the API only through HTTPS or a trusted private network.
 - Allow each Cluster Node to reach every advertised `up://` address.
 - Restrict inter-Node transport ports to Cluster members.
-- Use the same API username and password on every Node.
+- Manage Operator Identities and API Tokens in the Cluster page; Raft replicates them to every Node.
 - Back up durable state, but never restore one Node's directory as a new identity.
 
 ## Operational checks

@@ -25,12 +25,10 @@ upgrid \
   --bind 127.0.0.1:8081 \
   --raft-url up://node-2.internal:11451 \
   --data-dir /var/lib/upgrid \
-  --node-name edge-two \
-  --username admin \
-  --password 'replace-this-password'
+  --node-name edge-two
 ```
 
-`UPGRID_JOIN` is the environment-variable equivalent. The joining Node contacts the address embedded in the token; after admission, every advertised Raft hostname must be reachable by every Cluster member.
+`UPGRID_JOIN` is the environment-variable equivalent. The joining Node contacts the address embedded in the token and receives the Cluster's Operator Identities and API Tokens through Raft. After admission, every advertised Raft hostname must be reachable by every Cluster member.
 
 ## Restart an existing member
 

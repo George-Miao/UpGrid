@@ -10,6 +10,7 @@ import type { Target } from "./api.ts";
 import { AppController } from "./app-controller.ts";
 import { renderAlertsPage } from "./alerts-view.ts";
 import { type Section, sectionPaths, serviceHealth, themeIcons } from "./app-state.ts";
+import { renderAccessPanels, renderLogin } from "./auth-view.ts";
 import { renderChannelFields } from "./channel-form-view.ts";
 import { renderFooter } from "./footer-view.ts";
 import { helpTooltipStyles, renderHelpTooltip } from "./help-tooltip.ts";
@@ -102,6 +103,14 @@ export class UpgridApp extends AppController {
     .icon-button { display: grid; width: 44px; height: 44px; min-height: 44px; place-items: center; padding: 0; }
     iconify-icon { display: inline-block; width: 18px; height: 18px; font-size: 18px; }
     ${helpTooltipStyles}
+    .auth-panel { width: min(440px, 100%); margin: auto; }
+    .access-panels { margin-top: 18px; }
+    .access-resource { align-items: end; }
+    .access-form { display: grid; flex: 1; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 9px; }
+    .compact-form { border-top: 1px solid var(--divider); }
+    .compact-form h3 { margin: 0; }
+    .token-value { margin: 14px; overflow-wrap: anywhere; }
+    .token-value code { display: block; margin: 8px 0; }
     .overview-top { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; }
     .page-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
     .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -280,6 +289,7 @@ export class UpgridApp extends AppController {
       .latency { min-width: 72px; text-align: right; }
       .channel-resource { grid-template-columns: 1fr; }
       .channel-actions { justify-content: space-between; margin-top: 10px; }
+      .access-form { grid-template-columns: 1fr; }
     }
   `;
   protected render() {
@@ -292,6 +302,18 @@ export class UpgridApp extends AppController {
       .filter((target) => `${target.name} ${target.url}`.toLowerCase().includes(this.search.toLowerCase()))
       .filter((target) => (this.statusFilter === "all" ? true : this.statusFilter === "paused" ? target.paused : target.availability === this.statusFilter))
       .sort((left, right) => (this.sort === "status" ? left.availability.localeCompare(right.availability) || left.name.localeCompare(right.name) : left.name.localeCompare(right.name)));
+    if (this.authReady && !this.setupMode && !this.session) {
+      return html`${renderLogin(this.saving, this.error, {
+        login: (event) => void this.login(event),
+        logout: () => void this.logout(),
+        createIdentity: (event) => void this.createIdentity(event),
+        updateIdentity: (identity, event) => void this.updateIdentity(identity, event),
+        deleteIdentity: (identity) => void this.deleteIdentity(identity),
+        createApiToken: (event) => void this.createApiToken(event),
+        revokeApiToken: (token) => void this.revokeApiToken(token),
+        dismissToken: () => (this.newApiToken = ""),
+      })}${renderFooter()}`;
+    }
     if (this.setupMode && this.setup) {
       return html`
         <main class="shell setup-shell">
@@ -322,6 +344,8 @@ export class UpgridApp extends AppController {
           </nav>
           <div class="actions">
             <button class="button secondary icon-button" aria-label=${`Theme: ${this.theme[0].toUpperCase()}${this.theme.slice(1)}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button>
+            <span class="meta">${this.session?.username}</span>
+            <button class="button secondary" @click=${() => void this.logout()}>Sign out</button>
           </div>
         </header>
         ${this.error ? html`<div class="notice" role="alert">${this.error}</div>` : nothing}
@@ -461,6 +485,16 @@ export class UpgridApp extends AppController {
         }
       </section>
       </div>
+      ${renderAccessPanels(this.identities, this.apiTokens, this.session?.identity_id, this.newApiToken, this.saving, {
+        login: (event) => void this.login(event),
+        logout: () => void this.logout(),
+        createIdentity: (event) => void this.createIdentity(event),
+        updateIdentity: (identity, event) => void this.updateIdentity(identity, event),
+        deleteIdentity: (identity) => void this.deleteIdentity(identity),
+        createApiToken: (event) => void this.createApiToken(event),
+        revokeApiToken: (token) => void this.revokeApiToken(token),
+        dismissToken: () => (this.newApiToken = ""),
+      })}
     `;
   }
 
@@ -481,8 +515,8 @@ export class UpgridApp extends AppController {
         <button class=${`target ${isNode ? "node-target" : ""}`} aria-label=${target.name} @click=${() => this.openTarget(target)}>
           <i class="state ${state}" aria-label=${state}></i>
           <div>
-            <div class="target-title"><h3>${target.name}</h3><span class="badge">${target.kind.toUpperCase()}</span></div>
-            <div class="meta">${target.paused ? "Paused · " : ""}${isHttp ? `${target.method} · ` : ""}${target.url} · every ${target.interval_seconds}s</div>
+            <div class="target-title"><h3>${target.name}</h3><span class="badge">${isNode ? "Node" : target.kind.toUpperCase()}</span></div>
+            <div class="meta">${target.paused ? "Paused · " : ""}${isHttp || isNode ? `${target.method} · ` : ""}${target.url} · every ${target.interval_seconds}s</div>
           </div>
           <div class="target-side">
             ${history.length ? html`<div class="mini-chart" aria-hidden="true">${history.map((item) => html`<i class="mini-bar ${item.succeeded ? "up" : "down"}" style=${`height: ${Math.max(12, (item.latency_ms / maxLatency) * 100)}%`}></i>`)}</div>` : nothing}

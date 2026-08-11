@@ -33,11 +33,13 @@ pub struct ConfigArgs {
     #[arg(long, value_name = "NAME")]
     pub(super) node_name: Option<String>,
 
-    /// Basic Auth username.
+    /// Initial administrator username for unattended setup or one-time
+    /// migration.
     #[arg(long, value_name = "USER")]
     pub(super) username: Option<String>,
 
-    /// Basic Auth password.
+    /// Initial administrator password for unattended setup or one-time
+    /// migration.
     #[arg(long, value_name = "PASSWORD")]
     pub(super) password: Option<String>,
 

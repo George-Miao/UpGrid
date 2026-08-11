@@ -1,9 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-use axum::extract::{Request, State};
-use axum::http::{StatusCode, header};
-use axum::middleware::{self, Next};
-use axum::response::Response;
+use axum::extract::State;
+use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use snafu::ResultExt;
@@ -11,7 +9,6 @@ use tokio::sync::Notify;
 use upgrid_config::{Config, JoinLink, store_node_name};
 
 use crate::assets::{favicon, index, webui_script};
-use crate::auth::{unauthorized, verify_basic_credentials};
 use crate::error::{BindSnafu, ListenerSnafu, RuntimeSnafu, ServeSnafu, TlsSnafu};
 use crate::{
     ApiError, CreateClusterRequest, Error, JoinClusterRequest, JoinClusterView, Result, SetupView,
@@ -19,8 +16,6 @@ use crate::{
 
 #[derive(Clone)]
 struct SetupState {
-    username: String,
-    password: String,
     data_dir: std::path::PathBuf,
     node_name: Arc<Mutex<String>>,
     result: Arc<Mutex<Option<OobeChoice>>>,
@@ -30,6 +25,8 @@ struct SetupState {
 pub enum OobeChoice {
     NewCluster {
         node_name: String,
+        admin_username: String,
+        admin_password: String,
     },
     Join {
         node_name: String,
@@ -45,14 +42,12 @@ pub fn wait_for_oobe(config: &Config, node_name: &str) -> Result<OobeChoice> {
     let result = Arc::new(Mutex::new(None));
     let accepted = Arc::new(Notify::new());
     let state = SetupState {
-        username: config.username.clone(),
-        password: config.password.clone(),
         data_dir: config.data_dir.clone(),
         node_name: Arc::new(Mutex::new(node_name.to_owned())),
         result: result.clone(),
         accepted: accepted.clone(),
     };
-    let protected = Router::new()
+    let routes = Router::new()
         .route("/", get(index))
         .route("/setup", get(index))
         .route("/setup/channel", get(index))
@@ -61,12 +56,11 @@ pub fn wait_for_oobe(config: &Config, node_name: &str) -> Result<OobeChoice> {
         .route("/cluster", get(index))
         .route("/api/v1/setup", get(setup_status))
         .route("/api/v1/cluster/join", post(join))
-        .route("/api/v1/setup/new-cluster", post(new_cluster))
-        .layer(middleware::from_fn_with_state(state.clone(), require_auth));
+        .route("/api/v1/setup/new-cluster", post(new_cluster));
     let app = Router::new()
         .route("/assets/upgrid.js", get(webui_script))
         .route("/favicon.svg", get(favicon))
-        .merge(protected)
+        .merge(routes)
         .with_state(state);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -131,8 +125,17 @@ async fn new_cluster(
     State(state): State<SetupState>,
     Json(input): Json<CreateClusterRequest>,
 ) -> Result<(StatusCode, Json<JoinClusterView>), ApiError> {
+    upgrid_raft::domain::validate_username(&input.admin_username).map_err(ApiError::bad_request)?;
+    upgrid_raft::domain::validate_password(&input.admin_password).map_err(ApiError::bad_request)?;
     let node_name = persist_name(&state, &input.node_name)?;
-    accept(&state, OobeChoice::NewCluster { node_name })?;
+    accept(
+        &state,
+        OobeChoice::NewCluster {
+            node_name,
+            admin_username: input.admin_username,
+            admin_password: input.admin_password,
+        },
+    )?;
     Ok((
         StatusCode::ACCEPTED,
         Json(JoinClusterView { status: "creating" }),
@@ -180,15 +183,4 @@ fn accept(state: &SetupState, choice: OobeChoice) -> Result<(), ApiError> {
     drop(result);
     state.accepted.notify_one();
     Ok(())
-}
-
-async fn require_auth(State(state): State<SetupState>, request: Request, next: Next) -> Response {
-    if verify_basic_credentials(
-        request.headers().get(header::AUTHORIZATION),
-        &state.username,
-        &state.password,
-    ) {
-        return next.run(request).await;
-    }
-    unauthorized("UpGrid setup")
 }

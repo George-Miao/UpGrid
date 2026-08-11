@@ -19,6 +19,29 @@ pub struct ApplicationState {
     pub join_token_uses: BTreeMap<JoinTokenHash, u64>,
     #[serde(default)]
     pub node_names: BTreeMap<Uuid, String>,
+    #[serde(default)]
+    pub identities: BTreeMap<IdentityId, OperatorIdentity>,
+    #[serde(default)]
+    pub api_tokens: BTreeMap<ApiTokenId, ApiToken>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct PreAuthApplicationState {
+    targets: BTreeMap<TargetId, TargetState>,
+    node_targets: BTreeMap<TargetId, NodeTargetState>,
+    secrets: BTreeMap<SecretId, Secret>,
+    notification_channels: BTreeMap<NotificationChannelId, NotificationChannel>,
+    default_notification_channels: BTreeSet<NotificationChannelId>,
+    default_notifications_disabled: BTreeSet<TargetId>,
+    alerts: BTreeMap<AlertId, Alert>,
+    transitions: BTreeMap<EvaluationId, AvailabilityTransition>,
+    history_retention_ms: u64,
+    processed_operations: BTreeMap<Uuid, ProcessedOperation>,
+    latest_operation_at_ms: u64,
+    assignments: BTreeMap<EvaluationId, EvaluationAssignment>,
+    join_tokens: BTreeMap<JoinTokenHash, u64>,
+    join_token_uses: BTreeMap<JoinTokenHash, u64>,
+    node_names: BTreeMap<Uuid, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -145,6 +168,8 @@ impl From<LegacyApplicationState> for ApplicationState {
             join_tokens: BTreeMap::new(),
             join_token_uses: BTreeMap::new(),
             node_names: BTreeMap::new(),
+            identities: BTreeMap::new(),
+            api_tokens: BTreeMap::new(),
         }
     }
 }
@@ -167,6 +192,8 @@ impl From<PreviousApplicationState> for ApplicationState {
             join_tokens: BTreeMap::new(),
             join_token_uses: BTreeMap::new(),
             node_names: BTreeMap::new(),
+            identities: BTreeMap::new(),
+            api_tokens: BTreeMap::new(),
         }
     }
 }
@@ -189,6 +216,8 @@ impl From<TokenApplicationState> for ApplicationState {
             join_tokens: previous.join_tokens,
             join_token_uses: BTreeMap::new(),
             node_names: BTreeMap::new(),
+            identities: BTreeMap::new(),
+            api_tokens: BTreeMap::new(),
         }
     }
 }
@@ -211,6 +240,8 @@ impl From<NamedApplicationState> for ApplicationState {
             join_tokens: previous.join_tokens,
             join_token_uses: previous.join_token_uses,
             node_names: previous.node_names,
+            identities: BTreeMap::new(),
+            api_tokens: BTreeMap::new(),
         }
     }
 }
@@ -233,6 +264,8 @@ impl From<TransitionApplicationState> for ApplicationState {
             join_tokens: previous.join_tokens,
             join_token_uses: previous.join_token_uses,
             node_names: previous.node_names,
+            identities: BTreeMap::new(),
+            api_tokens: BTreeMap::new(),
         }
     }
 }
@@ -255,6 +288,8 @@ impl From<DefaultChannelApplicationState> for ApplicationState {
             join_tokens: previous.join_tokens,
             join_token_uses: previous.join_token_uses,
             node_names: previous.node_names,
+            identities: BTreeMap::new(),
+            api_tokens: BTreeMap::new(),
         }
     }
 }
@@ -353,6 +388,53 @@ impl From<ApplicationState> for PreviousApplicationState {
     }
 }
 
+impl From<PreAuthApplicationState> for ApplicationState {
+    fn from(previous: PreAuthApplicationState) -> Self {
+        Self {
+            targets: previous.targets,
+            node_targets: previous.node_targets,
+            secrets: previous.secrets,
+            notification_channels: previous.notification_channels,
+            default_notification_channels: previous.default_notification_channels,
+            default_notifications_disabled: previous.default_notifications_disabled,
+            alerts: previous.alerts,
+            transitions: previous.transitions,
+            history_retention_ms: previous.history_retention_ms,
+            processed_operations: previous.processed_operations,
+            latest_operation_at_ms: previous.latest_operation_at_ms,
+            assignments: previous.assignments,
+            join_tokens: previous.join_tokens,
+            join_token_uses: previous.join_token_uses,
+            node_names: previous.node_names,
+            identities: BTreeMap::new(),
+            api_tokens: BTreeMap::new(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl From<ApplicationState> for PreAuthApplicationState {
+    fn from(current: ApplicationState) -> Self {
+        Self {
+            targets: current.targets,
+            node_targets: current.node_targets,
+            secrets: current.secrets,
+            notification_channels: current.notification_channels,
+            default_notification_channels: current.default_notification_channels,
+            default_notifications_disabled: current.default_notifications_disabled,
+            alerts: current.alerts,
+            transitions: current.transitions,
+            history_retention_ms: current.history_retention_ms,
+            processed_operations: current.processed_operations,
+            latest_operation_at_ms: current.latest_operation_at_ms,
+            assignments: current.assignments,
+            join_tokens: current.join_tokens,
+            join_token_uses: current.join_token_uses,
+            node_names: current.node_names,
+        }
+    }
+}
+
 impl Default for ApplicationState {
     fn default() -> Self {
         Self {
@@ -368,6 +450,8 @@ impl Default for ApplicationState {
             join_tokens: BTreeMap::new(),
             join_token_uses: BTreeMap::new(),
             node_names: BTreeMap::new(),
+            identities: BTreeMap::new(),
+            api_tokens: BTreeMap::new(),
             history_retention_ms: DEFAULT_HISTORY_RETENTION_MS,
             processed_operations: BTreeMap::new(),
             latest_operation_at_ms: 0,
@@ -380,7 +464,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{
-    Alert, AlertId, AvailabilityTransition, CommandResult, DEFAULT_HISTORY_RETENTION_MS,
-    DomainError, EvaluationAssignment, EvaluationId, JoinTokenHash, NodeTargetState,
-    NotificationChannel, NotificationChannelId, Secret, SecretId, TargetId, TargetState,
+    Alert, AlertId, ApiToken, ApiTokenId, AvailabilityTransition, CommandResult,
+    DEFAULT_HISTORY_RETENTION_MS, DomainError, EvaluationAssignment, EvaluationId, IdentityId,
+    JoinTokenHash, NodeTargetState, NotificationChannel, NotificationChannelId, OperatorIdentity,
+    Secret, SecretId, TargetId, TargetState,
 };

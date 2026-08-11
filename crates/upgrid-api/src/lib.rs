@@ -31,6 +31,7 @@ mod assets;
 mod auth;
 mod channels;
 mod error;
+mod identities;
 mod join;
 mod model;
 mod nodes;
@@ -54,8 +55,6 @@ struct WebState {
     cipher: Cipher,
     notifications: upgrid_notification::Tester,
     raft_url: String,
-    username: String,
-    password: String,
     node_name: String,
     oobe: Oobe,
     startup_warning: Option<String>,
@@ -66,6 +65,7 @@ struct ErrorBody {
     error: String,
 }
 
+#[derive(Debug)]
 struct ApiError {
     status: StatusCode,
     message: String,
@@ -99,19 +99,37 @@ impl ApiError {
             message: message.into(),
         }
     }
+
+    fn unauthorized() -> Self {
+        Self {
+            status: StatusCode::UNAUTHORIZED,
+            message: "authentication required".to_owned(),
+        }
+    }
+
+    fn forbidden(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::FORBIDDEN,
+            message: message.into(),
+        }
+    }
 }
 
 impl From<ClusterError> for ApiError {
     fn from(error: ClusterError) -> Self {
         let status = match &error {
             ClusterError::Domain {
-                source: DomainError::TargetNotFound(_),
+                source:
+                    DomainError::TargetNotFound(_)
+                    | DomainError::NotificationChannelNotFound(_)
+                    | DomainError::IdentityNotFound(_)
+                    | DomainError::ApiTokenNotFound(_),
             } => StatusCode::NOT_FOUND,
             ClusterError::Domain {
-                source: DomainError::NotificationChannelNotFound(_),
-            } => StatusCode::NOT_FOUND,
-            ClusterError::Domain {
-                source: DomainError::TargetAlreadyExists(_),
+                source:
+                    DomainError::TargetAlreadyExists(_)
+                    | DomainError::IdentityAlreadyExists(_)
+                    | DomainError::ApiTokenAlreadyExists(_),
             } => StatusCode::CONFLICT,
             ClusterError::Domain { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             ClusterError::RuntimeStopped { .. }
@@ -185,6 +203,8 @@ struct JoinClusterRequest {
 #[derive(Debug, Deserialize, ToSchema)]
 struct CreateClusterRequest {
     node_name: String,
+    admin_username: String,
+    admin_password: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

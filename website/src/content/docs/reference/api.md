@@ -7,21 +7,21 @@ Every Node exposes the same HTTP API. Followers forward mutations to the leader;
 
 ## Authentication
 
-All routes except `/healthz` require HTTP Basic authentication.
+The WebUI exchanges an Operator Identity username and password for an HTTP-only session cookie. For scripts, create a revocable API Token on the **Cluster** page and send it as a bearer token:
 
 ```sh
-curl --user admin:replace-this-password \
+curl --header "Authorization: Bearer upgrid_REDACTED" \
   http://127.0.0.1:8080/api/v1/targets
 ```
 
-Never send Basic credentials over an untrusted plaintext connection.
+`/healthz`, `/api/v1/auth/login`, and first-run setup are public. Other API routes require a valid session or API Token. Never send credentials over an untrusted plaintext connection.
 
 ## OpenAPI
 
 The server implementation generates its own OpenAPI description. Fetch the exact contract supported by a running binary:
 
 ```sh
-curl --user admin:replace-this-password \
+curl --header "Authorization: Bearer upgrid_REDACTED" \
   http://127.0.0.1:8080/openapi.json
 ```
 

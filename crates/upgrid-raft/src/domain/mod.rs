@@ -2,6 +2,7 @@
 
 mod alert;
 mod apply;
+mod auth;
 mod command;
 mod config_value;
 mod evaluation;
@@ -10,6 +11,7 @@ mod state;
 mod target;
 
 pub use alert::*;
+pub use auth::*;
 pub use command::*;
 pub use config_value::*;
 pub use model::*;

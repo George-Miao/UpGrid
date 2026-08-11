@@ -28,12 +28,10 @@ docker run --name upgrid \
   --publish 8080:8080 \
   --publish 11451:11451/udp \
   --volume upgrid-data:/var/lib/upgrid \
-  --env UPGRID_USERNAME=admin \
-  --env UPGRID_PASSWORD='replace-this-password' \
   ghcr.io/george-miao/upgrid:v0.1.0
 ```
 
-Open [http://127.0.0.1:8080/setup](http://127.0.0.1:8080/setup), sign in, review the generated Node name, and choose **Create new Cluster**. The guided setup can add your first notification Channel and service Target, or skip either step.
+Open [http://127.0.0.1:8080/setup](http://127.0.0.1:8080/setup), review the generated Node name, and choose **Create new Cluster**. Setup creates the first replicated Operator Identity before it can add a notification Channel or service Target.
 
 Set `UPGRID_RAFT_URL` to a hostname reachable by every Node before expanding this container into a multi-Node Cluster.
 
@@ -57,9 +55,7 @@ Source builds are intended for contributors and unsupported targets. The reposit
 git clone https://github.com/George-Miao/UpGrid.git
 cd UpGrid
 nix develop
-cargo run -p upgrid -- \
-  --username admin \
-  --password 'replace-this-password'
+cargo run -p upgrid
 ```
 
 State is stored in `upgrid-data/` by default. Use a durable, unique data directory for each Node.
@@ -74,11 +70,9 @@ upgrid \
   --bind 127.0.0.1:8081 \
   --raft-url up://node-2.internal:11451 \
   --data-dir upgrid-data-2 \
-  --username admin \
-  --password 'replace-this-password'
 ```
 
-The Join Token contains admission authority and deployment material. Treat it as a password, transfer it through a trusted channel, and revoke reusable tokens after provisioning. Every advertised `up://` address must be reachable by every Cluster member.
+The Join Token contains admission authority and deployment material. Treat it as a password, transfer it through a trusted channel, and revoke reusable tokens after provisioning. Every advertised `up://` address must be reachable by every Cluster member. Joined Nodes receive the Cluster's Operator Identities and API Tokens through Raft; they do not use per-Node credentials.
 
 See [Join a Cluster](https://upgrid.rs/guides/join-cluster/) for browser and unattended workflows.
 
@@ -89,7 +83,7 @@ See [Join a Cluster](https://upgrid.rs/guides/join-cluster/) for browser and una
 3. Replicated policy turns results into **Up**, **Suspicious**, **Down**, or **Paused** state.
 4. Availability transitions enter a replicated outbox and are delivered to the Target's notification Channels.
 
-The HTTP API can run behind a TLS-terminating reverse proxy or serve HTTPS directly. `/healthz` is public; the WebUI and remaining API routes use Basic authentication. Never expose Basic credentials over untrusted plaintext transport.
+The HTTP API can run behind a TLS-terminating reverse proxy or serve HTTPS directly. `/healthz` is public; the WebUI uses an HTTP-only session cookie, and automation can use a revocable bearer API Token. Never send credentials over untrusted plaintext transport.
 
 ## Development
 

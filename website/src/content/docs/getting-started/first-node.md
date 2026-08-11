@@ -11,11 +11,9 @@ upgrid \
   --raft-url up://node-1.internal:11451 \
   --data-dir /var/lib/upgrid \
   --node-name edge-one \
-  --username admin \
-  --password 'replace-this-password'
 ```
 
-Open `http://127.0.0.1:8080/setup` and authenticate with the configured username and password. Review the Node name and choose **Create new Cluster**. The setup flow can then create a notification Channel and Target, or you can skip both steps.
+Open `http://127.0.0.1:8080/setup`, review the Node name, and choose **Create new Cluster**. Enter the first administrator username and password when prompted. This Operator Identity is replicated to every Cluster Node. The setup flow can then create a notification Channel and Target, or you can skip both steps.
 
 ## Unattended setup
 
@@ -31,7 +29,7 @@ upgrid \
   --password 'replace-this-password'
 ```
 
-The equivalent environment variable is `UPGRID_NEW_CLUSTER=true`.
+The equivalent environment variable is `UPGRID_NEW_CLUSTER=true`. Unattended Cluster creation also requires `--username` and `--password`; there are no safe default credentials.
 
 ## Verify the Node
 
@@ -41,6 +39,6 @@ The equivalent environment variable is `UPGRID_NEW_CLUSTER=true`.
 curl --fail http://127.0.0.1:8080/healthz
 ```
 
-All other API and WebUI routes use HTTP Basic authentication. If the API is plaintext, keep it on a trusted network or place it behind a TLS reverse proxy.
+All other API and WebUI routes require a replicated Operator Identity or API Token. Keep plaintext HTTP on a trusted network or place it behind a TLS reverse proxy.
 
 The Cluster is now ready for [additional Nodes](/guides/join-cluster/) and [service Targets](/guides/targets/).
