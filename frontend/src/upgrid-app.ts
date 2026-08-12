@@ -224,6 +224,10 @@ export class UpgridApp extends AppController {
     .history-head, .chart-legend, .chart-legend span, .chart-axis { display: flex; align-items: center; }
     .history-head { justify-content: space-between; margin-bottom: 12px; }
     .history-head h3 { margin: 0; font-size: 14px; }
+    .history-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .history-summary div { padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--input-bg); }
+    .history-summary span { display: block; color: var(--muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+    .history-summary strong { display: block; margin-top: 5px; font-size: 18px; font-weight: 560; }
     .chart-plot { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 7px; }
     .chart-scale { display: flex; height: 140px; flex-direction: column; justify-content: space-between; padding: 1px 0 7px; color: var(--muted); font-size: 9px; text-align: right; }
     .history-chart { display: flex; height: 140px; align-items: flex-end; gap: 3px; padding: 14px 10px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--input-bg); }
@@ -400,7 +404,7 @@ export class UpgridApp extends AppController {
       })}
       ${
         this.selected
-          ? renderTargetDetail(this.selected, this.saving, this.detailDirty, this.cluster?.members ?? [], this.channels, this.secrets, {
+          ? renderTargetDetail(this.selected, this.targetHistory, this.historyLoading, this.saving, this.detailDirty, this.cluster?.members ?? [], this.channels, this.secrets, {
               backdrop: (event) => this.dismissOnBackdrop(event),
               close: () => this.closeDetailDialog(),
               update: (event) => void this.updateTarget(event),

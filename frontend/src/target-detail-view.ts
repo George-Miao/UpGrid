@@ -3,7 +3,7 @@ import closeIcon from "@iconify-icons/lucide/x";
 import deleteIcon from "@iconify-icons/lucide/trash-2";
 import pauseIcon from "@iconify-icons/lucide/pause";
 import playIcon from "@iconify-icons/lucide/play";
-import type { Channel, ClusterMember, Secret, Target } from "./api.ts";
+import type { Channel, ClusterMember, HistoryPage, Secret, Target } from "./api.ts";
 import { renderChannelFields, renderTlsSecretFields } from "./target-form-view.ts";
 
 interface Actions {
@@ -16,12 +16,17 @@ interface Actions {
   pause: (paused: boolean) => void;
 }
 
-export function renderTargetDetail(target: Target, saving: boolean, dirty: boolean, members: ClusterMember[], channels: Channel[], secrets: Secret[], actions: Actions) {
+export function renderTargetDetail(target: Target, longTermHistory: HistoryPage | undefined, historyLoading: boolean, saving: boolean, dirty: boolean, members: ClusterMember[], channels: Channel[], secrets: Secret[], actions: Actions) {
   const isNode = target.kind === "node";
   const isHttp = target.kind === "http";
   const statuses = target.accepted_statuses.map((range) => (range.start === range.end ? range.start : `${range.start}-${range.end}`)).join(",");
   const history = target.history.slice(0, 30).reverse();
   const maxLatency = Math.max(1, ...history.map((item) => item.latency_ms));
+  const rollups = longTermHistory?.items ?? [];
+  const rollupSamples = rollups.reduce((total, rollup) => total + rollup.samples, 0);
+  const rollupSuccesses = rollups.reduce((total, rollup) => total + rollup.successes, 0);
+  const rollupLatency = rollups.reduce((total, rollup) => total + rollup.latency_total_ms, 0);
+  const availability = rollupSamples ? `${((rollupSuccesses / rollupSamples) * 100).toFixed(2)}%` : "—";
   const nodeNames = new Map(members.map((member) => [member.id, member.name]));
   const chartTime = (timestamp: number) =>
     new Date(timestamp).toLocaleString(undefined, {
@@ -31,6 +36,7 @@ export function renderTargetDetail(target: Target, saving: boolean, dirty: boole
       minute: "2-digit",
     });
   const chartLatency = (latency: number) => (latency >= 1_000 ? `${(latency / 1_000).toFixed(latency >= 10_000 ? 0 : 1)} s` : `${Math.round(latency)} ms`);
+  const averageLatency = rollupSamples ? chartLatency(rollupLatency / rollupSamples) : "—";
   return html`
     <dialog id="detail-dialog" aria-labelledby="target-detail-title" @click=${actions.backdrop}>
       <div class="dialog-head">
@@ -72,6 +78,22 @@ export function renderTargetDetail(target: Target, saving: boolean, dirty: boole
           <button class="button" type="submit" aria-busy=${saving ? "true" : "false"} ?disabled=${saving || !dirty}>Save changes</button>
         </div>
       </form>
+      <section class="history">
+        <div class="history-head"><h3>Long-term summary</h3><span class="meta">Last 30 days</span></div>
+        ${
+          historyLoading
+            ? html`<p class="meta">Loading long-term history…</p>`
+            : rollupSamples
+              ? html`
+                <div class="history-summary" aria-label="Long-term evaluation summary">
+                  <div><span>Availability</span><strong>${availability}</strong></div>
+                  <div><span>Average latency</span><strong>${averageLatency}</strong></div>
+                  <div><span>Evaluations</span><strong>${rollupSamples.toLocaleString()}</strong></div>
+                </div>
+              `
+              : html`<p class="meta">No long-term history recorded yet.</p>`
+        }
+      </section>
       <section class="history">
         <div class="history-head"><h3>Evaluation history</h3>${history.length ? html`<span class="meta">Latest ${history.length}</span>` : nothing}</div>
         ${

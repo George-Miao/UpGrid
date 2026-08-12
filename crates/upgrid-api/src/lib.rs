@@ -31,6 +31,7 @@ mod assets;
 mod auth;
 mod channels;
 mod error;
+mod history;
 mod identities;
 mod join;
 mod model;

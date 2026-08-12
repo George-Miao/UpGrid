@@ -3,7 +3,7 @@ import { state } from "lit/decorators.js";
 import darkIcon from "@iconify-icons/lucide/moon";
 import systemIcon from "@iconify-icons/lucide/palette";
 import brightIcon from "@iconify-icons/lucide/sun";
-import { ApiRequestError, type Alert, type ApiToken, type Channel, type Cluster, type Identity, type JoinToken, type Secret, type Session, type Setup, type Target, type Transition, request } from "./api.ts";
+import { ApiRequestError, type Alert, type ApiToken, type Channel, type Cluster, type HistoryPage, type Identity, type JoinToken, type Secret, type Session, type Setup, type Target, type Transition, request } from "./api.ts";
 
 const themes = ["system", "dark", "bright"] as const;
 type Theme = (typeof themes)[number];
@@ -51,6 +51,8 @@ export class AppState extends LitElement {
   @state() protected live = false;
   @state() protected saving = false;
   @state() protected selected?: Target;
+  @state() protected targetHistory?: HistoryPage;
+  @state() protected historyLoading = false;
   @state() protected channelKind: "webhook" | "telegram" | "smtp" = "webhook";
   @state() protected editingChannel?: Channel;
   @state() protected channelTestMessage = "";
@@ -218,6 +220,9 @@ export class AppState extends LitElement {
   protected openTarget(target: Target): void {
     this.detailDirty = false;
     this.selected = target;
+    this.targetHistory = undefined;
+    this.historyLoading = true;
+    void this.loadTargetHistory(target.id);
     void this.updateComplete.then(() => {
       const dialog = this.renderRoot.querySelector<HTMLDialogElement>("#detail-dialog");
       const form = dialog?.querySelector<HTMLFormElement>("form");
@@ -226,11 +231,24 @@ export class AppState extends LitElement {
     });
   }
 
+  private async loadTargetHistory(targetId: string): Promise<void> {
+    try {
+      const history = await request<HistoryPage>(`/api/v1/targets/${targetId}/history?limit=720`);
+      if (this.selected?.id === targetId) this.targetHistory = history;
+    } catch (error) {
+      if (this.selected?.id === targetId) this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      if (this.selected?.id === targetId) this.historyLoading = false;
+    }
+  }
+
   protected closeDetailDialog(): void {
     this.renderRoot.querySelector<HTMLDialogElement>("#detail-dialog")?.close();
     this.detailDirty = false;
     this.detailInitialState = "";
     this.selected = undefined;
+    this.targetHistory = undefined;
+    this.historyLoading = false;
   }
 
   protected showDialog(id: string): void {

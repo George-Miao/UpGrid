@@ -297,6 +297,14 @@ test("edits, inspects, and deletes a target", async ({ page }) => {
   await target.click();
   await expect(page.getByRole("heading", { name: "Target details" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Evaluation history" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Long-term summary" })).toBeVisible();
+  const historyResponse = await page.request.get(`/api/v1/targets/${(await (await page.request.get("/api/v1/targets")).json()).find((item: { name: string }) => item.name === "Target lifecycle").id}/history?limit=1`);
+  expect(historyResponse.ok()).toBe(true);
+  const longTermHistory = await historyResponse.json();
+  expect(longTermHistory.items).toHaveLength(1);
+  expect(longTermHistory.items[0].samples).toBeGreaterThanOrEqual(1);
+  expect(longTermHistory.items[0].successes + longTermHistory.items[0].failures).toBe(longTermHistory.items[0].samples);
+  await expect(page.getByLabel("Long-term evaluation summary")).toContainText(`${longTermHistory.items[0].availability_percent.toFixed(2)}%`);
   const details = page.getByRole("dialog", { name: "Target details" });
   await expect(details.locator(".dialog-head p")).toHaveCount(0);
   await expect(details.getByRole("button", { name: "Close", exact: true })).toHaveCount(0);

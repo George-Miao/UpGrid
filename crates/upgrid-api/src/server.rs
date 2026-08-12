@@ -4,6 +4,7 @@ use snafu::ResultExt;
 use super::assets::*;
 use super::auth::*;
 use super::channels::*;
+use super::history::*;
 use super::identities::*;
 use super::join::*;
 use super::nodes::*;
@@ -131,6 +132,7 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(revoke_api_token))
         .routes(routes!(list_targets, create_target))
         .routes(routes!(get_target, update_target, delete_target))
+        .routes(routes!(get_target_history))
         .routes(routes!(pause_target))
         .routes(routes!(resume_target))
         .routes(routes!(rename_node))

@@ -2228,6 +2228,113 @@
         }
       }
     },
+    "/api/v1/targets/{id}/history": {
+      "get": {
+        "operationId": "get_target_history",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from_ms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "to_ms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor_ms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/targets/{id}/pause": {
       "post": {
         "operationId": "pause_target",
@@ -2853,6 +2960,72 @@
           }
         }
       },
+      "EvaluationRollupView": {
+        "type": "object",
+        "required": [
+          "bucket_start_ms",
+          "bucket_end_ms",
+          "samples",
+          "successes",
+          "failures",
+          "availability_percent",
+          "latency_total_ms",
+          "latency_average_ms",
+          "latency_min_ms",
+          "latency_max_ms"
+        ],
+        "properties": {
+          "availability_percent": {
+            "type": "number",
+            "format": "double"
+          },
+          "bucket_end_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "bucket_start_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "failures": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "latency_average_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "latency_max_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "latency_min_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "latency_total_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "samples": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "successes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "EvaluationView": {
         "type": "object",
         "required": [
@@ -2898,6 +3071,28 @@
           },
           "succeeded": {
             "type": "boolean"
+          }
+        }
+      },
+      "HistoryPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvaluationRollupView"
+            }
+          },
+          "next_cursor_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
           }
         }
       },

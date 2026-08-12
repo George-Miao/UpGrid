@@ -8,6 +8,24 @@ export interface Evaluation {
   diagnostic: string | null;
 }
 
+export interface EvaluationRollup {
+  bucket_start_ms: number;
+  bucket_end_ms: number;
+  samples: number;
+  successes: number;
+  failures: number;
+  availability_percent: number;
+  latency_total_ms: number;
+  latency_average_ms: number;
+  latency_min_ms: number;
+  latency_max_ms: number;
+}
+
+export interface HistoryPage {
+  items: EvaluationRollup[];
+  next_cursor_ms: number | null;
+}
+
 export type HttpAssertion = { kind: "body_contains"; value: string } | { kind: "body_regex"; pattern: string } | { kind: "json_path"; path: string; expected: string | null } | { kind: "response_header"; name: string; value: string | null } | { kind: "latency"; max_ms: number } | { kind: "script"; source: string };
 
 export type TargetKind = "http" | "tcp" | "dns" | "icmp" | "tls";
