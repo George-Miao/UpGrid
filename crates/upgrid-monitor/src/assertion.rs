@@ -4,9 +4,28 @@ use regex::Regex;
 use rhai::{Dynamic, Map, Scope};
 use serde_json::Value;
 use serde_json_path::JsonPath;
+use snafu::{ResultExt, Snafu};
 use upgrid_raft::domain::{HttpAssertion, MAX_SCRIPT_INPUT_BYTES, script_engine};
 
 use crate::http::Response;
+
+#[derive(Debug, Snafu)]
+enum Error {
+    #[snafu(display("{diagnostic}"))]
+    Failed { diagnostic: String },
+
+    #[snafu(display("body regex is invalid: {source}"))]
+    BodyRegex { source: regex::Error },
+
+    #[snafu(display("response is not valid JSON: {source}"))]
+    Json { source: serde_json::Error },
+
+    #[snafu(display("JSONPath is invalid: {diagnostic}"))]
+    JsonPath { diagnostic: String },
+
+    #[snafu(display("script error: {diagnostic}"))]
+    Script { diagnostic: String },
+}
 
 pub(super) fn evaluate(
     assertions: &[HttpAssertion],
@@ -25,7 +44,7 @@ fn evaluate_one(
     assertion: &HttpAssertion,
     response: &Response,
     latency_ms: u64,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let body = String::from_utf8_lossy(&response.body);
     match assertion {
         HttpAssertion::BodyContains { value } => require(
@@ -33,21 +52,22 @@ fn evaluate_one(
             format!("body does not contain {value:?}"),
         ),
         HttpAssertion::BodyRegex { pattern } => {
-            let regex =
-                Regex::new(pattern).map_err(|error| format!("body regex is invalid: {error}"))?;
+            let regex = Regex::new(pattern).context(BodyRegexSnafu)?;
             require(
                 regex.is_match(&body),
                 format!("body does not match /{pattern}/"),
             )
         }
         HttpAssertion::JsonPath { path, expected } => {
-            let json: Value = serde_json::from_slice(&response.body)
-                .map_err(|error| format!("response is not valid JSON: {error}"))?;
-            let path =
-                JsonPath::parse(path).map_err(|error| format!("JSONPath is invalid: {error}"))?;
+            let json: Value = serde_json::from_slice(&response.body).context(JsonSnafu)?;
+            let path = JsonPath::parse(path).map_err(|error| Error::JsonPath {
+                diagnostic: error.to_string(),
+            })?;
             let values = path.query(&json).all();
             if values.is_empty() {
-                return Err(format!("JSONPath {path} selected no values"));
+                return Err(Error::Failed {
+                    diagnostic: format!("JSONPath {path} selected no values"),
+                });
             }
             if let Some(expected) = expected {
                 let matches = values.iter().any(|value| match value {
@@ -65,7 +85,9 @@ fn evaluate_one(
         HttpAssertion::ResponseHeader { name, value } => {
             let actual = response.headers.get(&name.to_ascii_lowercase());
             let Some(actual) = actual else {
-                return Err(format!("response header {name:?} is missing"));
+                return Err(Error::Failed {
+                    diagnostic: format!("response header {name:?} is missing"),
+                });
             };
             if let Some(expected) = value {
                 require(
@@ -98,7 +120,7 @@ fn evaluate_script(
     body: &str,
     final_url: &str,
     headers: &BTreeMap<String, String>,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let mut scope = Scope::new();
     scope.push("status", i64::from(status));
     scope.push("latency_ms", as_script_int(latency_ms));
@@ -117,7 +139,9 @@ fn evaluate_script(
     scope.push("headers", headers);
     let passed = script_engine()
         .eval_with_scope::<bool>(&mut scope, source)
-        .map_err(|error| format!("script error: {error}"))?;
+        .map_err(|error| Error::Script {
+            diagnostic: error.to_string(),
+        })?;
     require(passed, "script returned false".to_owned())
 }
 
@@ -133,8 +157,8 @@ fn bounded_script_value(value: &str) -> String {
     value[..end].to_owned()
 }
 
-fn require(condition: bool, diagnostic: String) -> Result<(), String> {
-    condition.then_some(()).ok_or(diagnostic)
+fn require(condition: bool, diagnostic: String) -> Result<(), Error> {
+    condition.then_some(()).ok_or(Error::Failed { diagnostic })
 }
 
 #[cfg(test)]
