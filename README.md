@@ -14,7 +14,7 @@ Every Node exposes the same authenticated API and responsive WebUI. Followers tr
 
 - **One binary, no external database.** The API, WebUI, scheduler, probe workers, notifications, and durable Raft state travel together.
 - **A useful interface on every Node.** Manage Targets, inspect latency and availability history, and operate the Cluster from any healthy member.
-- **Distributed monitoring.** The leader assigns each polling interval to one Node, commits one authoritative result, and preserves failure streaks across leader changes.
+- **Distributed monitoring.** The leader assigns each polling interval across one or more distinct voting Nodes, commits one authoritative aggregate result, and preserves failure streaks across leader changes.
 - **Flexible service checks.** Monitor HTTP requests with private-CA and mutual-TLS credentials plus ordered regex, JSONPath, header, latency, and sandboxed script assertions; also probe TCP connections, DNS resolution, ICMP echo, and TLS certificates.
 - **Actionable notifications.** Deliver service and Cluster Node transitions through Telegram, SMTP email, or webhooks, with default Channels and at-least-once delivery.
 - **Simple expansion.** Create an expiring, revocable `up://` Join Token in the WebUI and start another Node with `--join`.

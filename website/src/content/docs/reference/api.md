@@ -35,6 +35,10 @@ Target create and update requests accept an ordered `assertions` array. Supporte
 
 HTTPS Target create and update requests accept nullable `tls_ca_secret_id`, `tls_client_certificate_secret_id`, and `tls_client_private_key_secret_id` fields. The custom CA Secret augments public WebPKI roots. Client certificate and private key Secrets form one mutual-TLS identity and must be configured together. These fields reject non-HTTPS URLs and `skip_tls_verification: true`. Responses return only the Secret IDs; plaintext remains write-only. See [Monitor services](/guides/targets/#trust-a-private-ca-or-use-mutual-tls) for PEM requirements and failure behavior.
 
+## Multi-location evaluation
+
+Target create and update requests accept `locations` from 1 through 32; omission defaults to `1`. The leader assigns at most that many distinct eligible voting Nodes. Target responses return the configured count. One aggregate Evaluation is recorded after every assigned location reports, and it succeeds only when all locations succeed.
+
 ## Node lifecycle
 
 `PUT /api/v1/nodes/{id}/drain` excludes a Node from new evaluation assignments. Existing assignments may finish; the Cluster response reports `draining` and `active_assignments` for each member. Cancel a drain by sending `{"draining":false}`.

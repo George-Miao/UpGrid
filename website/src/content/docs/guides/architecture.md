@@ -13,9 +13,9 @@ This makes every healthy Node a valid API entry point while retaining one ordere
 
 ## Evaluation path
 
-The leader schedules due work across eligible voting members. Draining Nodes receive no new assignments; forced drain releases their assignments for immediate reassignment. The assigned Node executes the probe and proposes its result. For a given Target interval, the first accepted result is committed and duplicate results are discarded.
+The leader schedules due work across eligible voting members. A Target normally uses one Node per interval, but can request up to 32 distinct evaluation locations. Draining Nodes receive no new assignments; timed-out or forcibly released work is reassigned.
 
-Availability thresholds and transitions are computed from replicated state, so a leader change does not reset failure counts.
+Assigned Nodes execute probes and propose their results. Replicated state waits for every expected location and commits one deterministic aggregate Evaluation: all locations must succeed, the slowest latency is retained, and failures include bounded per-Node diagnostics. Availability thresholds and transitions consume that aggregate, so a leader change does not reset failure counts or multiply alerts.
 
 ## Membership changes
 

@@ -15,9 +15,15 @@ From **Overview**, select **Add target**, choose a type, and provide its endpoin
 - **ICMP echo** — a hostname or IP address;
 - **TLS certificate** — a hostname and explicit TLS port, such as `example.com:443`.
 
-Every type supports the polling interval, timeout, consecutive-failure threshold, and notification routing. HTTP Targets additionally support accepted status ranges, literal or Secret-backed headers and request bodies, redirects, TLS verification settings, and ordered response assertions. The default HTTP accepted range is `200–299`; the default transition threshold is three failures.
+Every type supports the polling interval, timeout, consecutive-failure threshold, evaluation-location count, and notification routing. HTTP Targets additionally support accepted status ranges, literal or Secret-backed headers and request bodies, redirects, TLS verification settings, and ordered response assertions. The default HTTP accepted range is `200–299`; the default transition threshold is three failures.
 
 The HTTP API accepts an explicit `kind` plus the `url`; omitted kinds default to `http` for compatibility. Non-HTTP endpoints use matching `tcp://`, `dns://`, `icmp://`, or `tls://` schemes and do not accept HTTP request options.
+
+## Evaluate from multiple locations
+
+Set **Evaluation locations** between 1 and 32 when creating or editing a Target. The default is one. For each interval, the leader assigns at most that many distinct eligible voting Nodes; a smaller Cluster evaluates from every eligible voter rather than waiting for unavailable locations. Draining Nodes are excluded.
+
+UpGrid waits for every assigned Node before committing one aggregate result. The interval succeeds only if every location succeeds. The aggregate reports the slowest latency, and a failure diagnostic includes the failed-location count with per-Node details. Availability thresholds, history, and notifications consume the aggregate once, so enabling multiple locations does not multiply alerts.
 
 ## Probe behavior
 
@@ -103,7 +109,7 @@ UpGrid emits a transition only when availability changes. It does not send a new
 
 ## Evaluation history
 
-Open a Target to view recent latency and status bars. Each entry records which Cluster Node executed the poll. Raw history is replicated and bounded by `history_retention_hours` when configured.
+Open a Target to view recent latency and status bars. Each entry is the single authoritative result for one interval. Single-location entries identify the executing Cluster Node; multi-location entries aggregate every assigned Node and report the slowest latency. Raw history is replicated and bounded by `history_retention_hours` when configured.
 
 ## Cluster Nodes as Targets
 

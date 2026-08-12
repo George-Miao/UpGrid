@@ -6,7 +6,6 @@ The MVP is complete. This file records unfinished work for future agile iteratio
 
 ## Backlog
 
-- [ ] Add optional multi-location evaluation and result aggregation.
 - [ ] Add long-term history aggregation and external archival.
 - [ ] Add configurable trash or restore behavior for deleted Targets.
 - [ ] Provide safe discovery and cleanup of unreferenced Secrets.
