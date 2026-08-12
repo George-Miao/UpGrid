@@ -17,6 +17,8 @@ The leader schedules due work across eligible voting members. A Target normally 
 
 Assigned Nodes execute probes and propose their results. Replicated state waits for every expected location and commits one deterministic aggregate Evaluation: all locations must succeed, the slowest latency is retained, and failures include bounded per-Node diagnostics. Availability thresholds and transitions consume that aggregate, so a leader change does not reset failure counts or multiply alerts.
 
+Target IDs determine a stable phase inside each fixed interval, spreading assignments instead of aligning every Target on the same wall-clock boundary. After downtime or a leader change, planning collapses missed intervals into the latest due slot and never emits a catch-up burst. Cron and calendar schedules remain intentionally deferred until time-zone, daylight-saving, missed-run, and maintenance-window semantics are defined.
+
 ## Evaluation history
 
 Accepted Target and Cluster Node results update deterministic one-hour rollups in replicated state. Rollups store sample, success, failure, and latency aggregates while raw Evaluations retain per-probe diagnostics for a shorter window. A configurable long-term retention window bounds the rollup state.

@@ -19,6 +19,12 @@ Every type supports the polling interval, timeout, consecutive-failure threshold
 
 The HTTP API accepts an explicit `kind` plus the `url`; omitted kinds default to `http` for compatibility. Non-HTTP endpoints use matching `tcp://`, `dns://`, `icmp://`, or `tls://` schemes and do not accept HTTP request options.
 
+## Schedule evaluations
+
+Targets use positive fixed intervals. UpGrid assigns each Target a stable phase within its interval to spread Cluster load, and after downtime it schedules only the latest due occurrence rather than replaying a burst of missed checks.
+
+Cron and calendar schedules are intentionally not exposed. Wall-clock schedules require product decisions about time zones, daylight-saving transitions, missed occurrences, maintenance windows, and irregular failure thresholds. UpGrid will add that model only when deployment requirements establish those semantics; see [ADR 0019](https://github.com/George-Miao/UpGrid/blob/main/docs/adr/0019-retain-fixed-interval-schedules.md).
+
 ## Evaluate from multiple locations
 
 Set **Evaluation locations** between 1 and 32 when creating or editing a Target. The default is one. For each interval, the leader assigns at most that many distinct eligible voting Nodes; a smaller Cluster evaluates from every eligible voter rather than waiting for unavailable locations. Draining Nodes are excluded.
