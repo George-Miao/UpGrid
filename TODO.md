@@ -4,14 +4,12 @@ The MVP is complete. This file records unfinished work for future agile iteratio
 
 ## Active Iteration
 
-- [ ] Target deletion atomically moves state, location settings, and history into replicated trash, releases assignments, prunes expired entries under a configurable retention window, and restores unexpired Targets without loss through backward-compatible state migration.
-- [ ] Authenticated trash endpoints list, restore, and permanently delete trashed Targets; the WebUI exposes the same lifecycle with explicit confirmations.
-- [ ] Domain, API, browser, generated OpenAPI, configuration, architecture, and operator documentation cover Target trash retention, restore, expiry, and permanent deletion.
+- [ ] Replicated state discovers Secret references from active and trashed Targets plus Notification Channels; one atomic cleanup command deletes only currently unreferenced Secrets.
+- [ ] The authenticated Secret API reports reference status and exposes bulk cleanup; the WebUI previews unused Secrets and requires explicit confirmation before cleanup.
+- [ ] Domain, API, browser, generated OpenAPI, architecture, and operator documentation cover safe Secret discovery and cleanup.
 
 ## Backlog
 
-- [ ] Add configurable trash or restore behavior for deleted Targets.
-- [ ] Provide safe discovery and cleanup of unreferenced Secrets.
 - [ ] Evaluate cron or calendar schedules after fixed-interval usage is understood.
 
 ## Iteration Policy
