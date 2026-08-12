@@ -1,5 +1,6 @@
 //! Raft and RPC runtime errors.
 
+use std::num::TryFromIntError;
 use std::path::PathBuf;
 
 use openraft::error::{ClientWriteError, Fatal, InitializeError, LinearizableReadError, RaftError};
@@ -11,6 +12,96 @@ use url::Url;
 use crate::UpgridNode;
 use crate::raft::TC;
 
+#[derive(Debug, Snafu)]
+#[snafu(visibility(pub(crate)))]
+pub(crate) enum DatabaseError {
+    #[snafu(display("failed to create Raft data directory at {}: {source}", path.display()))]
+    Directory {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[snafu(display("failed to open Raft database at {}: {source}", path.display()))]
+    Open {
+        path: PathBuf,
+        source: rusqlite::Error,
+    },
+
+    #[snafu(display("failed to encode {table}.{column}: {source}"))]
+    FieldEncode {
+        table: &'static str,
+        column: &'static str,
+        source: serde_json::Error,
+    },
+
+    #[snafu(display("failed to decode {table}.{column}: {source}"))]
+    FieldDecode {
+        table: &'static str,
+        column: &'static str,
+        source: serde_json::Error,
+    },
+
+    #[snafu(display("{table}.{column} value {value} is outside SQLite INTEGER range: {source}"))]
+    IntegerRange {
+        table: &'static str,
+        column: &'static str,
+        value: u64,
+        source: TryFromIntError,
+    },
+
+    #[snafu(display("SQLite database is locked during {operation}: {source}"))]
+    Locked {
+        operation: &'static str,
+        source: rusqlite::Error,
+    },
+
+    #[snafu(display("SQLite operation `{operation}` failed: {source}"))]
+    Sqlite {
+        operation: &'static str,
+        source: rusqlite::Error,
+    },
+
+    #[snafu(display("SQLite transaction `{operation}` failed: {source}"))]
+    Transaction {
+        operation: &'static str,
+        source: rusqlite::Error,
+    },
+
+    #[snafu(display("Raft database migration failed: {source}"))]
+    Migration { source: refinery::Error },
+
+    #[snafu(display("Raft database has no required {table} singleton row"))]
+    MissingRow { table: &'static str },
+
+    #[snafu(display("failed to read legacy persistence at {}: {source}", path.display()))]
+    LegacyRead {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[snafu(display("failed to access legacy redb persistence at {}: {source}", path.display()))]
+    LegacyRedb { path: PathBuf, source: redb::Error },
+
+    #[snafu(display("failed to decode legacy Postcard persistence at {}: {source}", path.display()))]
+    LegacyPostcard {
+        path: PathBuf,
+        source: postcard::Error,
+    },
+}
+
+impl From<DatabaseError> for std::io::Error {
+    fn from(error: DatabaseError) -> Self {
+        let kind = match error {
+            DatabaseError::FieldEncode { .. }
+            | DatabaseError::FieldDecode { .. }
+            | DatabaseError::IntegerRange { .. }
+            | DatabaseError::MissingRow { .. }
+            | DatabaseError::LegacyPostcard { .. } => std::io::ErrorKind::InvalidData,
+            _ => std::io::ErrorKind::Other,
+        };
+        Self::new(kind, error)
+    }
+}
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub))]
 pub enum Error {
@@ -70,14 +161,8 @@ pub enum Error {
     #[snafu(display("Node RPC probe timed out for {node}"))]
     NodeProbeTimeout { node: UpgridNode },
 
-    #[snafu(display("Failed to open Raft log at {}: {}", path.display(), source))]
-    RaftLogOpen {
-        path: PathBuf,
-        source: std::io::Error,
-    },
-
-    #[snafu(display("Failed to open Raft state machine at {}: {}", path.display(), source))]
-    StateMachineOpen {
+    #[snafu(display("Failed to open Raft database at {}: {source}", path.display()))]
+    DatabaseOpen {
         path: PathBuf,
         source: std::io::Error,
     },

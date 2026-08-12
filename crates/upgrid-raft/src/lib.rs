@@ -1,6 +1,9 @@
 //! Replicated UpGrid state, Raft runtime, RPC adapter, and storage.
 
+#[doc(hidden)]
+pub mod benchmark;
 mod cluster;
+mod database;
 pub mod domain;
 mod error;
 mod node;

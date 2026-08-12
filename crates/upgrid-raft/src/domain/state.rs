@@ -58,9 +58,6 @@ impl ApplicationState {
     }
 }
 
-mod version;
-pub(crate) use version::*;
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct ProcessedOperation {
     pub(super) submitted_at_ms: u64,

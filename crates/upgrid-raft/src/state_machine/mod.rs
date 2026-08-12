@@ -1,11 +1,12 @@
 //! Replicated state machine, persistence, and snapshots.
 
+mod codec;
 mod core;
-mod decode;
-mod version;
+mod migrations;
 
-pub(crate) use core::StateMachine;
+pub(crate) use core::{StateMachine, StateMachineData, StoredSnapshot};
+
+pub(crate) use codec::encode_snapshot;
 
 #[cfg(test)]
-#[path = "tests.rs"]
-mod state_machine_tests;
+mod tests;
