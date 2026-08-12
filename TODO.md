@@ -4,13 +4,10 @@ The MVP is complete. This file records unfinished work for future agile iteratio
 
 ## Active Iteration
 
-- [ ] Replicated state discovers Secret references from active and trashed Targets plus Notification Channels; one atomic cleanup command deletes only currently unreferenced Secrets.
-- [ ] The authenticated Secret API reports reference status and exposes bulk cleanup; the WebUI previews unused Secrets and requires explicit confirmation before cleanup.
-- [ ] Domain, API, browser, generated OpenAPI, architecture, and operator documentation cover safe Secret discovery and cleanup.
+- [ ] Document fixed-interval scheduler invariants, reference-workload evidence, and the semantic costs of cron or calendar schedules.
+- [ ] Record a scheduling decision with explicit adoption triggers, required missed-run and time-zone semantics, and the future module seam.
 
 ## Backlog
-
-- [ ] Evaluate cron or calendar schedules after fixed-interval usage is understood.
 
 ## Iteration Policy
 
