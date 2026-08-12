@@ -25,6 +25,12 @@ Set **Evaluation locations** between 1 and 32 when creating or editing a Target.
 
 UpGrid waits for every assigned Node before committing one aggregate result. The interval succeeds only if every location succeeds. The aggregate reports the slowest latency, and a failure diagnostic includes the failed-location count with per-Node details. Availability thresholds, history, and notifications consume the aggregate once, so enabling multiple locations does not multiply alerts.
 
+## Inspect long-term history
+
+Opening a Target shows availability, average latency, and Evaluation count for its hourly rollups from the last 30 days. These long-term summaries are independent of the bounded raw Evaluation chart.
+
+For archival, page `GET /api/v1/targets/{id}/history` in chronological order. The Cluster retains hourly rollups for 365 days by default; set `history_rollup_retention_days` when creating a Cluster or on any later startup to change the replicated retention window.
+
 ## Probe behavior
 
 TCP Targets succeed after establishing a connection. DNS Targets succeed when the system resolver returns at least one IPv4 or IPv6 address. TLS Targets complete a TLS handshake and validate the certificate chain, hostname, and validity period against the bundled public roots.

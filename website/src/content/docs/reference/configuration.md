@@ -18,6 +18,7 @@ raft_url = "up://node-1.internal:11451"
 data_dir = "/var/lib/upgrid"
 node_name = "edge-shanghai"
 history_retention_hours = 24
+history_rollup_retention_days = 365
 tls_cert = "/etc/upgrid/api-chain.pem"
 tls_key = "/etc/upgrid/api-key.pem"
 ```
@@ -37,6 +38,7 @@ Start with `upgrid --config /etc/upgrid.toml` or set `UPGRID_CONFIG=/etc/upgrid.
 | `new_cluster` | `UPGRID_NEW_CLUSTER` | `--new-cluster` | `false` |
 | `join` | `UPGRID_JOIN` | `--join` | unset |
 | `history_retention_hours` | `UPGRID_HISTORY_RETENTION_HOURS` | `--history-retention-hours` | 24 hours for a new Cluster |
+| `history_rollup_retention_days` | `UPGRID_HISTORY_ROLLUP_RETENTION_DAYS` | `--history-rollup-retention-days` | 365 days for a new Cluster |
 | `tls_cert` | `UPGRID_TLS_CERT` | `--tls-cert` | unset |
 | `tls_key` | `UPGRID_TLS_KEY` | `--tls-key` | unset |
 

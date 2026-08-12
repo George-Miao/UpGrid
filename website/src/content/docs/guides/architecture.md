@@ -17,6 +17,12 @@ The leader schedules due work across eligible voting members. A Target normally 
 
 Assigned Nodes execute probes and propose their results. Replicated state waits for every expected location and commits one deterministic aggregate Evaluation: all locations must succeed, the slowest latency is retained, and failures include bounded per-Node diagnostics. Availability thresholds and transitions consume that aggregate, so a leader change does not reset failure counts or multiply alerts.
 
+## Evaluation history
+
+Accepted Target and Cluster Node results update deterministic one-hour rollups in replicated state. Rollups store sample, success, failure, and latency aggregates while raw Evaluations retain per-probe diagnostics for a shorter window. A configurable long-term retention window bounds the rollup state.
+
+The history API performs the same linearizable-read barrier as other Cluster reads, then pages rollups chronologically through bounded time ranges. External archival can therefore resume from a cursor without accessing Raft storage or coordinating with the leader.
+
 ## Membership changes
 
 Healthy Nodes drain before removal so in-flight evaluations can finish. Failed Nodes can be force-removed while a quorum remains; replacement uses a new Node identity, an empty data directory, and a one-use Join Token. Raft serializes admission and removal so concurrent membership changes cannot overwrite one another.

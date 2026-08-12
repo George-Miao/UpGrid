@@ -39,6 +39,12 @@ HTTPS Target create and update requests accept nullable `tls_ca_secret_id`, `tls
 
 Target create and update requests accept `locations` from 1 through 32; omission defaults to `1`. The leader assigns at most that many distinct eligible voting Nodes. Target responses return the configured count. One aggregate Evaluation is recorded after every assigned location reports, and it succeeds only when all locations succeed.
 
+## Long-term Evaluation history
+
+Every accepted Target or Cluster Node Evaluation contributes to a replicated one-hour rollup. `GET /api/v1/targets/{id}/history` returns those rollups in chronological order. Each item includes sample, success, and failure counts plus total, average, minimum, and maximum latency.
+
+Use `from_ms` and `to_ms` to select at most 366 days, and `limit` to request 1 through 1,000 items. The default range is the last 30 days and the default limit is 168. When `next_cursor_ms` is present, repeat the same request with that value as `cursor_ms`; cursors are exclusive. This bounded page contract lets archival jobs advance without reading raw Raft state.
+
 ## Node lifecycle
 
 `PUT /api/v1/nodes/{id}/drain` excludes a Node from new evaluation assignments. Existing assignments may finish; the Cluster response reports `draining` and `active_assignments` for each member. Cancel a drain by sending `{"draining":false}`.
