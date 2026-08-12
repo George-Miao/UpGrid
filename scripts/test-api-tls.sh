@@ -35,13 +35,13 @@ target_directory=$(cargo metadata --manifest-path "$workspace/Cargo.toml" \
   --tls-key "$test_data/key.pem" \
   >"$test_data/server.log" 2>&1 &
 server_pid=$!
+ready=false
 
 for _ in $(seq 1 100); do
   if curl --fail --silent --cacert "$test_data/cert.pem" \
-    --user admin:test-password \
-    https://localhost:18443/api/v1/cluster >/dev/null; then
-    echo "Native API TLS verified"
-    exit 0
+    https://localhost:18443/healthz >/dev/null; then
+    ready=true
+    break
   fi
   if ! kill -0 "$server_pid" 2>/dev/null; then
     cat "$test_data/server.log"
@@ -50,6 +50,18 @@ for _ in $(seq 1 100); do
   sleep 0.1
 done
 
-echo "TLS API did not become ready" >&2
-cat "$test_data/server.log" >&2
-exit 1
+if [[ "$ready" != true ]]; then
+  echo "TLS API did not become ready" >&2
+  cat "$test_data/server.log" >&2
+  exit 1
+fi
+
+curl --fail --silent --cacert "$test_data/cert.pem" \
+  --cookie-jar "$test_data/cookies" \
+  --header 'content-type: application/json' \
+  --data '{"username":"admin","password":"test-password"}' \
+  https://localhost:18443/api/v1/auth/login >/dev/null
+curl --fail --silent --cacert "$test_data/cert.pem" \
+  --cookie "$test_data/cookies" \
+  https://localhost:18443/api/v1/cluster >/dev/null
+echo "Native API TLS verified"
