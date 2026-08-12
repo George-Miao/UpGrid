@@ -97,6 +97,22 @@ pub enum Command {
         use_default_notifications: bool,
         locations: u16,
     },
+    TrashTarget {
+        target_id: TargetId,
+        deleted_at_ms: u64,
+    },
+    RestoreTarget {
+        target_id: TargetId,
+        restored_at_ms: u64,
+    },
+    PurgeTarget(TargetId),
+    PruneTargetTrash {
+        now_ms: u64,
+    },
+    SetTargetTrashRetention {
+        retention_ms: u64,
+        now_ms: u64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -143,6 +159,11 @@ pub enum CommandResult {
     ApiTokenCreated(ApiTokenId),
     ApiTokenRevoked(ApiTokenId),
     EvaluationPending(EvaluationId),
+    TargetTrashed(TargetId),
+    TargetRestored(TargetId),
+    TargetPurged(TargetId),
+    TargetTrashRetentionSet(u64),
+    TargetTrashPruned(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -165,6 +186,7 @@ pub enum DomainError {
     InvalidApiToken(String),
     ApiTokenAlreadyExists(ApiTokenId),
     ApiTokenNotFound(ApiTokenId),
+    TrashedTargetNotFound(TargetId),
 }
 
 impl Display for DomainError {
@@ -179,6 +201,9 @@ impl Display for DomainError {
             | Self::InvalidApiToken(message) => formatter.write_str(message),
             Self::TargetAlreadyExists(id) => write!(formatter, "target already exists: {}", id.0),
             Self::TargetNotFound(id) => write!(formatter, "target not found: {}", id.0),
+            Self::TrashedTargetNotFound(id) => {
+                write!(formatter, "trashed target not found: {}", id.0)
+            }
             Self::SecretNotFound(id) => write!(formatter, "secret not found: {}", id.0),
             Self::NotificationChannelNotFound(id) => {
                 write!(formatter, "notification channel not found: {}", id.0)

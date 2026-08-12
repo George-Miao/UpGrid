@@ -6,14 +6,27 @@ use crate::domain::{
     ApplicationState, DefaultChannelApplicationState, LegacyApplicationState,
     NamedApplicationState, PreAcknowledgementApplicationState, PreAssertionApplicationState,
     PreAuthApplicationState, PreDrainApplicationState, PreLocationApplicationState,
-    PreRollupApplicationState, PreTlsApplicationState, PreviousApplicationState,
-    TokenApplicationState, TransitionApplicationState,
+    PreRollupApplicationState, PreTlsApplicationState, PreTrashApplicationState,
+    PreviousApplicationState, TokenApplicationState, TransitionApplicationState,
 };
 
 pub(super) fn decode_persisted(bytes: &[u8]) -> io::Result<PersistedStateMachine> {
     if let Some(bytes) = bytes.strip_prefix(STATE_MAGIC) {
         return postcard::from_bytes(bytes)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()));
+    }
+    if let Some(bytes) = bytes.strip_prefix(PRE_TRASH_STATE_MAGIC) {
+        let previous = postcard::from_bytes::<PreTrashPersistedStateMachine>(bytes)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))?;
+        return Ok(PersistedStateMachine {
+            state_machine: StateMachineData {
+                last_applied_log: previous.state_machine.last_applied_log,
+                last_membership: previous.state_machine.last_membership,
+                application: previous.state_machine.application.into(),
+            },
+            current_snapshot: previous.current_snapshot,
+            snapshot_idx: previous.snapshot_idx,
+        });
     }
     if let Some(bytes) = bytes.strip_prefix(PRE_ROLLUP_STATE_MAGIC) {
         let previous = postcard::from_bytes::<PreRollupPersistedStateMachine>(bytes)
@@ -187,6 +200,8 @@ pub(super) fn decode_persisted(bytes: &[u8]) -> io::Result<PersistedStateMachine
 pub(super) fn decode_application(bytes: &[u8]) -> Result<ApplicationState, postcard::Error> {
     if let Some(bytes) = bytes.strip_prefix(SNAPSHOT_MAGIC) {
         postcard::from_bytes(bytes)
+    } else if let Some(bytes) = bytes.strip_prefix(PRE_TRASH_SNAPSHOT_MAGIC) {
+        postcard::from_bytes::<PreTrashApplicationState>(bytes).map(Into::into)
     } else if let Some(bytes) = bytes.strip_prefix(PRE_ROLLUP_SNAPSHOT_MAGIC) {
         postcard::from_bytes::<PreRollupApplicationState>(bytes).map(Into::into)
     } else if let Some(bytes) = bytes.strip_prefix(PRE_LOCATION_SNAPSHOT_MAGIC) {

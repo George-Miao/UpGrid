@@ -9,10 +9,11 @@ use tracing_subscriber::Layer;
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use upgrid_config::{Config, ConfigArgs};
+use upgrid_config::{Config, ConfigArgs, now_ms};
 use upgrid_raft::Handle;
 use upgrid_raft::domain::{
     Command, DEFAULT_HISTORY_RETENTION_MS, DEFAULT_HISTORY_ROLLUP_RETENTION_MS,
+    DEFAULT_TARGET_TRASH_RETENTION_MS,
 };
 
 mod bootstrap;
@@ -115,6 +116,17 @@ async fn run() -> Result<()> {
         node.apply(Command::SetHistoryRollupRetention { retention_ms })
             .await
             .context(ClusterWriteSnafu)?;
+    }
+    if let Some(retention_ms) = config
+        .target_trash_retention_ms
+        .or_else(|| bootstrapping.then_some(DEFAULT_TARGET_TRASH_RETENTION_MS))
+    {
+        node.apply(Command::SetTargetTrashRetention {
+            retention_ms,
+            now_ms: now_ms(),
+        })
+        .await
+        .context(ClusterWriteSnafu)?;
     }
     let (cluster, receiver) = Handle::new(node_id);
     let notifications = upgrid_notification::start(cluster.clone(), cipher.clone());

@@ -71,7 +71,7 @@ export function renderTargetDetail(target: Target, longTermHistory: HistoryPage 
             isNode
               ? nothing
               : html`<div class="danger-actions">
-            <button class="button danger icon-button" type="button" aria-label="Delete target" title="Delete target" @click=${actions.delete}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
+            <button class="button danger icon-button" type="button" aria-label="Move Target to Trash" title="Move to Trash" @click=${actions.delete}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
             <button class=${`button ${target.paused ? "success" : "warning"} icon-button`} type="button" aria-label=${target.paused ? "Resume evaluations" : "Pause evaluations"} title=${target.paused ? "Resume evaluations" : "Pause evaluations"} @click=${() => actions.pause(!target.paused)}><iconify-icon .icon=${target.paused ? playIcon : pauseIcon} aria-hidden="true"></iconify-icon></button>
           </div>`
           }

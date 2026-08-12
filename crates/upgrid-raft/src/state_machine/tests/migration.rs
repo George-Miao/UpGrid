@@ -155,3 +155,30 @@ fn pre_rollup_state_migrates_with_empty_long_term_history() {
     assert!(migrated.history_rollups.is_empty());
     fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn pre_trash_state_migrates_with_empty_target_trash() {
+    let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+    fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("raft-state.postcard");
+    let previous = PreTrashPersistedStateMachine {
+        state_machine: PreTrashStateMachineData {
+            last_applied_log: None,
+            last_membership: StoredMembership::default(),
+            application: ApplicationState::default().into(),
+        },
+        current_snapshot: None,
+        snapshot_idx: 0,
+    };
+    let mut encoded = PRE_TRASH_STATE_MAGIC.to_vec();
+    encoded.extend_from_slice(&postcard::to_stdvec(&previous).unwrap());
+    fs::write(&path, encoded).unwrap();
+
+    let migrated = StateMachine::open(&path).unwrap().application_state();
+    assert_eq!(
+        migrated.target_trash_retention_ms,
+        DEFAULT_TARGET_TRASH_RETENTION_MS
+    );
+    assert!(migrated.trashed_targets.is_empty());
+    fs::remove_dir_all(directory).unwrap();
+}

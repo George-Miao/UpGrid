@@ -6,8 +6,8 @@ use crate::domain::{
     DefaultChannelApplicationState, LegacyApplicationState, NamedApplicationState,
     PreAcknowledgementApplicationState, PreAssertionApplicationState, PreAuthApplicationState,
     PreDrainApplicationState, PreLocationApplicationState, PreRollupApplicationState,
-    PreTlsApplicationState, PreviousApplicationState, TokenApplicationState,
-    TransitionApplicationState,
+    PreTlsApplicationState, PreTrashApplicationState, PreviousApplicationState,
+    TokenApplicationState, TransitionApplicationState,
 };
 use crate::raft::TC;
 
@@ -29,6 +29,11 @@ macro_rules! version {
     };
 }
 
+version!(
+    PreTrashStateMachineData,
+    PreTrashPersistedStateMachine,
+    PreTrashApplicationState
+);
 version!(
     PreRollupStateMachineData,
     PreRollupPersistedStateMachine,

@@ -282,7 +282,7 @@ test("configures multi-location target evaluation", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Multi-location target" })).toContainText("2 locations");
 });
 
-test("edits, inspects, and deletes a target", async ({ page }) => {
+test("trashes, restores, and permanently deletes a target", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Add target" }).click();
   const addTarget = page.getByRole("dialog", { name: "Add target" });
@@ -309,7 +309,7 @@ test("edits, inspects, and deletes a target", async ({ page }) => {
   await expect(details.locator(".dialog-head p")).toHaveCount(0);
   await expect(details.getByRole("button", { name: "Close", exact: true })).toHaveCount(0);
   await expect(details.getByRole("button", { name: "Close target details" }).locator("iconify-icon")).toBeVisible();
-  await expect(details.getByRole("button", { name: "Delete target" }).locator("iconify-icon")).toBeVisible();
+  await expect(details.getByRole("button", { name: "Move Target to Trash" }).locator("iconify-icon")).toBeVisible();
   const pause = details.getByRole("button", { name: "Pause evaluations" });
   await expect(pause).toHaveClass(/warning/);
   await expect(pause).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
@@ -344,8 +344,35 @@ test("edits, inspects, and deletes a target", async ({ page }) => {
   await expect(page.getByText("Renamed lifecycle target")).toBeVisible();
   await page.getByRole("button", { name: "Renamed lifecycle target" }).click();
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Delete target" }).click();
+  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Move Target to Trash" }).click();
   await expect(page.getByText("Renamed lifecycle target")).not.toBeVisible();
+
+  await page.getByRole("link", { name: "Trash" }).click();
+  const trashed = page.getByRole("region", { name: "Trashed Targets" }).getByText("Renamed lifecycle target", { exact: true });
+  await expect(trashed).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Restore" }).click();
+  await expect(trashed).not.toBeVisible();
+
+  await page.getByRole("link", { name: "Overview" }).click();
+  const restored = page.getByRole("button", { name: "Renamed lifecycle target" });
+  await expect(restored).toBeVisible();
+  await restored.click();
+  const restoredDetails = page.getByRole("dialog", { name: "Target details" });
+  await expect(
+    restoredDetails
+      .getByRole("list", { name: /Recent evaluation latency, 0 to/ })
+      .getByRole("listitem")
+      .first(),
+  ).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await restoredDetails.getByRole("button", { name: "Move Target to Trash" }).click();
+
+  await page.getByRole("link", { name: "Trash" }).click();
+  await expect(page.getByText("Renamed lifecycle target", { exact: true })).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Delete permanently" }).click();
+  await expect(page.getByText("Renamed lifecycle target", { exact: true })).not.toBeVisible();
 });
 
 test("configures notification resources and creates a join command", async ({ page }) => {

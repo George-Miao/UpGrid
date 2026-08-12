@@ -16,7 +16,7 @@ use upgrid_raft::domain::{
     AlertDelivery, AlertKind, ApplicationState, AvailabilityState, Command, ConfigValue,
     DomainError, EvaluationPolicy, HttpAssertion, HttpTarget, NodeTargetState, NotificationChannel,
     NotificationChannelId, NotificationChannelKind, Secret, SecretId, SmtpSecurity, StatusRange,
-    Target, TargetId, TargetKind, TargetState,
+    Target, TargetId, TargetKind, TargetState, TrashedTarget,
 };
 use upgrid_raft::{ClusterError, Handle, MembershipError, hash_join_token};
 use url::Url;
@@ -122,6 +122,7 @@ impl From<ClusterError> for ApiError {
             ClusterError::Domain {
                 source:
                     DomainError::TargetNotFound(_)
+                    | DomainError::TrashedTargetNotFound(_)
                     | DomainError::NotificationChannelNotFound(_)
                     | DomainError::AlertNotFound(_)
                     | DomainError::IdentityNotFound(_)

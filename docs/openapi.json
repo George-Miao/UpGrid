@@ -2490,6 +2490,165 @@
           }
         }
       }
+    },
+    "/api/v1/trash/targets": {
+      "get": {
+        "operationId": "list_trashed_targets",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrashedTargetView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/trash/targets/{id}": {
+      "delete": {
+        "operationId": "purge_target",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/trash/targets/{id}/restore": {
+      "post": {
+        "operationId": "restore_target",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TargetView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4086,6 +4245,195 @@
             "type": "string"
           }
         }
+      },
+      "TrashedTargetView": {
+        "allOf": [
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind",
+              "name",
+              "url",
+              "method",
+              "headers",
+              "accepted_statuses",
+              "follow_redirects",
+              "max_redirects",
+              "assertions",
+              "skip_tls_verification",
+              "interval_seconds",
+              "timeout_seconds",
+              "failure_threshold",
+              "locations",
+              "notification_channel_ids",
+              "use_default_channels",
+              "availability",
+              "consecutive_failures",
+              "history",
+              "paused"
+            ],
+            "properties": {
+              "accepted_statuses": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StatusRangeInput"
+                }
+              },
+              "assertions": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/HttpAssertionModel"
+                }
+              },
+              "availability": {
+                "type": "string"
+              },
+              "body": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ConfigValueView"
+                  }
+                ]
+              },
+              "consecutive_failures": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "failure_threshold": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "follow_redirects": {
+                "type": "boolean"
+              },
+              "headers": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ConfigValueView"
+                },
+                "propertyNames": {
+                  "type": "string"
+                }
+              },
+              "history": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/EvaluationView"
+                }
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "interval_seconds": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "kind": {
+                "$ref": "#/components/schemas/TargetKindView"
+              },
+              "latest_evaluation": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/EvaluationView"
+                  }
+                ]
+              },
+              "locations": {
+                "type": "integer",
+                "format": "int32",
+                "maximum": 32,
+                "minimum": 1
+              },
+              "max_redirects": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "method": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "notification_channel_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "uniqueItems": true
+              },
+              "paused": {
+                "type": "boolean"
+              },
+              "skip_tls_verification": {
+                "type": "boolean"
+              },
+              "timeout_seconds": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "tls_ca_secret_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "tls_client_certificate_secret_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "tls_client_private_key_secret_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "url": {
+                "type": "string"
+              },
+              "use_default_channels": {
+                "type": "boolean"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "deleted_at_ms",
+              "purge_at_ms"
+            ],
+            "properties": {
+              "deleted_at_ms": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "purge_at_ms": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              }
+            }
+          }
+        ]
       },
       "UpdateChannelRequest": {
         "oneOf": [

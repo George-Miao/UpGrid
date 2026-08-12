@@ -55,6 +55,10 @@ pub struct ConfigArgs {
     #[arg(long, value_name = "DAYS")]
     pub(super) history_rollup_retention_days: Option<u64>,
 
+    /// Deleted Target retention period.
+    #[arg(long, value_name = "DAYS")]
+    pub(super) target_trash_retention_days: Option<u64>,
+
     /// PEM certificate chain for API HTTPS.
     #[arg(long, value_name = "PATH", requires = "tls_key")]
     pub(super) tls_cert: Option<PathBuf>,

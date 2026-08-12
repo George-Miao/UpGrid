@@ -7,7 +7,7 @@ import closeIcon from "@iconify-icons/lucide/x";
 import "iconify-icon";
 import "./setup-flow.ts";
 import "./http-assertion-editor.ts";
-import type { ClusterMember, Target } from "./api.ts";
+import type { ClusterMember, Target, TrashedTarget } from "./api.ts";
 import { AppController } from "./app-controller.ts";
 import { renderAlertsPage } from "./alerts-view.ts";
 import { type Section, sectionPaths, serviceHealth, themeIcons } from "./app-state.ts";
@@ -313,7 +313,7 @@ export class UpgridApp extends AppController {
     const down = this.targets.filter((target) => target.availability === "down").length;
     const pending = this.alerts.filter((alert) => alert.delivery === "pending").length;
     const health = serviceHealth(this.targets, this.live);
-    const sections: Section[] = ["overview", "alerts", "cluster"];
+    const sections: Section[] = ["overview", "alerts", "cluster", "trash"];
     const visibleTargets = this.targets
       .filter((target) => `${target.name} ${target.url}`.toLowerCase().includes(this.search.toLowerCase()))
       .filter((target) => (this.statusFilter === "all" ? true : this.statusFilter === "paused" ? target.paused : target.availability === this.statusFilter))
@@ -394,7 +394,9 @@ export class UpgridApp extends AppController {
                     setAcknowledged: (value) => (this.alertAcknowledgedFilter = value),
                   },
                 )
-              : this.renderClusterPage()
+              : this.activeSection === "cluster"
+                ? this.renderClusterPage()
+                : this.renderTrashPage()
         }
       </main>${renderFooter()}
       ${renderTargetForm(this.channels, this.secrets, this.saving, {
@@ -486,6 +488,33 @@ export class UpgridApp extends AppController {
         ${this.selectedIds.size ? html`<div class="bulk"><span class="meta">${this.selectedIds.size} selected</span><div class="bulk-actions"><button class="button secondary icon-button" aria-label="Unselect all" title="Unselect all" @click=${() => (this.selectedIds = new Set())}><iconify-icon .icon=${closeIcon} aria-hidden="true"></iconify-icon></button>${canPauseSelected ? html`<button class="button warning icon-button" aria-label="Pause selected" title="Pause selected" @click=${() => this.bulkPause(true)}><iconify-icon .icon=${pauseIcon} aria-hidden="true"></iconify-icon></button>` : nothing}${canResumeSelected ? html`<button class="button success icon-button" aria-label="Resume selected" title="Resume selected" @click=${() => this.bulkPause(false)}><iconify-icon .icon=${playIcon} aria-hidden="true"></iconify-icon></button>` : nothing}<button class="button danger icon-button" aria-label="Delete selected" title="Delete selected" @click=${this.bulkDelete}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div></div>` : nothing}
         ${visibleTargets.length ? visibleTargets.map((target) => this.renderTarget(target)) : html`<div class="empty">${this.targets.length ? "No Targets match these filters." : "No targets yet. Add the first one to begin monitoring."}</div>`}
       </section>
+    `;
+  }
+
+  private renderTrashPage() {
+    return html`
+      <section class="heading" id="trash">
+        <div><span class="eyebrow">Recover deleted monitors</span><h1>Trash</h1></div>
+      </section>
+      <section class="panel" aria-label="Trashed Targets">
+        <div class="panel-head"><div><h2>Deleted Targets</h2><p class="meta">Settings and history remain recoverable until the retention deadline.</p></div><span class="meta">${this.trashedTargets.length} stored</span></div>
+        ${this.trashedTargets.length ? this.trashedTargets.map((target) => this.renderTrashedTarget(target)) : html`<div class="empty">Trash is empty.</div>`}
+      </section>
+    `;
+  }
+
+  private renderTrashedTarget(target: TrashedTarget) {
+    return html`
+      <div class="resource">
+        <div>
+          <strong>${target.name}</strong>
+          <code>${target.kind.toUpperCase()} · deleted ${new Date(target.deleted_at_ms).toLocaleString()} · permanently deleted ${new Date(target.purge_at_ms).toLocaleString()}</code>
+        </div>
+        <div class="actions">
+          <button class="button secondary" ?disabled=${this.saving} @click=${() => this.restoreTarget(target)}>Restore</button>
+          <button class="button danger" ?disabled=${this.saving} @click=${() => this.purgeTarget(target)}>Delete permanently</button>
+        </div>
+      </div>
     `;
   }
 

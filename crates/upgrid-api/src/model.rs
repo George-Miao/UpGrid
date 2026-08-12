@@ -275,8 +275,41 @@ pub(super) struct TargetView {
     paused: bool,
 }
 
+#[derive(Debug, Serialize, ToSchema)]
+pub(super) struct TrashedTargetView {
+    #[serde(flatten)]
+    #[schema(inline)]
+    target: TargetView,
+    deleted_at_ms: u64,
+    purge_at_ms: u64,
+}
+
+impl TrashedTargetView {
+    pub(super) fn from_trashed(target: &TrashedTarget, retention_ms: u64) -> Self {
+        Self {
+            target: TargetView::from_target_state(
+                &target.state,
+                target.locations,
+                target.use_default_notifications,
+            ),
+            deleted_at_ms: target.deleted_at_ms,
+            purge_at_ms: target.purge_at_ms(retention_ms),
+        }
+    }
+}
+
 impl TargetView {
     pub(super) fn from_state(application: &ApplicationState, state: &TargetState) -> Self {
+        Self::from_target_state(
+            state,
+            application.target_location_count(state.target.id),
+            !application
+                .default_notifications_disabled
+                .contains(&state.target.id),
+        )
+    }
+
+    fn from_target_state(state: &TargetState, locations: u16, use_default_channels: bool) -> Self {
         let target = &state.target;
         Self {
             id: target.id.0,
@@ -321,11 +354,9 @@ impl TargetView {
             interval_seconds: target.policy.interval_ms / 1_000,
             timeout_seconds: target.policy.timeout_ms / 1_000,
             failure_threshold: target.policy.failure_threshold,
-            locations: application.target_location_count(target.id),
+            locations,
             notification_channel_ids: target.notification_channels.iter().map(|id| id.0).collect(),
-            use_default_channels: !application
-                .default_notifications_disabled
-                .contains(&target.id),
+            use_default_channels,
             availability: availability_name(state.availability).to_owned(),
             consecutive_failures: state.consecutive_failures,
             latest_evaluation: state.latest_evaluation.as_ref().map(EvaluationView::from),

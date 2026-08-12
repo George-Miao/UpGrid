@@ -18,8 +18,9 @@ mod tests {
     use super::*;
     use crate::domain::{
         AlertKind, ApplicationState, AvailabilityTransition, Command,
-        DEFAULT_HISTORY_ROLLUP_RETENTION_MS, Evaluation, EvaluationId, EvaluationPolicy,
-        HttpAssertion, HttpEvaluationMetadata, HttpTarget, NotificationChannelId, Target, TargetId,
+        DEFAULT_HISTORY_ROLLUP_RETENTION_MS, DEFAULT_TARGET_TRASH_RETENTION_MS, Evaluation,
+        EvaluationId, EvaluationPolicy, HttpAssertion, HttpEvaluationMetadata, HttpTarget,
+        NotificationChannelId, Target, TargetId,
     };
     use crate::raft::TC;
 

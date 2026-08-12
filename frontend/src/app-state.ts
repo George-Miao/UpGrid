@@ -3,7 +3,7 @@ import { state } from "lit/decorators.js";
 import darkIcon from "@iconify-icons/lucide/moon";
 import systemIcon from "@iconify-icons/lucide/palette";
 import brightIcon from "@iconify-icons/lucide/sun";
-import { ApiRequestError, type Alert, type ApiToken, type Channel, type Cluster, type HistoryPage, type Identity, type JoinToken, type Secret, type Session, type Setup, type Target, type Transition, request } from "./api.ts";
+import { ApiRequestError, type Alert, type ApiToken, type Channel, type Cluster, type HistoryPage, type Identity, type JoinToken, type Secret, type Session, type Setup, type Target, type TrashedTarget, type Transition, request } from "./api.ts";
 
 const themes = ["system", "dark", "bright"] as const;
 type Theme = (typeof themes)[number];
@@ -13,6 +13,7 @@ export const sectionPaths = {
   overview: "/",
   alerts: "/alerts",
   cluster: "/cluster",
+  trash: "/trash",
 } as const;
 export type Section = keyof typeof sectionPaths;
 
@@ -36,6 +37,7 @@ function storedTheme(): Theme {
 
 export class AppState extends LitElement {
   @state() protected targets: Target[] = [];
+  @state() protected trashedTargets: TrashedTarget[] = [];
   @state() protected channels: Channel[] = [];
   @state() protected alerts: Alert[] = [];
   @state() protected transitions: Transition[] = [];
@@ -192,8 +194,9 @@ export class AppState extends LitElement {
 
   protected async refresh(): Promise<void> {
     try {
-      [this.targets, this.channels, this.alerts, this.transitions, this.secrets, this.cluster, this.joinTokens, this.identities, this.apiTokens] = await Promise.all([
+      [this.targets, this.trashedTargets, this.channels, this.alerts, this.transitions, this.secrets, this.cluster, this.joinTokens, this.identities, this.apiTokens] = await Promise.all([
         request<Target[]>("/api/v1/targets"),
+        request<TrashedTarget[]>("/api/v1/trash/targets"),
         request<Channel[]>("/api/v1/channels"),
         request<Alert[]>("/api/v1/alerts"),
         request<Transition[]>("/api/v1/transitions"),

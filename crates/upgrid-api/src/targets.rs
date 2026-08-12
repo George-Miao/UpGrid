@@ -149,7 +149,101 @@ pub(super) async fn delete_target(
 ) -> Result<StatusCode, ApiError> {
     state
         .cluster
-        .apply(Command::DeleteTarget(TargetId(id)))
+        .apply(Command::TrashTarget {
+            target_id: TargetId(id),
+            deleted_at_ms: now_ms(),
+        })
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/trash/targets",
+    responses(
+        (status = 200, body = [TrashedTargetView]),
+        (status = 401, body = ErrorBody),
+        (status = 503, body = ErrorBody),
+    )
+)]
+pub(super) async fn list_trashed_targets(
+    State(state): State<WebState>,
+) -> Result<Json<Vec<TrashedTargetView>>, ApiError> {
+    let now = now_ms();
+    let mut snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
+    if snapshot
+        .trashed_targets
+        .values()
+        .any(|target| target.purge_at_ms(snapshot.target_trash_retention_ms) <= now)
+    {
+        state
+            .cluster
+            .apply(Command::PruneTargetTrash { now_ms: now })
+            .await?;
+        snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
+    }
+    Ok(Json(
+        snapshot
+            .trashed_targets
+            .values()
+            .map(|target| {
+                TrashedTargetView::from_trashed(target, snapshot.target_trash_retention_ms)
+            })
+            .collect(),
+    ))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/trash/targets/{id}/restore",
+    params(("id" = Uuid, Path)),
+    responses(
+        (status = 200, body = TargetView),
+        (status = 401, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 409, body = ErrorBody),
+        (status = 503, body = ErrorBody),
+    )
+)]
+pub(super) async fn restore_target(
+    State(state): State<WebState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TargetView>, ApiError> {
+    let id = TargetId(id);
+    state
+        .cluster
+        .apply(Command::RestoreTarget {
+            target_id: id,
+            restored_at_ms: now_ms(),
+        })
+        .await?;
+    let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
+    snapshot
+        .targets
+        .get(&id)
+        .map(|target| TargetView::from_state(&snapshot, target))
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found(format!("target not found: {}", id.0)))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/v1/trash/targets/{id}",
+    params(("id" = Uuid, Path)),
+    responses(
+        (status = 204),
+        (status = 401, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 503, body = ErrorBody),
+    )
+)]
+pub(super) async fn purge_target(
+    State(state): State<WebState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, ApiError> {
+    state
+        .cluster
+        .apply(Command::PurgeTarget(TargetId(id)))
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }

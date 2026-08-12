@@ -31,6 +31,14 @@ Opening a Target shows availability, average latency, and Evaluation count for i
 
 For archival, page `GET /api/v1/targets/{id}/history` in chronological order. The Cluster retains hourly rollups for 365 days by default; set `history_rollup_retention_days` when creating a Cluster or on any later startup to change the replicated retention window.
 
+## Delete and restore a Target
+
+Deleting a Target moves it to **Trash** instead of immediately destroying it. The replicated trash entry retains the complete Target configuration, pause and availability state, raw and hourly history, notification routing, and evaluation-location count. Active evaluation assignments are released when deletion commits.
+
+Open **Trash** to restore a Target before its retention deadline or to delete it permanently. Both actions require confirmation. Restoration returns the same Target ID and retained history to scheduling. Permanent deletion cannot be undone.
+
+Trash is retained for 30 days by default. Configure `target_trash_retention_days`, `UPGRID_TARGET_TRASH_RETENTION_DAYS`, or `--target-trash-retention-days` on startup to change the replicated Cluster-wide window. Expired entries are pruned and cannot be restored. Secrets and Notification Channels referenced by a trashed Target remain protected from deletion; restore and edit the Target, or permanently delete it, before removing those resources.
+
 ## Probe behavior
 
 TCP Targets succeed after establishing a connection. DNS Targets succeed when the system resolver returns at least one IPv4 or IPv6 address. TLS Targets complete a TLS handshake and validate the certificate chain, hostname, and validity period against the bundled public roots.

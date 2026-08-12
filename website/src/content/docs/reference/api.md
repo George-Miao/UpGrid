@@ -45,6 +45,12 @@ Every accepted Target or Cluster Node Evaluation contributes to a replicated one
 
 Use `from_ms` and `to_ms` to select at most 366 days, and `limit` to request 1 through 1,000 items. The default range is the last 30 days and the default limit is 168. When `next_cursor_ms` is present, repeat the same request with that value as `cursor_ms`; cursors are exclusive. This bounded page contract lets archival jobs advance without reading raw Raft state.
 
+## Target trash
+
+`DELETE /api/v1/targets/{id}` atomically moves a Target into replicated trash and releases its active evaluation assignments. Settings, raw history, hourly rollups, availability state, notification routing, and location count remain attached to the same Target ID.
+
+`GET /api/v1/trash/targets` lists recoverable Targets with `deleted_at_ms` and `purge_at_ms`. `POST /api/v1/trash/targets/{id}/restore` restores an unexpired entry. `DELETE /api/v1/trash/targets/{id}` permanently deletes it. Expired or purged Targets return `404` when restoration is attempted.
+
 ## Node lifecycle
 
 `PUT /api/v1/nodes/{id}/drain` excludes a Node from new evaluation assignments. Existing assignments may finish; the Cluster response reports `draining` and `active_assignments` for each member. Cancel a drain by sending `{"draining":false}`.

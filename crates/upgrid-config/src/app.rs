@@ -33,6 +33,7 @@ pub struct Config {
     pub secret_key: Option<String>,
     pub history_retention_ms: Option<u64>,
     pub history_rollup_retention_ms: Option<u64>,
+    pub target_trash_retention_ms: Option<u64>,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
 }
@@ -56,6 +57,7 @@ struct RawConfig {
     secret_key: Option<String>,
     history_retention_hours: Option<u64>,
     history_rollup_retention_days: Option<u64>,
+    target_trash_retention_days: Option<u64>,
     tls_cert: Option<PathBuf>,
     tls_key: Option<PathBuf>,
 }
@@ -74,6 +76,7 @@ impl Default for RawConfig {
             secret_key: None,
             history_retention_hours: None,
             history_rollup_retention_days: None,
+            target_trash_retention_days: None,
             tls_cert: None,
             tls_key: None,
         }
@@ -110,6 +113,7 @@ fn load_with(args: ConfigArgs, load_env: bool) -> Result<Config> {
     override_value!(secret_key);
     override_value!(history_retention_hours);
     override_value!(history_rollup_retention_days);
+    override_value!(target_trash_retention_days);
     override_value!(tls_cert);
     override_value!(tls_key);
     if args.new_cluster {
@@ -140,6 +144,10 @@ impl TryFrom<RawConfig> for Config {
             .history_rollup_retention_days
             .map(history_rollup_retention_ms)
             .transpose()?;
+        let target_trash_retention_ms = raw
+            .target_trash_retention_days
+            .map(target_trash_retention_ms)
+            .transpose()?;
         Ok(Self {
             bind: raw.bind,
             raft_url: raw.raft_url,
@@ -155,6 +163,7 @@ impl TryFrom<RawConfig> for Config {
             secret_key: raw.secret_key,
             history_retention_ms,
             history_rollup_retention_ms,
+            target_trash_retention_ms,
             tls_cert: raw.tls_cert,
             tls_key: raw.tls_key,
         })
@@ -175,6 +184,14 @@ fn history_rollup_retention_ms(days: u64) -> Result<u64> {
         .filter(|value| *value > 0)
         .ok_or(Error::InvalidConfiguration {
             message: "history rollup retention is zero or too large",
+        })
+}
+
+fn target_trash_retention_ms(days: u64) -> Result<u64> {
+    days.checked_mul(24 * 60 * 60 * 1_000)
+        .filter(|value| *value > 0)
+        .ok_or(Error::InvalidConfiguration {
+            message: "Target trash retention is zero or too large",
         })
 }
 
@@ -289,6 +306,7 @@ mod tests {
         let config = Config::try_from(RawConfig {
             history_retention_hours: Some(2),
             history_rollup_retention_days: Some(3),
+            target_trash_retention_days: Some(4),
             ..RawConfig::default()
         })
         .unwrap();
@@ -298,9 +316,13 @@ mod tests {
             config.history_rollup_retention_ms,
             Some(3 * 24 * 60 * 60 * 1_000)
         );
+        assert_eq!(
+            config.target_trash_retention_ms,
+            Some(4 * 24 * 60 * 60 * 1_000)
+        );
         assert!(
             Config::try_from(RawConfig {
-                history_rollup_retention_days: Some(0),
+                target_trash_retention_days: Some(0),
                 ..RawConfig::default()
             })
             .is_err()

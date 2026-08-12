@@ -24,6 +24,8 @@ fn legacy_assignments(
         .collect()
 }
 
+mod trash;
+pub(crate) use trash::*;
 mod history;
 pub(crate) use history::*;
 mod location;

@@ -59,6 +59,11 @@ export interface Target {
   paused: boolean;
 }
 
+export interface TrashedTarget extends Target {
+  deleted_at_ms: number;
+  purge_at_ms: number;
+}
+
 export type ConfigValue = { kind: "literal"; value: string } | { kind: "secret"; secret_id: string };
 
 export interface Channel {

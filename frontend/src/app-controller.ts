@@ -1,4 +1,4 @@
-import { type Alert, type ApiToken, type Channel, type ClusterMember, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type Secret, type Session, type Setup, type Target, type TargetInput, request } from "./api.ts";
+import { type Alert, type ApiToken, type Channel, type ClusterMember, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type Secret, type Session, type Setup, type Target, type TargetInput, type TrashedTarget, request } from "./api.ts";
 import { AppState } from "./app-state.ts";
 import { channelInput, targetInput } from "./resource-input.ts";
 import type { HttpAssertionEditor } from "./http-assertion-editor.ts";
@@ -78,7 +78,7 @@ export class AppController extends AppState {
   }
 
   protected async deleteTarget(): Promise<void> {
-    if (!this.selected || !window.confirm("Delete this target and its history?")) return;
+    if (!this.selected || !window.confirm("Move this Target and its history to Trash? You can restore it before its retention period expires.")) return;
     this.saving = true;
     try {
       await request<void>(`/api/v1/targets/${this.selected.id}`, { method: "DELETE" });
@@ -89,6 +89,16 @@ export class AppController extends AppState {
     } finally {
       this.saving = false;
     }
+  }
+
+  protected async restoreTarget(target: TrashedTarget): Promise<void> {
+    if (!window.confirm(`Restore ${target.name} with its settings and history?`)) return;
+    await this.saveResource(() => request<Target>(`/api/v1/trash/targets/${target.id}/restore`, { method: "POST" }));
+  }
+
+  protected async purgeTarget(target: TrashedTarget): Promise<void> {
+    if (!window.confirm(`Permanently delete ${target.name} and all of its history? This cannot be undone.`)) return;
+    await this.saveResource(() => request<void>(`/api/v1/trash/targets/${target.id}`, { method: "DELETE" }));
   }
 
   protected async setPaused(paused: boolean): Promise<void> {
@@ -402,7 +412,7 @@ export class AppController extends AppState {
   }
 
   protected async bulkDelete(): Promise<void> {
-    if (!window.confirm(`Delete ${this.selectedIds.size} selected Targets and their history?`)) return;
+    if (!window.confirm(`Move ${this.selectedIds.size} selected Targets and their history to Trash?`)) return;
     this.saving = true;
     try {
       await Promise.all([...this.selectedIds].map((id) => request<void>(`/api/v1/targets/${id}`, { method: "DELETE" })));

@@ -1,5 +1,6 @@
 mod alert;
 mod evaluation;
+mod trash;
 
 impl ApplicationState {
     pub fn apply_operation(
@@ -70,19 +71,21 @@ impl ApplicationState {
                 use_default_notifications,
                 locations,
             } => self.update_target_with_locations(target, use_default_notifications, locations),
-            Command::DeleteTarget(target_id) => {
-                self.targets
-                    .remove(&target_id)
-                    .ok_or(DomainError::TargetNotFound(target_id))?;
-                self.assignments
-                    .retain(|key, _| key.id.target_id != target_id);
-                self.evaluation_batches
-                    .retain(|id, _| id.target_id != target_id);
-                self.target_locations.remove(&target_id);
-                self.history_rollups.remove(&target_id);
-                self.default_notifications_disabled.remove(&target_id);
-                Ok(CommandResult::TargetDeleted(target_id))
-            }
+            Command::DeleteTarget(target_id) => self.hard_delete_target(target_id),
+            Command::TrashTarget {
+                target_id,
+                deleted_at_ms,
+            } => self.trash_target(target_id, deleted_at_ms),
+            Command::RestoreTarget {
+                target_id,
+                restored_at_ms,
+            } => self.restore_target(target_id, restored_at_ms),
+            Command::PurgeTarget(target_id) => self.purge_target(target_id),
+            Command::PruneTargetTrash { now_ms } => self.prune_target_trash(now_ms),
+            Command::SetTargetTrashRetention {
+                retention_ms,
+                now_ms,
+            } => self.set_target_trash_retention(retention_ms, now_ms),
             Command::AssignEvaluation(assignment) => self.assign_one_evaluation(assignment),
             Command::AssignEvaluations(assignments) => self.assign_evaluations(assignments),
             Command::SetHistoryRetention { retention_ms } => {
@@ -122,6 +125,13 @@ impl ApplicationState {
                     .targets
                     .values()
                     .any(|target| target.target.notification_channels.contains(&channel_id))
+                    || self.trashed_targets.values().any(|target| {
+                        target
+                            .state
+                            .target
+                            .notification_channels
+                            .contains(&channel_id)
+                    })
                 {
                     return Err(DomainError::InvalidNotificationChannel(
                         "notification channel is still referenced by a Target".to_owned(),
@@ -137,7 +147,15 @@ impl ApplicationState {
                 let target_reference = self
                     .targets
                     .values()
-                    .any(|target| target.target.http.secret_ids().any(|id| id == secret_id));
+                    .any(|target| target.target.http.secret_ids().any(|id| id == secret_id))
+                    || self.trashed_targets.values().any(|target| {
+                        target
+                            .state
+                            .target
+                            .http
+                            .secret_ids()
+                            .any(|id| id == secret_id)
+                    });
                 let channel_reference = self
                     .notification_channels
                     .values()
@@ -358,7 +376,7 @@ impl ApplicationState {
         use_default_notifications: bool,
     ) -> Result<CommandResult, DomainError> {
         target.validate()?;
-        if self.targets.contains_key(&target.id) {
+        if self.targets.contains_key(&target.id) || self.trashed_targets.contains_key(&target.id) {
             return Err(DomainError::TargetAlreadyExists(target.id));
         }
         self.validate_target_references(&target)?;

@@ -19,6 +19,7 @@ data_dir = "/var/lib/upgrid"
 node_name = "edge-shanghai"
 history_retention_hours = 24
 history_rollup_retention_days = 365
+target_trash_retention_days = 30
 tls_cert = "/etc/upgrid/api-chain.pem"
 tls_key = "/etc/upgrid/api-key.pem"
 ```
@@ -39,10 +40,13 @@ Start with `upgrid --config /etc/upgrid.toml` or set `UPGRID_CONFIG=/etc/upgrid.
 | `join` | `UPGRID_JOIN` | `--join` | unset |
 | `history_retention_hours` | `UPGRID_HISTORY_RETENTION_HOURS` | `--history-retention-hours` | 24 hours for a new Cluster |
 | `history_rollup_retention_days` | `UPGRID_HISTORY_ROLLUP_RETENTION_DAYS` | `--history-rollup-retention-days` | 365 days for a new Cluster |
+| `target_trash_retention_days` | `UPGRID_TARGET_TRASH_RETENTION_DAYS` | `--target-trash-retention-days` | 30 days for a new Cluster |
 | `tls_cert` | `UPGRID_TLS_CERT` | `--tls-cert` | unset |
 | `tls_key` | `UPGRID_TLS_KEY` | `--tls-key` | unset |
 
 `new_cluster` and `join` are mutually exclusive. `tls_cert` and `tls_key` must always be configured together. `username` and `password` create the first Operator Identity during unattended `new_cluster` setup. They are also used once to migrate a pre-authentication Cluster whose replicated state contains no identities; remove credential-bearing configuration after migration.
+
+History and Target trash retention settings are replicated Cluster-wide. Supplying one on any Node startup updates the shared value through the leader; otherwise an existing Cluster keeps its current value.
 
 ## Deployment key
 

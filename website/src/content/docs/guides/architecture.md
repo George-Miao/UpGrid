@@ -23,6 +23,12 @@ Accepted Target and Cluster Node results update deterministic one-hour rollups i
 
 The history API performs the same linearizable-read barrier as other Cluster reads, then pages rollups chronologically through bounded time ranges. External archival can therefore resume from a cursor without accessing Raft storage or coordinating with the leader.
 
+## Target lifecycle
+
+Target deletion is a Raft command, not a local storage operation. The state machine moves the complete Target state and retained history into replicated trash while releasing scheduler assignments. Restore and permanent-delete commands are serialized with all other mutations, so every Node observes one lifecycle outcome.
+
+The retention window is itself replicated. Expiry pruning is deterministic because commands carry the leader's timestamp; restored Targets keep their stable ID, configuration, history, and notification references. State and snapshot versioning migrates older Clusters with an empty trash and the default retention window.
+
 ## Membership changes
 
 Healthy Nodes drain before removal so in-flight evaluations can finish. Failed Nodes can be force-removed while a quorum remains; replacement uses a new Node identity, an empty data directory, and a one-use Join Token. Raft serializes admission and removal so concurrent membership changes cannot overwrite one another.

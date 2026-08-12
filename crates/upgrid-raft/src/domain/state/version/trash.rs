@@ -6,32 +6,34 @@ use uuid::Uuid;
 use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PreRollupApplicationState {
-    pub(super) targets: BTreeMap<TargetId, TargetState>,
-    pub(super) node_targets: BTreeMap<TargetId, NodeTargetState>,
-    pub(super) secrets: BTreeMap<SecretId, Secret>,
-    pub(super) notification_channels: BTreeMap<NotificationChannelId, NotificationChannel>,
-    pub(super) default_notification_channels: BTreeSet<NotificationChannelId>,
-    pub(super) default_notifications_disabled: BTreeSet<TargetId>,
-    pub(super) alerts: BTreeMap<AlertId, Alert>,
-    pub(super) alert_acknowledgements: BTreeMap<AlertId, u64>,
-    pub(super) transitions: BTreeMap<EvaluationId, AvailabilityTransition>,
-    pub(super) history_retention_ms: u64,
-    pub(super) processed_operations: BTreeMap<Uuid, ProcessedOperation>,
-    pub(super) latest_operation_at_ms: u64,
-    pub(super) assignments: BTreeMap<EvaluationAssignmentKey, EvaluationAssignment>,
-    pub(super) evaluation_batches: BTreeMap<EvaluationId, EvaluationBatch>,
-    pub(super) target_locations: BTreeMap<TargetId, u16>,
-    pub(super) join_tokens: BTreeMap<JoinTokenHash, u64>,
-    pub(super) join_token_uses: BTreeMap<JoinTokenHash, u64>,
-    pub(super) node_names: BTreeMap<Uuid, String>,
-    pub(super) draining_nodes: BTreeSet<Uuid>,
-    pub(super) identities: BTreeMap<IdentityId, OperatorIdentity>,
-    pub(super) api_tokens: BTreeMap<ApiTokenId, ApiToken>,
+pub(crate) struct PreTrashApplicationState {
+    targets: BTreeMap<TargetId, TargetState>,
+    node_targets: BTreeMap<TargetId, NodeTargetState>,
+    secrets: BTreeMap<SecretId, Secret>,
+    notification_channels: BTreeMap<NotificationChannelId, NotificationChannel>,
+    default_notification_channels: BTreeSet<NotificationChannelId>,
+    default_notifications_disabled: BTreeSet<TargetId>,
+    alerts: BTreeMap<AlertId, Alert>,
+    alert_acknowledgements: BTreeMap<AlertId, u64>,
+    transitions: BTreeMap<EvaluationId, AvailabilityTransition>,
+    history_retention_ms: u64,
+    history_rollup_retention_ms: u64,
+    history_rollups: BTreeMap<TargetId, BTreeMap<u64, EvaluationRollup>>,
+    processed_operations: BTreeMap<Uuid, ProcessedOperation>,
+    latest_operation_at_ms: u64,
+    assignments: BTreeMap<EvaluationAssignmentKey, EvaluationAssignment>,
+    evaluation_batches: BTreeMap<EvaluationId, EvaluationBatch>,
+    target_locations: BTreeMap<TargetId, u16>,
+    join_tokens: BTreeMap<JoinTokenHash, u64>,
+    join_token_uses: BTreeMap<JoinTokenHash, u64>,
+    node_names: BTreeMap<Uuid, String>,
+    draining_nodes: BTreeSet<Uuid>,
+    identities: BTreeMap<IdentityId, OperatorIdentity>,
+    api_tokens: BTreeMap<ApiTokenId, ApiToken>,
 }
 
-impl From<PreRollupApplicationState> for ApplicationState {
-    fn from(previous: PreRollupApplicationState) -> Self {
+impl From<PreTrashApplicationState> for ApplicationState {
+    fn from(previous: PreTrashApplicationState) -> Self {
         Self {
             targets: previous.targets,
             node_targets: previous.node_targets,
@@ -43,8 +45,8 @@ impl From<PreRollupApplicationState> for ApplicationState {
             alert_acknowledgements: previous.alert_acknowledgements,
             transitions: previous.transitions,
             history_retention_ms: previous.history_retention_ms,
-            history_rollup_retention_ms: DEFAULT_HISTORY_ROLLUP_RETENTION_MS,
-            history_rollups: BTreeMap::new(),
+            history_rollup_retention_ms: previous.history_rollup_retention_ms,
+            history_rollups: previous.history_rollups,
             target_trash_retention_ms: DEFAULT_TARGET_TRASH_RETENTION_MS,
             trashed_targets: BTreeMap::new(),
             processed_operations: previous.processed_operations,
@@ -63,7 +65,7 @@ impl From<PreRollupApplicationState> for ApplicationState {
 }
 
 #[cfg(test)]
-impl From<ApplicationState> for PreRollupApplicationState {
+impl From<ApplicationState> for PreTrashApplicationState {
     fn from(current: ApplicationState) -> Self {
         Self {
             targets: current.targets,
@@ -76,6 +78,8 @@ impl From<ApplicationState> for PreRollupApplicationState {
             alert_acknowledgements: current.alert_acknowledgements,
             transitions: current.transitions,
             history_retention_ms: current.history_retention_ms,
+            history_rollup_retention_ms: current.history_rollup_retention_ms,
+            history_rollups: current.history_rollups,
             processed_operations: current.processed_operations,
             latest_operation_at_ms: current.latest_operation_at_ms,
             assignments: current.assignments,

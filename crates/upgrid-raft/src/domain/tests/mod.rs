@@ -16,3 +16,4 @@ mod multi_location;
 mod node;
 mod notification;
 mod target_types;
+mod trash;
