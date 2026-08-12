@@ -4,10 +4,11 @@ The MVP is complete. This file records unfinished work for future agile iteratio
 
 ## Active Iteration
 
-- [ ] Document fixed-interval scheduler invariants, reference-workload evidence, and the semantic costs of cron or calendar schedules.
-- [ ] Record a scheduling decision with explicit adoption triggers, required missed-run and time-zone semantics, and the future module seam.
+No active items.
 
 ## Backlog
+
+No backlog items.
 
 ## Iteration Policy
 
