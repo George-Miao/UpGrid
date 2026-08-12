@@ -475,7 +475,7 @@ export class UpgridApp extends AppController {
           <div class=${`metric down ${down ? "active" : ""}`}><span>Down</span><strong>${down}</strong></div>
         </section>
         <section class="panel" aria-label="Secrets">
-          <div class="panel-head"><div class="title-with-help"><h2>Secrets</h2>${renderHelpTooltip("secrets-help", "About reusable Secrets", "Reusable Secrets are encrypted and write-only. UpGrid reports whether each Secret is referenced by an active or trashed Target or a Notification Channel.")}</div><div class="actions">${unusedSecrets.length ? html`<button class="button danger" ?disabled=${this.saving} @click=${() => this.cleanupSecrets()}>Delete unused (${unusedSecrets.length})</button>` : nothing}<button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div></div>
+          <div class="panel-head"><div class="title-with-help"><h2>Secrets</h2>${renderHelpTooltip("secrets-help", "About reusable Secrets", "Reusable Secrets are encrypted and write-only. Reference them from Target headers or bodies and webhook headers or other Notification Channel credentials. UpGrid reports whether each Secret is referenced by an active or trashed Target or a Notification Channel.")}</div><div class="actions">${unusedSecrets.length ? html`<button class="button danger" ?disabled=${this.saving} @click=${() => this.cleanupSecrets()}>Delete unused (${unusedSecrets.length})</button>` : nothing}<button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div></div>
           ${
             this.secrets.length
               ? this.secrets.map(
