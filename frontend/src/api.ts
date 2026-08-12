@@ -105,8 +105,12 @@ export interface Transition {
 export interface Secret {
   id: string;
   name: string;
+  referenced: boolean;
 }
 
+export interface SecretCleanup {
+  deleted_ids: string[];
+}
 export interface JoinLink {
   id: string;
   url: string;

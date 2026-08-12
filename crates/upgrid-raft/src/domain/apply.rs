@@ -1,5 +1,6 @@
 mod alert;
 mod evaluation;
+mod secret;
 mod trash;
 
 impl ApplicationState {
@@ -143,33 +144,8 @@ impl ApplicationState {
                 self.default_notification_channels.remove(&channel_id);
                 Ok(CommandResult::NotificationChannelDeleted(channel_id))
             }
-            Command::DeleteSecret(secret_id) => {
-                let target_reference = self
-                    .targets
-                    .values()
-                    .any(|target| target.target.http.secret_ids().any(|id| id == secret_id))
-                    || self.trashed_targets.values().any(|target| {
-                        target
-                            .state
-                            .target
-                            .http
-                            .secret_ids()
-                            .any(|id| id == secret_id)
-                    });
-                let channel_reference = self
-                    .notification_channels
-                    .values()
-                    .any(|channel| channel.secret_ids().contains(&secret_id));
-                if target_reference || channel_reference {
-                    return Err(DomainError::InvalidSecret(
-                        "secret is still referenced by a Target or Notification Channel".to_owned(),
-                    ));
-                }
-                self.secrets
-                    .remove(&secret_id)
-                    .ok_or(DomainError::SecretNotFound(secret_id))?;
-                Ok(CommandResult::SecretDeleted(secret_id))
-            }
+            Command::DeleteSecret(secret_id) => self.delete_secret(secret_id),
+            Command::DeleteUnreferencedSecrets => self.delete_unreferenced_secrets(),
             Command::PutJoinToken {
                 hash,
                 expires_at_ms,

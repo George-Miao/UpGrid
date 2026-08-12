@@ -47,6 +47,7 @@ pub enum Command {
         paused: bool,
     },
     DeleteSecret(SecretId),
+    DeleteUnreferencedSecrets,
     DeleteNotificationChannel(NotificationChannelId),
     RevokeJoinToken(JoinTokenHash),
     PutLimitedJoinToken {
@@ -139,6 +140,7 @@ pub enum CommandResult {
         paused: bool,
     },
     SecretDeleted(SecretId),
+    UnreferencedSecretsDeleted(Vec<SecretId>),
     NotificationChannelDeleted(NotificationChannelId),
     JoinTokenRevoked,
     NodeNameSet(Uuid),

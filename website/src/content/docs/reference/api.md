@@ -45,6 +45,12 @@ Every accepted Target or Cluster Node Evaluation contributes to a replicated one
 
 Use `from_ms` and `to_ms` to select at most 366 days, and `limit` to request 1 through 1,000 items. The default range is the last 30 days and the default limit is 168. When `next_cursor_ms` is present, repeat the same request with that value as `cursor_ms`; cursors are exclusive. This bounded page contract lets archival jobs advance without reading raw Raft state.
 
+## Secret discovery and cleanup
+
+`GET /api/v1/secrets` returns each write-only Secret with a `referenced` flag. References include active and trashed Targets plus Notification Channels; ciphertext is never returned.
+
+`DELETE /api/v1/secrets/unreferenced` atomically recomputes references in replicated state and deletes only currently unreferenced Secrets. The response lists `deleted_ids`. Calling cleanup with no unused Secrets succeeds with an empty list.
+
 ## Target trash
 
 `DELETE /api/v1/targets/{id}` atomically moves a Target into replicated trash and releases its active evaluation assignments. Settings, raw history, hourly rollups, availability state, notification routing, and location count remain attached to the same Target ID.

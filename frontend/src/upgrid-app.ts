@@ -461,6 +461,7 @@ export class UpgridApp extends AppController {
     const selectedTargets = this.targets.filter((target) => this.selectedIds.has(target.id));
     const canPauseSelected = selectedTargets.some((target) => !target.paused);
     const canResumeSelected = selectedTargets.some((target) => target.paused);
+    const unusedSecrets = this.secrets.filter((secret) => !secret.referenced);
     return html`
       <section class="heading" id="overview">
         <div><span class="eyebrow">Cluster status</span><h1>Overview</h1></div>
@@ -474,8 +475,15 @@ export class UpgridApp extends AppController {
           <div class=${`metric down ${down ? "active" : ""}`}><span>Down</span><strong>${down}</strong></div>
         </section>
         <section class="panel" aria-label="Secrets">
-          <div class="panel-head"><div class="title-with-help"><h2>Secrets</h2>${renderHelpTooltip("secrets-help", "About reusable Secrets", "Reusable Secrets are encrypted and write-only. Reference their IDs in Target headers or bodies and webhook headers through the HTTP API.")}</div><button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div>
-          ${this.secrets.length ? this.secrets.map((secret) => html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id}</code></div><button class="button danger icon-button" aria-label=${`Delete secret ${secret.name}`} title=${`Delete ${secret.name}`} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div>`) : html`<div class="empty">No reusable Secrets.</div>`}
+          <div class="panel-head"><div class="title-with-help"><h2>Secrets</h2>${renderHelpTooltip("secrets-help", "About reusable Secrets", "Reusable Secrets are encrypted and write-only. UpGrid reports whether each Secret is referenced by an active or trashed Target or a Notification Channel.")}</div><div class="actions">${unusedSecrets.length ? html`<button class="button danger" ?disabled=${this.saving} @click=${() => this.cleanupSecrets()}>Delete unused (${unusedSecrets.length})</button>` : nothing}<button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div></div>
+          ${
+            this.secrets.length
+              ? this.secrets.map(
+                  (secret) =>
+                    html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id} · ${secret.referenced ? "In use" : "Unused"}</code></div><button class="button danger icon-button" aria-label=${`Delete secret ${secret.name}`} title=${`Delete ${secret.name}`} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div>`,
+                )
+              : html`<div class="empty">No reusable Secrets.</div>`
+          }
         </section>
       </section>
       <section class="panel" aria-label="Targets">

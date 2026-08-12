@@ -15,5 +15,6 @@ mod lifecycle;
 mod multi_location;
 mod node;
 mod notification;
+mod secret_cleanup;
 mod target_types;
 mod trash;

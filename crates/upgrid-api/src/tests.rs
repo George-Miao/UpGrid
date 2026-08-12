@@ -13,7 +13,7 @@ mod tests {
             ciphertext: b"must-not-leak".to_vec(),
         };
 
-        let json = serde_json::to_string(&SecretView::from(&secret)).unwrap();
+        let json = serde_json::to_string(&SecretView::new(&secret, false)).unwrap();
 
         assert!(json.contains("Telegram"));
         assert!(!json.contains("must-not-leak"));

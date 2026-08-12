@@ -148,6 +148,7 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(delete_channel))
         .routes(routes!(list_secrets, create_secret))
         .routes(routes!(delete_secret))
+        .routes(routes!(delete_unreferenced_secrets))
         .routes(routes!(list_join_tokens, create_join_token))
         .routes(routes!(revoke_join_token))
         .routes(routes!(list_alerts))

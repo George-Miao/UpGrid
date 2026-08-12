@@ -1738,6 +1738,43 @@
         }
       }
     },
+    "/api/v1/secrets/unreferenced": {
+      "delete": {
+        "operationId": "delete_unreferenced_secrets",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretCleanupView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/secrets/{id}": {
       "delete": {
         "operationId": "delete_secret",
@@ -3790,11 +3827,27 @@
           }
         }
       },
+      "SecretCleanupView": {
+        "type": "object",
+        "required": [
+          "deleted_ids"
+        ],
+        "properties": {
+          "deleted_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
       "SecretView": {
         "type": "object",
         "required": [
           "id",
-          "name"
+          "name",
+          "referenced"
         ],
         "properties": {
           "id": {
@@ -3803,6 +3856,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "referenced": {
+            "type": "boolean"
           }
         }
       },

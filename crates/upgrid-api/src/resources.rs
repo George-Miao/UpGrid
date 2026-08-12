@@ -23,8 +23,13 @@ pub(super) async fn list_secrets(
     State(state): State<WebState>,
 ) -> Result<Json<Vec<SecretView>>, ApiError> {
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
+    let referenced = snapshot.referenced_secret_ids();
     Ok(Json(
-        snapshot.secrets.values().map(SecretView::from).collect(),
+        snapshot
+            .secrets
+            .values()
+            .map(|secret| SecretView::new(secret, referenced.contains(&secret.id)))
+            .collect(),
     ))
 }
 
@@ -59,8 +64,9 @@ pub(super) async fn create_secret(
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
     Ok((
         StatusCode::CREATED,
-        Json(SecretView::from(
+        Json(SecretView::new(
             snapshot.secrets.get(&id).expect("created secret exists"),
+            false,
         )),
     ))
 }
@@ -86,6 +92,30 @@ pub(super) async fn delete_secret(
         .apply(Command::DeleteSecret(SecretId(id)))
         .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/v1/secrets/unreferenced",
+    responses(
+        (status = 200, body = SecretCleanupView),
+        (status = 401, body = ErrorBody),
+        (status = 503, body = ErrorBody),
+    )
+)]
+pub(super) async fn delete_unreferenced_secrets(
+    State(state): State<WebState>,
+) -> Result<Json<SecretCleanupView>, ApiError> {
+    let result = state
+        .cluster
+        .apply(Command::DeleteUnreferencedSecrets)
+        .await?;
+    let CommandResult::UnreferencedSecretsDeleted(ids) = result else {
+        unreachable!("cleanup command returns cleanup result");
+    };
+    Ok(Json(SecretCleanupView {
+        deleted_ids: ids.into_iter().map(|id| id.0).collect(),
+    }))
 }
 
 #[utoipa::path(

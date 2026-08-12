@@ -13,10 +13,10 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use upgrid_config::{Cipher, Config, JoinLink, Oobe, OobePhase, generate_join_token, now_ms};
 use upgrid_raft::domain::{
-    AlertDelivery, AlertKind, ApplicationState, AvailabilityState, Command, ConfigValue,
-    DomainError, EvaluationPolicy, HttpAssertion, HttpTarget, NodeTargetState, NotificationChannel,
-    NotificationChannelId, NotificationChannelKind, Secret, SecretId, SmtpSecurity, StatusRange,
-    Target, TargetId, TargetKind, TargetState, TrashedTarget,
+    AlertDelivery, AlertKind, ApplicationState, AvailabilityState, Command, CommandResult,
+    ConfigValue, DomainError, EvaluationPolicy, HttpAssertion, HttpTarget, NodeTargetState,
+    NotificationChannel, NotificationChannelId, NotificationChannelKind, Secret, SecretId,
+    SmtpSecurity, StatusRange, Target, TargetId, TargetKind, TargetState, TrashedTarget,
 };
 use upgrid_raft::{ClusterError, Handle, MembershipError, hash_join_token};
 use url::Url;
@@ -175,6 +175,12 @@ struct PutSecretRequest {
 struct SecretView {
     id: Uuid,
     name: String,
+    referenced: bool,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+struct SecretCleanupView {
+    deleted_ids: Vec<Uuid>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -254,11 +260,12 @@ struct JoinClusterView {
     status: &'static str,
 }
 
-impl From<&Secret> for SecretView {
-    fn from(secret: &Secret) -> Self {
+impl SecretView {
+    fn new(secret: &Secret, referenced: bool) -> Self {
         Self {
             id: secret.id.0,
             name: secret.name.clone(),
+            referenced,
         }
     }
 }

@@ -784,3 +784,19 @@ test("drains and removes a remote Cluster Node", async ({ page }) => {
   await remove.click();
   await expect(member).toHaveCount(0);
 });
+
+test("discovers and cleans up unused Secrets", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add secret" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add secret" });
+  await dialog.getByLabel("Name").fill("Unused cleanup Secret");
+  await dialog.getByLabel("Value").fill("delete-me");
+  await dialog.getByRole("button", { name: "Create secret" }).click();
+
+  const secrets = page.getByRole("region", { name: "Secrets", exact: true });
+  const unused = secrets.locator(".resource", { hasText: "Unused cleanup Secret" });
+  await expect(unused).toContainText("Unused");
+  page.once("dialog", (confirmation) => confirmation.accept());
+  await secrets.getByRole("button", { name: /Delete unused/ }).click();
+  await expect(unused).not.toBeVisible();
+});

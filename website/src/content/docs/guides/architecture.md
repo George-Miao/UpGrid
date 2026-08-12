@@ -29,6 +29,10 @@ Target deletion is a Raft command, not a local storage operation. The state mach
 
 The retention window is itself replicated. Expiry pruning is deterministic because commands carry the leader's timestamp; restored Targets keep their stable ID, configuration, history, and notification references. State and snapshot versioning migrates older Clusters with an empty trash and the default retention window.
 
+## Secret lifecycle
+
+Every Node derives the same Secret reference set from active Targets, trashed Targets, and Notification Channels. Discovery is a linearizable read. Bulk cleanup is one Raft command that recomputes those references at commit time and removes only currently unreferenced Secrets, avoiding a race between a preview and concurrent configuration changes.
+
 ## Membership changes
 
 Healthy Nodes drain before removal so in-flight evaluations can finish. Failed Nodes can be force-removed while a quorum remains; replacement uses a new Node identity, an empty data directory, and a one-use Join Token. Raft serializes admission and removal so concurrent membership changes cannot overwrite one another.

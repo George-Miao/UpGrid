@@ -90,6 +90,8 @@ Create a reusable Secret from **Overview**, then copy the ID displayed beside it
 
 UpGrid decrypts the value only while building the outbound request. Target responses identify the Secret reference but never include its plaintext. See the [HTTP API reference](/reference/api/) for the complete Target request.
 
+The Secrets panel marks each item **In use** or **Unused**. **Delete unused** previews the count and requires confirmation. Cleanup rechecks references atomically when the Raft command commits, so a Secret referenced by an active Target, a trashed Target, or a Notification Channel is never removed by a stale browser view.
+
 ## Trust a private CA or use mutual TLS
 
 Store PEM credentials as separate Secrets, then select them under **HTTPS trust and mutual TLS** while creating or editing an HTTPS Target:

@@ -1,4 +1,4 @@
-import { type Alert, type ApiToken, type Channel, type ClusterMember, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type Secret, type Session, type Setup, type Target, type TargetInput, type TrashedTarget, request } from "./api.ts";
+import { type Alert, type ApiToken, type Channel, type ClusterMember, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type Secret, type SecretCleanup, type Session, type Setup, type Target, type TargetInput, type TrashedTarget, request } from "./api.ts";
 import { AppState } from "./app-state.ts";
 import { channelInput, targetInput } from "./resource-input.ts";
 import type { HttpAssertionEditor } from "./http-assertion-editor.ts";
@@ -423,6 +423,12 @@ export class AppController extends AppState {
     } finally {
       this.saving = false;
     }
+  }
+
+  protected async cleanupSecrets(): Promise<void> {
+    const unused = this.secrets.filter((secret) => !secret.referenced);
+    if (!unused.length || !window.confirm(`Permanently delete ${unused.length} unused ${unused.length === 1 ? "Secret" : "Secrets"}? References are checked again when cleanup commits.`)) return;
+    await this.saveResource(() => request<SecretCleanup>("/api/v1/secrets/unreferenced", { method: "DELETE" }));
   }
 
   protected async deleteResource(kind: "channels" | "secrets", id: string, name: string): Promise<void> {

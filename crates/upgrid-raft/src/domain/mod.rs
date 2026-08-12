@@ -9,6 +9,7 @@ mod config_value;
 mod evaluation;
 mod history;
 mod model;
+mod secret;
 mod state;
 mod target;
 mod trash;
