@@ -84,6 +84,16 @@ pub enum Command {
         alert_id: AlertId,
         retry_at_ms: u64,
     },
+    CreateTargetWithLocations {
+        target: Target,
+        use_default_notifications: bool,
+        locations: u16,
+    },
+    UpdateTargetWithLocations {
+        target: Target,
+        use_default_notifications: bool,
+        locations: u16,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -128,6 +138,7 @@ pub enum CommandResult {
     IdentityDeleted(IdentityId),
     ApiTokenCreated(ApiTokenId),
     ApiTokenRevoked(ApiTokenId),
+    EvaluationPending(EvaluationId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

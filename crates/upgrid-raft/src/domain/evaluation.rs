@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use url::Url;
+use uuid::Uuid;
 
 use super::*;
 
@@ -10,14 +11,55 @@ impl ApplicationState {
         evaluation: Evaluation,
     ) -> Result<CommandResult, DomainError> {
         evaluation.validate()?;
-        self.assignments.remove(&evaluation.id);
-        let Some(target) = self.targets.get_mut(&evaluation.id.target_id) else {
+        let id = evaluation.id;
+        let Some(target) = self.targets.get(&id.target_id) else {
             return Ok(CommandResult::EvaluationDiscarded);
         };
         if target.paused || duplicate(&target.history, &target.latest_evaluation, &evaluation) {
+            self.discard_evaluation_batch(id);
             return Ok(CommandResult::EvaluationDiscarded);
         }
 
+        let evaluation = if self.evaluation_batches.contains_key(&id) {
+            let key = EvaluationAssignmentKey {
+                id,
+                executor_node_id: evaluation.executor_node_id,
+            };
+            if self.assignments.remove(&key).is_none() {
+                return Ok(CommandResult::EvaluationDiscarded);
+            }
+            let batch = self
+                .evaluation_batches
+                .get_mut(&id)
+                .expect("checked evaluation batch must exist");
+            if batch
+                .results
+                .insert(evaluation.executor_node_id, evaluation)
+                .is_some()
+            {
+                return Ok(CommandResult::EvaluationDiscarded);
+            }
+            if batch.results.len() < usize::from(batch.expected_results) {
+                return Ok(CommandResult::EvaluationPending(id));
+            }
+            let batch = self
+                .evaluation_batches
+                .remove(&id)
+                .expect("complete evaluation batch must exist");
+            self.assignments.retain(|key, _| key.id != id);
+            aggregate(batch.results)
+        } else {
+            self.assignments.remove(&EvaluationAssignmentKey {
+                id,
+                executor_node_id: evaluation.executor_node_id,
+            });
+            evaluation
+        };
+
+        let target = self
+            .targets
+            .get_mut(&id.target_id)
+            .expect("validated evaluation Target must exist");
         let transition = update_availability(
             &mut target.availability,
             &mut target.consecutive_failures,
@@ -25,10 +67,7 @@ impl ApplicationState {
             evaluation.succeeded,
         );
         let mut channels = target.target.notification_channels.clone();
-        if !self
-            .default_notifications_disabled
-            .contains(&evaluation.id.target_id)
-        {
+        if !self.default_notifications_disabled.contains(&id.target_id) {
             channels.extend(self.default_notification_channels.iter().copied());
         }
         let name = target.target.name.clone();
@@ -45,6 +84,11 @@ impl ApplicationState {
             availability,
             alerts,
         })
+    }
+
+    fn discard_evaluation_batch(&mut self, id: EvaluationId) {
+        self.assignments.retain(|key, _| key.id != id);
+        self.evaluation_batches.remove(&id);
     }
 
     pub(super) fn record_node_evaluation(
@@ -129,6 +173,67 @@ impl ApplicationState {
             })
             .collect()
     }
+}
+
+fn aggregate(results: BTreeMap<Uuid, Evaluation>) -> Evaluation {
+    let evaluations = results.into_values().collect::<Vec<_>>();
+    let representative = evaluations
+        .iter()
+        .position(|evaluation| !evaluation.succeeded)
+        .unwrap_or(0);
+    let mut aggregate = evaluations[representative].clone();
+    aggregate.recorded_at_ms = evaluations
+        .iter()
+        .map(|evaluation| evaluation.recorded_at_ms)
+        .max()
+        .unwrap_or(aggregate.recorded_at_ms);
+    aggregate.http.latency_ms = evaluations
+        .iter()
+        .map(|evaluation| evaluation.http.latency_ms)
+        .max()
+        .unwrap_or(aggregate.http.latency_ms);
+    aggregate.http.received_bytes = evaluations
+        .iter()
+        .map(|evaluation| evaluation.http.received_bytes)
+        .fold(0_u64, u64::saturating_add);
+    let failed = evaluations
+        .iter()
+        .filter(|evaluation| !evaluation.succeeded)
+        .collect::<Vec<_>>();
+    aggregate.succeeded = failed.is_empty();
+    aggregate.diagnostic = (!failed.is_empty()).then(|| {
+        let details = failed
+            .iter()
+            .map(|evaluation| {
+                format!(
+                    "{}: {}",
+                    evaluation.executor_node_id,
+                    evaluation
+                        .diagnostic
+                        .as_deref()
+                        .unwrap_or("probe requirements were not met"),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        truncate_diagnostic(format!(
+            "{}/{} locations failed: {details}",
+            failed.len(),
+            evaluations.len(),
+        ))
+    });
+    aggregate
+}
+
+fn truncate_diagnostic(value: String) -> String {
+    if value.len() <= MAX_DIAGNOSTIC_BYTES {
+        return value;
+    }
+    let mut end = MAX_DIAGNOSTIC_BYTES;
+    while !value.is_char_boundary(end) {
+        end -= 1;
+    }
+    value[..end].to_owned()
 }
 
 fn duplicate(

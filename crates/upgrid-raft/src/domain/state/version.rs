@@ -5,6 +5,27 @@ use uuid::Uuid;
 
 use super::*;
 
+fn migrate_assignments(
+    assignments: BTreeMap<EvaluationId, EvaluationAssignment>,
+) -> BTreeMap<EvaluationAssignmentKey, EvaluationAssignment> {
+    assignments
+        .into_values()
+        .map(|assignment| (EvaluationAssignmentKey::from(&assignment), assignment))
+        .collect()
+}
+
+#[cfg(test)]
+fn legacy_assignments(
+    assignments: BTreeMap<EvaluationAssignmentKey, EvaluationAssignment>,
+) -> BTreeMap<EvaluationId, EvaluationAssignment> {
+    assignments
+        .into_values()
+        .map(|assignment| (assignment.id, assignment))
+        .collect()
+}
+
+mod location;
+pub(crate) use location::*;
 mod assertion;
 pub(crate) use assertion::*;
 mod acknowledgement;
@@ -149,6 +170,8 @@ impl From<LegacyApplicationState> for ApplicationState {
             processed_operations: legacy.processed_operations,
             latest_operation_at_ms: legacy.latest_operation_at_ms,
             assignments: BTreeMap::new(),
+            evaluation_batches: BTreeMap::new(),
+            target_locations: BTreeMap::new(),
             join_tokens: BTreeMap::new(),
             join_token_uses: BTreeMap::new(),
             node_names: BTreeMap::new(),
@@ -174,7 +197,9 @@ impl From<PreviousApplicationState> for ApplicationState {
             history_retention_ms: previous.history_retention_ms,
             processed_operations: previous.processed_operations,
             latest_operation_at_ms: previous.latest_operation_at_ms,
-            assignments: previous.assignments,
+            assignments: migrate_assignments(previous.assignments),
+            evaluation_batches: BTreeMap::new(),
+            target_locations: BTreeMap::new(),
             join_tokens: BTreeMap::new(),
             join_token_uses: BTreeMap::new(),
             node_names: BTreeMap::new(),
@@ -200,7 +225,9 @@ impl From<TokenApplicationState> for ApplicationState {
             history_retention_ms: previous.history_retention_ms,
             processed_operations: previous.processed_operations,
             latest_operation_at_ms: previous.latest_operation_at_ms,
-            assignments: previous.assignments,
+            assignments: migrate_assignments(previous.assignments),
+            evaluation_batches: BTreeMap::new(),
+            target_locations: BTreeMap::new(),
             join_tokens: previous.join_tokens,
             join_token_uses: BTreeMap::new(),
             node_names: BTreeMap::new(),
@@ -226,7 +253,9 @@ impl From<NamedApplicationState> for ApplicationState {
             history_retention_ms: previous.history_retention_ms,
             processed_operations: previous.processed_operations,
             latest_operation_at_ms: previous.latest_operation_at_ms,
-            assignments: previous.assignments,
+            assignments: migrate_assignments(previous.assignments),
+            evaluation_batches: BTreeMap::new(),
+            target_locations: BTreeMap::new(),
             join_tokens: previous.join_tokens,
             join_token_uses: previous.join_token_uses,
             node_names: previous.node_names,
@@ -252,7 +281,9 @@ impl From<TransitionApplicationState> for ApplicationState {
             history_retention_ms: previous.history_retention_ms,
             processed_operations: previous.processed_operations,
             latest_operation_at_ms: previous.latest_operation_at_ms,
-            assignments: previous.assignments,
+            assignments: migrate_assignments(previous.assignments),
+            evaluation_batches: BTreeMap::new(),
+            target_locations: BTreeMap::new(),
             join_tokens: previous.join_tokens,
             join_token_uses: previous.join_token_uses,
             node_names: previous.node_names,
@@ -278,7 +309,9 @@ impl From<DefaultChannelApplicationState> for ApplicationState {
             history_retention_ms: previous.history_retention_ms,
             processed_operations: previous.processed_operations,
             latest_operation_at_ms: previous.latest_operation_at_ms,
-            assignments: previous.assignments,
+            assignments: migrate_assignments(previous.assignments),
+            evaluation_batches: BTreeMap::new(),
+            target_locations: BTreeMap::new(),
             join_tokens: previous.join_tokens,
             join_token_uses: previous.join_token_uses,
             node_names: previous.node_names,
@@ -303,7 +336,7 @@ impl From<ApplicationState> for DefaultChannelApplicationState {
             history_retention_ms: current.history_retention_ms,
             processed_operations: current.processed_operations,
             latest_operation_at_ms: current.latest_operation_at_ms,
-            assignments: current.assignments,
+            assignments: legacy_assignments(current.assignments),
             join_tokens: current.join_tokens,
             join_token_uses: current.join_token_uses,
             node_names: current.node_names,
@@ -323,7 +356,7 @@ impl From<ApplicationState> for TransitionApplicationState {
             history_retention_ms: current.history_retention_ms,
             processed_operations: current.processed_operations,
             latest_operation_at_ms: current.latest_operation_at_ms,
-            assignments: current.assignments,
+            assignments: legacy_assignments(current.assignments),
             join_tokens: current.join_tokens,
             join_token_uses: current.join_token_uses,
             node_names: current.node_names,
@@ -342,7 +375,7 @@ impl From<ApplicationState> for NamedApplicationState {
             history_retention_ms: current.history_retention_ms,
             processed_operations: current.processed_operations,
             latest_operation_at_ms: current.latest_operation_at_ms,
-            assignments: current.assignments,
+            assignments: legacy_assignments(current.assignments),
             join_tokens: current.join_tokens,
             join_token_uses: current.join_token_uses,
             node_names: current.node_names,
@@ -361,7 +394,7 @@ impl From<ApplicationState> for TokenApplicationState {
             history_retention_ms: current.history_retention_ms,
             processed_operations: current.processed_operations,
             latest_operation_at_ms: current.latest_operation_at_ms,
-            assignments: current.assignments,
+            assignments: legacy_assignments(current.assignments),
             join_tokens: current.join_tokens,
         }
     }
@@ -378,7 +411,7 @@ impl From<ApplicationState> for PreviousApplicationState {
             history_retention_ms: current.history_retention_ms,
             processed_operations: current.processed_operations,
             latest_operation_at_ms: current.latest_operation_at_ms,
-            assignments: current.assignments,
+            assignments: legacy_assignments(current.assignments),
         }
     }
 }
@@ -398,7 +431,9 @@ impl From<PreAuthApplicationState> for ApplicationState {
             history_retention_ms: previous.history_retention_ms,
             processed_operations: previous.processed_operations,
             latest_operation_at_ms: previous.latest_operation_at_ms,
-            assignments: previous.assignments,
+            assignments: migrate_assignments(previous.assignments),
+            evaluation_batches: BTreeMap::new(),
+            target_locations: BTreeMap::new(),
             join_tokens: previous.join_tokens,
             join_token_uses: previous.join_token_uses,
             node_names: previous.node_names,
@@ -424,7 +459,7 @@ impl From<ApplicationState> for PreAuthApplicationState {
             history_retention_ms: current.history_retention_ms,
             processed_operations: current.processed_operations,
             latest_operation_at_ms: current.latest_operation_at_ms,
-            assignments: current.assignments,
+            assignments: legacy_assignments(current.assignments),
             join_tokens: current.join_tokens,
             join_token_uses: current.join_token_uses,
             node_names: current.node_names,

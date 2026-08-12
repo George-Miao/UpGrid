@@ -72,12 +72,14 @@ pub(super) async fn create_target(
 ) -> Result<(StatusCode, Json<TargetView>), ApiError> {
     let id = TargetId(Uuid::now_v7());
     let use_default_channels = input.use_default_channels;
+    let locations = input.locations;
     let target = target_from_input(id, input)?;
     state
         .cluster
-        .apply(Command::CreateTarget {
+        .apply(Command::CreateTargetWithLocations {
             target,
             use_default_notifications: use_default_channels,
+            locations,
         })
         .await?;
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
@@ -110,12 +112,14 @@ pub(super) async fn update_target(
 ) -> Result<Json<TargetView>, ApiError> {
     let id = TargetId(id);
     let use_default_channels = input.use_default_channels;
+    let locations = input.locations;
     let target = target_from_input(id, input)?;
     state
         .cluster
-        .apply(Command::UpdateTarget {
+        .apply(Command::UpdateTargetWithLocations {
             target,
             use_default_notifications: use_default_channels,
+            locations,
         })
         .await?;
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;

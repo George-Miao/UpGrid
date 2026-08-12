@@ -424,7 +424,7 @@ fn committed_result_completes_the_replicated_assignment() {
     };
     let assignment = EvaluationAssignment {
         id: evaluation_id,
-        executor_node_id: id(10),
+        executor_node_id: id(99),
         assigned_at_ms: 900,
         expires_at_ms: 2_000,
         attempt: 1,
@@ -434,12 +434,12 @@ fn committed_result_completes_the_replicated_assignment() {
         state.apply(Command::AssignEvaluation(assignment)).unwrap(),
         CommandResult::EvaluationAssigned(evaluation_id)
     );
-    assert!(state.assignments.contains_key(&evaluation_id));
+    assert!(state.has_evaluation_assignment(evaluation_id));
 
     state
         .apply(Command::RecordEvaluation(evaluation(
             target_id, 1_000, true,
         )))
         .unwrap();
-    assert!(!state.assignments.contains_key(&evaluation_id));
+    assert!(!state.has_evaluation_assignment(evaluation_id));
 }

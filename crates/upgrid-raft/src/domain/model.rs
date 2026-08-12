@@ -9,6 +9,7 @@ use super::{DomainError, EvaluationPolicy, Target};
 pub const DEFAULT_HISTORY_RETENTION_MS: u64 = 24 * 60 * 60 * 1_000;
 pub const DEFAULT_OPERATION_RETENTION_MS: u64 = 10 * 60 * 1_000;
 pub const MAX_DIAGNOSTIC_BYTES: usize = 1_024;
+pub const MAX_EVALUATION_LOCATIONS: u16 = 32;
 pub const MAX_RESPONSE_BYTES: u64 = 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -171,6 +172,12 @@ pub struct EvaluationId {
     pub scheduled_at_ms: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct EvaluationAssignmentKey {
+    pub id: EvaluationId,
+    pub executor_node_id: Uuid,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HttpEvaluationMetadata {
     pub status_code: Option<u16>,
@@ -196,6 +203,21 @@ pub struct EvaluationAssignment {
     pub assigned_at_ms: u64,
     pub expires_at_ms: u64,
     pub attempt: u32,
+}
+
+impl From<&EvaluationAssignment> for EvaluationAssignmentKey {
+    fn from(assignment: &EvaluationAssignment) -> Self {
+        Self {
+            id: assignment.id,
+            executor_node_id: assignment.executor_node_id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EvaluationBatch {
+    pub expected_results: u16,
+    pub results: BTreeMap<Uuid, Evaluation>,
 }
 
 impl EvaluationAssignment {

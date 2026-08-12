@@ -1,5 +1,7 @@
 //! Deterministic Target evaluation scheduling.
 
+use std::collections::BTreeSet;
+
 use upgrid_raft::domain::{EvaluationId, TargetId};
 use uuid::Uuid;
 
@@ -44,25 +46,40 @@ pub fn slot_at_or_before_ms(target_id: TargetId, interval_ms: u64, now_ms: u64) 
     phase.checked_add(((now_ms - phase) / interval_ms).checked_mul(interval_ms)?)
 }
 
-/// Selects one executor from an already-filtered set of eligible Nodes.
+/// Selects up to `count` distinct executors from already-filtered eligible
+/// Nodes.
 ///
-/// Sorting makes the result independent of membership iteration order. A
-/// membership change may intentionally rebalance work.
-pub fn select_executor(
+/// Sorting and a stable rotation make the result independent of membership
+/// iteration order while spreading the first executor across the Cluster.
+pub fn select_executors(
     evaluation_id: EvaluationId,
     eligible_nodes: impl IntoIterator<Item = Uuid>,
-) -> Option<Uuid> {
+    count: usize,
+) -> BTreeSet<Uuid> {
     let mut nodes = eligible_nodes.into_iter().collect::<Vec<_>>();
     nodes.sort_unstable();
-    if nodes.is_empty() {
-        return None;
+    nodes.dedup();
+    if nodes.is_empty() || count == 0 {
+        return BTreeSet::new();
     }
 
     let target = evaluation_id.target_id.0.as_u128();
     let scheduled = evaluation_id.scheduled_at_ms as u128;
     let mixed = target ^ scheduled.rotate_left(37);
     let folded = (mixed as u64) ^ ((mixed >> 64) as u64);
-    Some(nodes[(folded as usize) % nodes.len()])
+    let start = (folded as usize) % nodes.len();
+    (0..count.min(nodes.len()))
+        .map(|offset| nodes[(start + offset) % nodes.len()])
+        .collect()
+}
+
+pub fn select_executor(
+    evaluation_id: EvaluationId,
+    eligible_nodes: impl IntoIterator<Item = Uuid>,
+) -> Option<Uuid> {
+    select_executors(evaluation_id, eligible_nodes, 1)
+        .into_iter()
+        .next()
 }
 
 #[cfg(test)]

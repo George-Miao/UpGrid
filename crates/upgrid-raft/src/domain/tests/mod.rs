@@ -11,6 +11,7 @@ mod authentication;
 mod config_value;
 mod evaluation;
 mod lifecycle;
+mod multi_location;
 mod node;
 mod notification;
 mod target_types;

@@ -33,6 +33,9 @@ pub(super) async fn run(cluster: Handle, clients: Clients, cipher: Cipher) {
             .filter(|assignment| {
                 assignment.executor_node_id == cluster.node_id
                     && !active.borrow().contains(&assignment.id)
+                    && !state
+                        .evaluation_results(assignment.id)
+                        .is_some_and(|results| results.contains_key(&cluster.node_id))
             })
             .filter_map(|assignment| {
                 state.targets.get(&assignment.id.target_id).map(|target| {

@@ -1,4 +1,5 @@
 mod alert;
+mod evaluation;
 
 impl ApplicationState {
     pub fn apply_operation(
@@ -59,16 +60,29 @@ impl ApplicationState {
                 target,
                 use_default_notifications,
             } => self.update_target(target, use_default_notifications),
+            Command::CreateTargetWithLocations {
+                target,
+                use_default_notifications,
+                locations,
+            } => self.create_target_with_locations(target, use_default_notifications, locations),
+            Command::UpdateTargetWithLocations {
+                target,
+                use_default_notifications,
+                locations,
+            } => self.update_target_with_locations(target, use_default_notifications, locations),
             Command::DeleteTarget(target_id) => {
                 self.targets
                     .remove(&target_id)
                     .ok_or(DomainError::TargetNotFound(target_id))?;
                 self.assignments
-                    .retain(|evaluation_id, _| evaluation_id.target_id != target_id);
+                    .retain(|key, _| key.id.target_id != target_id);
+                self.evaluation_batches
+                    .retain(|id, _| id.target_id != target_id);
+                self.target_locations.remove(&target_id);
                 self.default_notifications_disabled.remove(&target_id);
                 Ok(CommandResult::TargetDeleted(target_id))
             }
-            Command::AssignEvaluation(assignment) => self.assign_evaluation(assignment),
+            Command::AssignEvaluation(assignment) => self.assign_one_evaluation(assignment),
             Command::AssignEvaluations(assignments) => self.assign_evaluations(assignments),
             Command::SetHistoryRetention { retention_ms } => {
                 if retention_ms == 0 {
@@ -87,7 +101,9 @@ impl ApplicationState {
                 target.paused = paused;
                 if paused {
                     self.assignments
-                        .retain(|evaluation_id, _| evaluation_id.target_id != target_id);
+                        .retain(|key, _| key.id.target_id != target_id);
+                    self.evaluation_batches
+                        .retain(|id, _| id.target_id != target_id);
                 }
                 Ok(CommandResult::TargetPauseSet { target_id, paused })
             }
@@ -361,6 +377,32 @@ impl ApplicationState {
         Ok(CommandResult::TargetUpdated(id))
     }
 
+    fn create_target_with_locations(
+        &mut self,
+        target: Target,
+        use_default_notifications: bool,
+        locations: u16,
+    ) -> Result<CommandResult, DomainError> {
+        validate_locations(locations)?;
+        let id = target.id;
+        let result = self.create_target(target, use_default_notifications)?;
+        self.target_locations.insert(id, locations);
+        Ok(result)
+    }
+
+    fn update_target_with_locations(
+        &mut self,
+        target: Target,
+        use_default_notifications: bool,
+        locations: u16,
+    ) -> Result<CommandResult, DomainError> {
+        validate_locations(locations)?;
+        let id = target.id;
+        let result = self.update_target(target, use_default_notifications)?;
+        self.target_locations.insert(id, locations);
+        Ok(result)
+    }
+
     fn set_target_default_notifications(&mut self, id: TargetId, enabled: bool) {
         if enabled {
             self.default_notifications_disabled.remove(&id);
@@ -407,54 +449,15 @@ impl ApplicationState {
         }
         Ok(CommandResult::NodeTargetsSynced)
     }
+}
 
-    fn assign_evaluation(
-        &mut self,
-        assignment: EvaluationAssignment,
-    ) -> Result<CommandResult, DomainError> {
-        assignment.validate()?;
-        if self.draining_nodes.contains(&assignment.executor_node_id) {
-            return Ok(CommandResult::EvaluationDiscarded);
-        }
-        let Some(target) = self.targets.get(&assignment.id.target_id) else {
-            return Ok(CommandResult::EvaluationDiscarded);
-        };
-        if target.paused {
-            return Ok(CommandResult::EvaluationDiscarded);
-        }
-        if target
-            .latest_evaluation
-            .as_ref()
-            .is_some_and(|latest| latest.id.scheduled_at_ms >= assignment.id.scheduled_at_ms)
-            || target.history.contains_key(&assignment.id.scheduled_at_ms)
-            || self
-                .assignments
-                .get(&assignment.id)
-                .is_some_and(|current| current.attempt >= assignment.attempt)
-            || self
-                .assignments
-                .keys()
-                .any(|id| id.target_id == assignment.id.target_id && *id != assignment.id)
-        {
-            return Ok(CommandResult::EvaluationDiscarded);
-        }
-        let id = assignment.id;
-        self.assignments.insert(id, assignment);
-        Ok(CommandResult::EvaluationAssigned(id))
+fn validate_locations(locations: u16) -> Result<(), DomainError> {
+    if !(1..=MAX_EVALUATION_LOCATIONS).contains(&locations) {
+        return Err(DomainError::InvalidTarget(format!(
+            "evaluation locations must be between 1 and {MAX_EVALUATION_LOCATIONS}",
+        )));
     }
-
-    fn assign_evaluations(
-        &mut self,
-        assignments: Vec<EvaluationAssignment>,
-    ) -> Result<CommandResult, DomainError> {
-        for assignment in &assignments {
-            assignment.validate()?;
-        }
-        for assignment in assignments {
-            self.assign_evaluation(assignment)?;
-        }
-        Ok(CommandResult::Noop)
-    }
+    Ok(())
 }
 use std::collections::BTreeSet;
 
@@ -462,6 +465,6 @@ use uuid::Uuid;
 
 use super::{
     AlertDelivery, ApplicationState, Command, CommandResult, DEFAULT_OPERATION_RETENTION_MS,
-    DomainError, EvaluationAssignment, NodeTarget, NodeTargetState, NotificationChannel,
+    DomainError, MAX_EVALUATION_LOCATIONS, NodeTarget, NodeTargetState, NotificationChannel,
     ProcessedOperation, Secret, Target, TargetId, TargetState,
 };

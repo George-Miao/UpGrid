@@ -31,7 +31,7 @@ fn assignment_batch_applies_every_valid_assignment() {
     assert!(
         assignments
             .iter()
-            .all(|assignment| state.assignments.contains_key(&assignment.id))
+            .all(|assignment| state.has_evaluation_assignment(assignment.id))
     );
 }
 
@@ -90,7 +90,7 @@ fn pausing_a_target_preserves_history_and_cancels_assignments() {
 
     assert!(state.targets[&target_id].paused);
     assert_eq!(state.targets[&target_id].history.len(), 1);
-    assert!(!state.assignments.contains_key(&evaluation_id));
+    assert!(!state.has_evaluation_assignment(evaluation_id));
 
     state
         .apply(Command::SetTargetPaused {
@@ -296,7 +296,7 @@ fn forced_node_drain_releases_assignments_and_can_be_cancelled() {
         }
     );
     assert!(state.draining_nodes.contains(&node_id));
-    assert!(!state.assignments.contains_key(&evaluation_id));
+    assert!(!state.has_evaluation_assignment(evaluation_id));
     let stale_id = EvaluationId {
         target_id,
         scheduled_at_ms: 3_000,
@@ -313,7 +313,7 @@ fn forced_node_drain_releases_assignments_and_can_be_cancelled() {
             .unwrap(),
         CommandResult::EvaluationDiscarded
     );
-    assert!(!state.assignments.contains_key(&stale_id));
+    assert!(!state.has_evaluation_assignment(stale_id));
 
     state
         .apply(Command::SetNodeDraining {

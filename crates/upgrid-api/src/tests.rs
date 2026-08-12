@@ -43,6 +43,7 @@ mod tests {
             interval_seconds: 60,
             timeout_seconds: 10,
             failure_threshold: 3,
+            locations: 1,
             notification_channel_ids: BTreeSet::new(),
             use_default_channels: true,
         };

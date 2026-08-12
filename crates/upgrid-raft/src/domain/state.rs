@@ -12,8 +12,9 @@ pub struct ApplicationState {
     pub history_retention_ms: u64,
     pub(super) processed_operations: BTreeMap<Uuid, ProcessedOperation>,
     pub(super) latest_operation_at_ms: u64,
-    #[serde(default)]
-    pub assignments: BTreeMap<EvaluationId, EvaluationAssignment>,
+    pub assignments: BTreeMap<EvaluationAssignmentKey, EvaluationAssignment>,
+    pub(super) evaluation_batches: BTreeMap<EvaluationId, EvaluationBatch>,
+    pub(super) target_locations: BTreeMap<TargetId, u16>,
     #[serde(default)]
     pub join_tokens: BTreeMap<JoinTokenHash, u64>,
     #[serde(default)]
@@ -26,6 +27,31 @@ pub struct ApplicationState {
     pub identities: BTreeMap<IdentityId, OperatorIdentity>,
     #[serde(default)]
     pub api_tokens: BTreeMap<ApiTokenId, ApiToken>,
+}
+
+impl ApplicationState {
+    pub fn target_location_count(&self, target_id: TargetId) -> u16 {
+        self.target_locations.get(&target_id).copied().unwrap_or(1)
+    }
+
+    pub fn has_evaluation_assignment(&self, evaluation_id: EvaluationId) -> bool {
+        self.assignments.keys().any(|key| key.id == evaluation_id)
+    }
+
+    pub fn expected_evaluation_results(&self, evaluation_id: EvaluationId) -> Option<u16> {
+        self.evaluation_batches
+            .get(&evaluation_id)
+            .map(|batch| batch.expected_results)
+    }
+
+    pub fn evaluation_results(
+        &self,
+        evaluation_id: EvaluationId,
+    ) -> Option<&BTreeMap<Uuid, Evaluation>> {
+        self.evaluation_batches
+            .get(&evaluation_id)
+            .map(|batch| &batch.results)
+    }
 }
 
 mod version;
@@ -50,6 +76,8 @@ impl Default for ApplicationState {
             alert_acknowledgements: BTreeMap::new(),
             transitions: BTreeMap::new(),
             assignments: BTreeMap::new(),
+            evaluation_batches: BTreeMap::new(),
+            target_locations: BTreeMap::new(),
             join_tokens: BTreeMap::new(),
             join_token_uses: BTreeMap::new(),
             node_names: BTreeMap::new(),
@@ -69,7 +97,8 @@ use uuid::Uuid;
 
 use super::{
     Alert, AlertId, ApiToken, ApiTokenId, AvailabilityTransition, CommandResult,
-    DEFAULT_HISTORY_RETENTION_MS, DomainError, EvaluationAssignment, EvaluationId, IdentityId,
-    JoinTokenHash, NodeTargetState, NotificationChannel, NotificationChannelId, OperatorIdentity,
-    Secret, SecretId, TargetId, TargetState,
+    DEFAULT_HISTORY_RETENTION_MS, DomainError, Evaluation, EvaluationAssignment,
+    EvaluationAssignmentKey, EvaluationBatch, EvaluationId, IdentityId, JoinTokenHash,
+    NodeTargetState, NotificationChannel, NotificationChannelId, OperatorIdentity, Secret,
+    SecretId, TargetId, TargetState,
 };

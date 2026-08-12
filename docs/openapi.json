@@ -3343,6 +3343,12 @@
           "kind": {
             "$ref": "#/components/schemas/TargetKindInput"
           },
+          "locations": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 32,
+            "minimum": 1
+          },
           "max_redirects": {
             "type": "integer",
             "format": "int32",
@@ -3610,6 +3616,7 @@
           "interval_seconds",
           "timeout_seconds",
           "failure_threshold",
+          "locations",
           "notification_channel_ids",
           "use_default_channels",
           "availability",
@@ -3692,6 +3699,12 @@
                 "$ref": "#/components/schemas/EvaluationView"
               }
             ]
+          },
+          "locations": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 32,
+            "minimum": 1
           },
           "max_redirects": {
             "type": "integer",

@@ -166,10 +166,17 @@ pub(super) struct PutTargetRequest {
     pub(super) timeout_seconds: u64,
     #[serde(default = "default_failure_threshold")]
     pub(super) failure_threshold: u32,
+    #[serde(default = "default_location_count")]
+    #[schema(minimum = 1, maximum = 32)]
+    pub(super) locations: u16,
     #[serde(default)]
     pub(super) notification_channel_ids: BTreeSet<Uuid>,
     #[serde(default = "default_true")]
     pub(super) use_default_channels: bool,
+}
+
+fn default_location_count() -> u16 {
+    1
 }
 
 fn default_method() -> String {
@@ -257,6 +264,8 @@ pub(super) struct TargetView {
     interval_seconds: u64,
     timeout_seconds: u64,
     failure_threshold: u32,
+    #[schema(minimum = 1, maximum = 32)]
+    locations: u16,
     notification_channel_ids: BTreeSet<Uuid>,
     use_default_channels: bool,
     availability: String,
@@ -312,6 +321,7 @@ impl TargetView {
             interval_seconds: target.policy.interval_ms / 1_000,
             timeout_seconds: target.policy.timeout_ms / 1_000,
             failure_threshold: target.policy.failure_threshold,
+            locations: application.target_location_count(target.id),
             notification_channel_ids: target.notification_channels.iter().map(|id| id.0).collect(),
             use_default_channels: !application
                 .default_notifications_disabled
@@ -351,6 +361,7 @@ impl TargetView {
             interval_seconds: target.policy.interval_ms / 1_000,
             timeout_seconds: target.policy.timeout_ms / 1_000,
             failure_threshold: target.policy.failure_threshold,
+            locations: 1,
             notification_channel_ids: BTreeSet::new(),
             use_default_channels: true,
             availability: availability_name(state.availability).to_owned(),

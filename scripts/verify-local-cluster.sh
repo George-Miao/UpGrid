@@ -214,6 +214,24 @@ fi
 # the instant at which membership commits.
 sleep "$settle_seconds"
 
+multi_location_target="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
+  --header 'content-type: application/json' \
+  --data "{\"name\":\"Multi-location verification\",\"url\":\"http://127.0.0.1:${api_base_port}/healthz\",\"method\":\"GET\",\"interval_seconds\":60,\"timeout_seconds\":10,\"failure_threshold\":3,\"locations\":${node_count}}" \
+  "http://127.0.0.1:$((api_base_port + 1))/api/v1/targets")"
+multi_location_target_id="$(printf '%s' "$multi_location_target" | jq --raw-output '.id')"
+attempts=0
+until response="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
+  "http://127.0.0.1:${api_base_port}/api/v1/targets/${multi_location_target_id}")" \
+  && [[ "$(printf '%s' "$response" | jq --raw-output '.locations')" == "$node_count" ]] \
+  && [[ "$(printf '%s' "$response" | jq --raw-output '.latest_evaluation.succeeded')" == "true" ]]; do
+  attempts=$((attempts + 1))
+  if (( attempts >= 150 )); then
+    echo "Multi-location Target did not aggregate ${node_count} Node results: ${response:-unavailable}" >&2
+    exit 1
+  fi
+  sleep 0.1
+done
+
 target_count=12
 for number in $(seq 1 "$target_count"); do
   curl --fail --silent --header "authorization: Bearer ${api_token}" \
