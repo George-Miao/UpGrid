@@ -25,6 +25,6 @@ test("marks an Up target suspicious while failures accumulate", async ({ page })
   await expect(health.locator(".dot")).toHaveClass(/degraded/);
   await target.click();
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Delete target" }).click();
+  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Move Target to Trash" }).click();
   await expect(target).not.toBeVisible();
 });

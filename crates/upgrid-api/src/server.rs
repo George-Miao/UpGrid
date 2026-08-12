@@ -91,6 +91,7 @@ async fn serve(
         .route("/", get(index))
         .route("/alerts", get(index))
         .route("/cluster", get(index))
+        .route("/trash", get(index))
         .route("/setup", get(index))
         .route("/setup/channel", get(index))
         .route("/setup/target", get(index))

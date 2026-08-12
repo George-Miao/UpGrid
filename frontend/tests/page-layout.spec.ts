@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-for (const path of ["/", "/alerts", "/cluster"]) {
+for (const path of ["/", "/alerts", "/cluster", "/trash"]) {
   test(`${path} separates its title from the page content`, async ({ page }) => {
     await page.goto(path);
     const heading = page.locator("section.heading");
