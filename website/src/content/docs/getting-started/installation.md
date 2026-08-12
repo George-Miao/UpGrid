@@ -3,7 +3,7 @@ title: Install UpGrid
 description: Install the published container or a precompiled Linux binary.
 ---
 
-Docker is the preferred way to install UpGrid. Tagged releases also provide precompiled Linux binaries for hosts where a container runtime is not appropriate. Build from source only for development or an unsupported target.
+Docker is the preferred way to install UpGrid. Tagged releases also provide precompiled Linux binaries for hosts where a container runtime is not appropriate. Build from source only for development or an unsupported target. Use `latest` for the current release or `latest-unstable` for the newest image from `main`.
 
 ## Run with Docker
 
@@ -12,7 +12,7 @@ docker run --name upgrid \
   --publish 8080:8080 \
   --publish 11451:11451/udp \
   --volume upgrid-data:/var/lib/upgrid \
-  ghcr.io/george-miao/upgrid:v0.1.0
+  ghcr.io/george-miao/upgrid:latest
 ```
 
 The image listens for HTTP on port `8080`, exposes QUIC/Raft on UDP port `11451`, and stores durable state in `/var/lib/upgrid`. Open `/setup` to create the Cluster's first Operator Identity. Set `UPGRID_RAFT_URL` to an advertised hostname reachable by every Node before building a multi-Node Cluster.

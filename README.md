@@ -21,14 +21,14 @@ Every Node exposes the same authenticated API and responsive WebUI. Followers tr
 
 ## Quick start
 
-Docker is the preferred installation method. Every `main` commit is published as a multi-architecture image named `main-<6-character-commit>`, while stable releases use their Git tag. Start a single Node with persistent storage using `v0.1.0`:
+Docker is the preferred installation method. Stable releases use their Git tag and update `latest`. Every `main` commit uses `main-<6-character-commit>` and updates `latest-unstable`. Start a single Node with persistent storage using the latest stable release:
 
 ```sh
 docker run --name upgrid \
   --publish 8080:8080 \
   --publish 11451:11451/udp \
   --volume upgrid-data:/var/lib/upgrid \
-  ghcr.io/george-miao/upgrid:v0.1.0
+  ghcr.io/george-miao/upgrid:latest
 ```
 
 Open [http://127.0.0.1:8080/setup](http://127.0.0.1:8080/setup), review the generated Node name, and choose **Create new Cluster**. Setup creates the first replicated Operator Identity before it can add a notification Channel or service Target.

@@ -30,45 +30,64 @@ jobs:
         include:
           - name: Linux AMD64
             runner: ubuntu-24.04
-            platform: linux/amd64
             artifact: linux-amd64
           - name: Linux ARM64
             runner: ubuntu-24.04-arm
-            platform: linux/arm64
             artifact: linux-arm64
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Enable Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v14
 
-      - name: Build and publish digest
-        id: build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: runtime
-          platforms: ${{ matrix.platform }}
-          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=container-${{ matrix.artifact }}
-          cache-to: type=gha,mode=max,scope=container-${{ matrix.artifact }}
+      - name: Build binary
+        run: nix build .#upgrid --out-link result-upgrid
 
-      - name: Export digest
-        env:
-          DIGEST: ${{ steps.build.outputs.digest }}
+      - name: Package release binary
+        if: github.ref_type == 'tag'
         shell: bash
         run: |
+          archive="upgrid-${GITHUB_REF_NAME}-${{ matrix.artifact }}.tar.gz"
+          tar --create --gzip --file "$archive" --directory result-upgrid/bin upgrid
+
+      - name: Upload release binary
+        if: github.ref_type == 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: upgrid-${{ matrix.artifact }}
+          path: upgrid-*.tar.gz
+          if-no-files-found: error
+
+      - name: Build container
+        run: nix build .#container
+
+      - name: Install Skopeo
+        run: nix profile install nixpkgs#skopeo
+
+      - name: Publish architecture image
+        env:
+          ARTIFACT: ${{ matrix.artifact }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          image="${IMAGE_NAME}:build-${GITHUB_SHA}-${ARTIFACT}"
           mkdir -p /tmp/digests
-          touch "/tmp/digests/${DIGEST#sha256:}"
+          skopeo copy \
+            --dest-registry-token "${GHCR_TOKEN}" \
+            --digestfile /tmp/digest \
+            "docker-archive:result" \
+            "docker://${image}"
+          digest="$(cat /tmp/digest)"
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "could not read published image digest" >&2
+            exit 1
+          fi
+          touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload digest
         uses: actions/upload-artifact@v4
@@ -104,24 +123,30 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Select image tag
+      - name: Select image tags
         id: image
         shell: bash
         run: |
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            tag="$GITHUB_REF_NAME"
+            primary_tag="$GITHUB_REF_NAME"
+            moving_tag="latest"
           else
-            tag="main-${GITHUB_SHA:0:6}"
+            primary_tag="main-${GITHUB_SHA:0:6}"
+            moving_tag="latest-unstable"
           fi
-          if [[ ! "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
-            echo "invalid container tag: $tag" >&2
-            exit 1
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          for tag in "$primary_tag" "$moving_tag"; do
+            if [[ ! "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+              echo "invalid container tag: $tag" >&2
+              exit 1
+            fi
+          done
+          echo "primary_tag=$primary_tag" >> "$GITHUB_OUTPUT"
+          echo "moving_tag=$moving_tag" >> "$GITHUB_OUTPUT"
 
       - name: Create multi-architecture image
         env:
-          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+          PRIMARY_TAG: ${{ steps.image.outputs.primary_tag }}
+          MOVING_TAG: ${{ steps.image.outputs.moving_tag }}
         shell: bash
         working-directory: /tmp/digests
         run: |
@@ -130,84 +155,49 @@ jobs:
             images+=("${IMAGE_NAME}@sha256:${digest}")
           done
           docker buildx imagetools create \
-            --tag "${IMAGE_NAME}:${IMAGE_TAG}" \
+            --tag "${IMAGE_NAME}:${PRIMARY_TAG}" \
+            --tag "${IMAGE_NAME}:${MOVING_TAG}" \
             "${images[@]}"
-          docker buildx imagetools inspect "${IMAGE_NAME}:${IMAGE_TAG}"
+          docker buildx imagetools inspect "${IMAGE_NAME}:${PRIMARY_TAG}"
+          docker buildx imagetools inspect "${IMAGE_NAME}:${MOVING_TAG}"
 
   build-release-binaries:
     name: Build ${{ matrix.name }} binary
     if: github.ref_type == 'tag'
-    needs: publish
+    needs: build-container
     runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-      packages: read
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Linux AMD64
-            runner: ubuntu-24.04
-            artifact: linux-amd64
-            build: container
-          - name: Linux ARM64
-            runner: ubuntu-24.04-arm
-            artifact: linux-arm64
-            build: container
           - name: macOS AMD64
             runner: macos-15-intel
             artifact: macos-amd64
-            build: cargo
             target: x86_64-apple-darwin
           - name: macOS ARM64
             runner: macos-15
             artifact: macos-arm64
-            build: cargo
             target: aarch64-apple-darwin
           - name: Windows AMD64
             runner: windows-latest
             artifact: windows-amd64
-            build: cargo
             target: x86_64-pc-windows-msvc
 
     steps:
       - name: Checkout
-        if: matrix.build == 'cargo'
         uses: actions/checkout@v4
 
       - name: Install Rust
-        if: matrix.build == 'cargo'
         uses: dtolnay/rust-toolchain@nightly
         with:
           targets: ${{ matrix.target }}
 
       - name: Cache Rust build
-        if: matrix.build == 'cargo'
         uses: Swatinem/rust-cache@v2
         with:
           key: release-${{ matrix.target }}
 
-      - name: Log in to GHCR
-        if: matrix.build == 'container'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract binary from image
-        if: matrix.build == 'container'
-        shell: bash
-        run: |
-          image="${IMAGE_NAME}:${GITHUB_REF_NAME}"
-          docker pull "$image"
-          container_id="$(docker create "$image")"
-          trap 'docker rm --force "$container_id"' EXIT
-          mkdir output
-          docker cp "$container_id:/usr/local/bin/upgrid" output/upgrid
-
       - name: Compile binary
-        if: matrix.build == 'cargo'
         run: cargo build --locked --release -p upgrid --target ${{ matrix.target }}
 
       - name: Package Unix binary
@@ -215,10 +205,8 @@ jobs:
         shell: bash
         run: |
           archive="upgrid-${GITHUB_REF_NAME}-${{ matrix.artifact }}.tar.gz"
-          if [[ "${{ matrix.build }}" == "cargo" ]]; then
-            mkdir output
-            cp "target/${{ matrix.target }}/release/upgrid" output/upgrid
-          fi
+          mkdir output
+          cp "target/${{ matrix.target }}/release/upgrid" output/upgrid
           tar --create --gzip --file "$archive" --directory output upgrid
 
       - name: Package Windows binary

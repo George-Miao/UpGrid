@@ -54,6 +54,37 @@ jobs:
       - name: Test API TLS
         run: scripts/test-api-tls.sh
 
+  container:
+    name: Container (${{ matrix.name }})
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux AMD64
+            runner: ubuntu-24.04
+          - name: Linux ARM64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Enable Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v14
+
+      - name: Build container
+        run: nix build .#container
+
+      - name: Test container
+        run: |
+          docker load --input result
+          docker image inspect upgrid:nix
+          docker run --rm --privileged upgrid:nix --help
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
