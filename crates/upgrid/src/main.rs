@@ -11,7 +11,9 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use upgrid_config::{Config, ConfigArgs};
 use upgrid_raft::Handle;
-use upgrid_raft::domain::{Command, DEFAULT_HISTORY_RETENTION_MS};
+use upgrid_raft::domain::{
+    Command, DEFAULT_HISTORY_RETENTION_MS, DEFAULT_HISTORY_ROLLUP_RETENTION_MS,
+};
 
 mod bootstrap;
 mod error;
@@ -103,6 +105,14 @@ async fn run() -> Result<()> {
         .or_else(|| bootstrapping.then_some(DEFAULT_HISTORY_RETENTION_MS))
     {
         node.apply(Command::SetHistoryRetention { retention_ms })
+            .await
+            .context(ClusterWriteSnafu)?;
+    }
+    if let Some(retention_ms) = config
+        .history_rollup_retention_ms
+        .or_else(|| bootstrapping.then_some(DEFAULT_HISTORY_ROLLUP_RETENTION_MS))
+    {
+        node.apply(Command::SetHistoryRollupRetention { retention_ms })
             .await
             .context(ClusterWriteSnafu)?;
     }

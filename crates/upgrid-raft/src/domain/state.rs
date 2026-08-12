@@ -10,6 +10,8 @@ pub struct ApplicationState {
     pub alert_acknowledgements: BTreeMap<AlertId, u64>,
     pub transitions: BTreeMap<EvaluationId, AvailabilityTransition>,
     pub history_retention_ms: u64,
+    pub history_rollup_retention_ms: u64,
+    pub history_rollups: BTreeMap<TargetId, BTreeMap<u64, EvaluationRollup>>,
     pub(super) processed_operations: BTreeMap<Uuid, ProcessedOperation>,
     pub(super) latest_operation_at_ms: u64,
     pub assignments: BTreeMap<EvaluationAssignmentKey, EvaluationAssignment>,
@@ -77,6 +79,8 @@ impl Default for ApplicationState {
             transitions: BTreeMap::new(),
             assignments: BTreeMap::new(),
             evaluation_batches: BTreeMap::new(),
+            history_rollup_retention_ms: DEFAULT_HISTORY_ROLLUP_RETENTION_MS,
+            history_rollups: BTreeMap::new(),
             target_locations: BTreeMap::new(),
             join_tokens: BTreeMap::new(),
             join_token_uses: BTreeMap::new(),
@@ -97,8 +101,8 @@ use uuid::Uuid;
 
 use super::{
     Alert, AlertId, ApiToken, ApiTokenId, AvailabilityTransition, CommandResult,
-    DEFAULT_HISTORY_RETENTION_MS, DomainError, Evaluation, EvaluationAssignment,
-    EvaluationAssignmentKey, EvaluationBatch, EvaluationId, IdentityId, JoinTokenHash,
-    NodeTargetState, NotificationChannel, NotificationChannelId, OperatorIdentity, Secret,
-    SecretId, TargetId, TargetState,
+    DEFAULT_HISTORY_RETENTION_MS, DEFAULT_HISTORY_ROLLUP_RETENTION_MS, DomainError, Evaluation,
+    EvaluationAssignment, EvaluationAssignmentKey, EvaluationBatch, EvaluationId, EvaluationRollup,
+    IdentityId, JoinTokenHash, NodeTargetState, NotificationChannel, NotificationChannelId,
+    OperatorIdentity, Secret, SecretId, TargetId, TargetState,
 };

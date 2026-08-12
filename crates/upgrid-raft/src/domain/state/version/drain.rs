@@ -28,7 +28,7 @@ pub(crate) struct PreDrainApplicationState {
 
 impl From<PreDrainApplicationState> for ApplicationState {
     fn from(previous: PreDrainApplicationState) -> Self {
-        Self {
+        PreRollupApplicationState {
             targets: previous.targets,
             node_targets: previous.node_targets,
             secrets: previous.secrets,
@@ -51,6 +51,7 @@ impl From<PreDrainApplicationState> for ApplicationState {
             identities: previous.identities,
             api_tokens: previous.api_tokens,
         }
+        .into()
     }
 }
 

@@ -128,3 +128,30 @@ fn pre_location_state_migrates_targets_to_one_location() {
     assert_eq!(migrated.target_location_count(target_id), 1);
     fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn pre_rollup_state_migrates_with_empty_long_term_history() {
+    let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+    fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("raft-state.postcard");
+    let previous = PreRollupPersistedStateMachine {
+        state_machine: PreRollupStateMachineData {
+            last_applied_log: None,
+            last_membership: StoredMembership::default(),
+            application: ApplicationState::default().into(),
+        },
+        current_snapshot: None,
+        snapshot_idx: 0,
+    };
+    let mut encoded = PRE_ROLLUP_STATE_MAGIC.to_vec();
+    encoded.extend_from_slice(&postcard::to_stdvec(&previous).unwrap());
+    fs::write(&path, encoded).unwrap();
+
+    let migrated = StateMachine::open(&path).unwrap().application_state();
+    assert_eq!(
+        migrated.history_rollup_retention_ms,
+        DEFAULT_HISTORY_ROLLUP_RETENTION_MS
+    );
+    assert!(migrated.history_rollups.is_empty());
+    fs::remove_dir_all(directory).unwrap();
+}

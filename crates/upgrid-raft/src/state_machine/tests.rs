@@ -1,4 +1,5 @@
 use super::core::*;
+use super::decode::*;
 use super::version::*;
 
 #[cfg(test)]
@@ -16,9 +17,9 @@ mod tests {
 
     use super::*;
     use crate::domain::{
-        AlertKind, ApplicationState, AvailabilityTransition, Command, Evaluation, EvaluationId,
-        EvaluationPolicy, HttpAssertion, HttpEvaluationMetadata, HttpTarget, NotificationChannelId,
-        Target, TargetId,
+        AlertKind, ApplicationState, AvailabilityTransition, Command,
+        DEFAULT_HISTORY_ROLLUP_RETENTION_MS, Evaluation, EvaluationId, EvaluationPolicy,
+        HttpAssertion, HttpEvaluationMetadata, HttpTarget, NotificationChannelId, Target, TargetId,
     };
     use crate::raft::TC;
 

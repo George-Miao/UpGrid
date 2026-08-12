@@ -67,7 +67,7 @@ pub(crate) struct PreAssertionApplicationState {
 
 impl From<PreAssertionApplicationState> for ApplicationState {
     fn from(previous: PreAssertionApplicationState) -> Self {
-        Self {
+        PreRollupApplicationState {
             targets: previous
                 .targets
                 .into_iter()
@@ -94,6 +94,7 @@ impl From<PreAssertionApplicationState> for ApplicationState {
             identities: previous.identities,
             api_tokens: previous.api_tokens,
         }
+        .into()
     }
 }
 

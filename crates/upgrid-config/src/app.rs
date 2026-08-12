@@ -32,6 +32,7 @@ pub struct Config {
     pub password: String,
     pub secret_key: Option<String>,
     pub history_retention_ms: Option<u64>,
+    pub history_rollup_retention_ms: Option<u64>,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
 }
@@ -54,6 +55,7 @@ struct RawConfig {
     password: String,
     secret_key: Option<String>,
     history_retention_hours: Option<u64>,
+    history_rollup_retention_days: Option<u64>,
     tls_cert: Option<PathBuf>,
     tls_key: Option<PathBuf>,
 }
@@ -71,6 +73,7 @@ impl Default for RawConfig {
             password: String::new(),
             secret_key: None,
             history_retention_hours: None,
+            history_rollup_retention_days: None,
             tls_cert: None,
             tls_key: None,
         }
@@ -106,6 +109,7 @@ fn load_with(args: ConfigArgs, load_env: bool) -> Result<Config> {
     override_value!(password);
     override_value!(secret_key);
     override_value!(history_retention_hours);
+    override_value!(history_rollup_retention_days);
     override_value!(tls_cert);
     override_value!(tls_key);
     if args.new_cluster {
@@ -132,6 +136,10 @@ impl TryFrom<RawConfig> for Config {
             .history_retention_hours
             .map(history_retention_ms)
             .transpose()?;
+        let history_rollup_retention_ms = raw
+            .history_rollup_retention_days
+            .map(history_rollup_retention_ms)
+            .transpose()?;
         Ok(Self {
             bind: raw.bind,
             raft_url: raw.raft_url,
@@ -146,6 +154,7 @@ impl TryFrom<RawConfig> for Config {
             password: raw.password,
             secret_key: raw.secret_key,
             history_retention_ms,
+            history_rollup_retention_ms,
             tls_cert: raw.tls_cert,
             tls_key: raw.tls_key,
         })
@@ -158,6 +167,14 @@ fn history_retention_ms(hours: u64) -> Result<u64> {
         .filter(|value| *value > 0)
         .ok_or(Error::InvalidConfiguration {
             message: "history retention is zero or too large",
+        })
+}
+
+fn history_rollup_retention_ms(days: u64) -> Result<u64> {
+    days.checked_mul(24 * 60 * 60 * 1_000)
+        .filter(|value| *value > 0)
+        .ok_or(Error::InvalidConfiguration {
+            message: "history rollup retention is zero or too large",
         })
 }
 
@@ -265,6 +282,29 @@ mod tests {
             ..RawConfig::default()
         };
         assert!(Config::try_from(pair).is_ok());
+    }
+
+    #[test]
+    fn history_retention_windows_use_distinct_units() {
+        let config = Config::try_from(RawConfig {
+            history_retention_hours: Some(2),
+            history_rollup_retention_days: Some(3),
+            ..RawConfig::default()
+        })
+        .unwrap();
+
+        assert_eq!(config.history_retention_ms, Some(2 * 60 * 60 * 1_000));
+        assert_eq!(
+            config.history_rollup_retention_ms,
+            Some(3 * 24 * 60 * 60 * 1_000)
+        );
+        assert!(
+            Config::try_from(RawConfig {
+                history_rollup_retention_days: Some(0),
+                ..RawConfig::default()
+            })
+            .is_err()
+        );
     }
 
     #[test]

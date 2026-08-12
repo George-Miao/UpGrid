@@ -79,6 +79,7 @@ impl ApplicationState {
             &evaluation,
             self.history_retention_ms,
         );
+        self.record_history_rollup(&evaluation);
         let alerts = self.record_transition(transition, name, url, evaluation, channels);
         Ok(CommandResult::EvaluationAccepted {
             availability,
@@ -118,6 +119,7 @@ impl ApplicationState {
             &evaluation,
             self.history_retention_ms,
         );
+        self.record_history_rollup(&evaluation);
         let channels = self.default_notification_channels.clone();
         let alerts = self.record_transition(transition, name, url, evaluation, channels);
         Ok(CommandResult::NodeEvaluationAccepted {

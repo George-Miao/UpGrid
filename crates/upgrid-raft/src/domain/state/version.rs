@@ -24,6 +24,8 @@ fn legacy_assignments(
         .collect()
 }
 
+mod history;
+pub(crate) use history::*;
 mod location;
 pub(crate) use location::*;
 mod assertion;
@@ -156,7 +158,7 @@ impl From<ApplicationState> for LegacyApplicationState {
 
 impl From<LegacyApplicationState> for ApplicationState {
     fn from(legacy: LegacyApplicationState) -> Self {
-        Self {
+        PreRollupApplicationState {
             targets: legacy.targets,
             node_targets: BTreeMap::new(),
             secrets: legacy.secrets,
@@ -179,12 +181,13 @@ impl From<LegacyApplicationState> for ApplicationState {
             draining_nodes: BTreeSet::new(),
             api_tokens: BTreeMap::new(),
         }
+        .into()
     }
 }
 
 impl From<PreviousApplicationState> for ApplicationState {
     fn from(previous: PreviousApplicationState) -> Self {
-        Self {
+        PreRollupApplicationState {
             targets: previous.targets,
             node_targets: BTreeMap::new(),
             secrets: previous.secrets,
@@ -207,12 +210,13 @@ impl From<PreviousApplicationState> for ApplicationState {
             draining_nodes: BTreeSet::new(),
             api_tokens: BTreeMap::new(),
         }
+        .into()
     }
 }
 
 impl From<TokenApplicationState> for ApplicationState {
     fn from(previous: TokenApplicationState) -> Self {
-        Self {
+        PreRollupApplicationState {
             targets: previous.targets,
             node_targets: BTreeMap::new(),
             secrets: previous.secrets,
@@ -235,12 +239,13 @@ impl From<TokenApplicationState> for ApplicationState {
             draining_nodes: BTreeSet::new(),
             api_tokens: BTreeMap::new(),
         }
+        .into()
     }
 }
 
 impl From<NamedApplicationState> for ApplicationState {
     fn from(previous: NamedApplicationState) -> Self {
-        Self {
+        PreRollupApplicationState {
             targets: previous.targets,
             node_targets: BTreeMap::new(),
             secrets: previous.secrets,
@@ -263,12 +268,13 @@ impl From<NamedApplicationState> for ApplicationState {
             draining_nodes: BTreeSet::new(),
             api_tokens: BTreeMap::new(),
         }
+        .into()
     }
 }
 
 impl From<TransitionApplicationState> for ApplicationState {
     fn from(previous: TransitionApplicationState) -> Self {
-        Self {
+        PreRollupApplicationState {
             targets: previous.targets,
             node_targets: BTreeMap::new(),
             secrets: previous.secrets,
@@ -291,12 +297,13 @@ impl From<TransitionApplicationState> for ApplicationState {
             draining_nodes: BTreeSet::new(),
             api_tokens: BTreeMap::new(),
         }
+        .into()
     }
 }
 
 impl From<DefaultChannelApplicationState> for ApplicationState {
     fn from(previous: DefaultChannelApplicationState) -> Self {
-        Self {
+        PreRollupApplicationState {
             targets: previous.targets,
             node_targets: BTreeMap::new(),
             secrets: previous.secrets,
@@ -319,6 +326,7 @@ impl From<DefaultChannelApplicationState> for ApplicationState {
             draining_nodes: BTreeSet::new(),
             api_tokens: BTreeMap::new(),
         }
+        .into()
     }
 }
 
@@ -418,7 +426,7 @@ impl From<ApplicationState> for PreviousApplicationState {
 
 impl From<PreAuthApplicationState> for ApplicationState {
     fn from(previous: PreAuthApplicationState) -> Self {
-        Self {
+        PreRollupApplicationState {
             targets: previous.targets,
             node_targets: previous.node_targets,
             secrets: previous.secrets,
@@ -441,6 +449,7 @@ impl From<PreAuthApplicationState> for ApplicationState {
             draining_nodes: BTreeSet::new(),
             api_tokens: BTreeMap::new(),
         }
+        .into()
     }
 }
 

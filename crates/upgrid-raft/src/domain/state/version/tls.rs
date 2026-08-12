@@ -67,7 +67,7 @@ pub(crate) struct PreTlsApplicationState {
 
 impl From<PreTlsApplicationState> for ApplicationState {
     fn from(previous: PreTlsApplicationState) -> Self {
-        Self {
+        PreRollupApplicationState {
             targets: previous
                 .targets
                 .into_iter()
@@ -94,6 +94,7 @@ impl From<PreTlsApplicationState> for ApplicationState {
             identities: previous.identities,
             api_tokens: previous.api_tokens,
         }
+        .into()
     }
 }
 

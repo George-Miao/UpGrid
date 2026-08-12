@@ -30,6 +30,9 @@ pub enum Command {
     SetHistoryRetention {
         retention_ms: u64,
     },
+    SetHistoryRollupRetention {
+        retention_ms: u64,
+    },
     PutJoinToken {
         hash: JoinTokenHash,
         expires_at_ms: u64,
@@ -112,6 +115,7 @@ pub enum CommandResult {
     Noop,
     EvaluationAssigned(EvaluationId),
     HistoryRetentionSet(u64),
+    HistoryRollupRetentionSet(u64),
     JoinTokenStored,
     JoinTokenAuthorized,
     TargetPauseSet {

@@ -79,6 +79,7 @@ impl ApplicationState {
                 self.evaluation_batches
                     .retain(|id, _| id.target_id != target_id);
                 self.target_locations.remove(&target_id);
+                self.history_rollups.remove(&target_id);
                 self.default_notifications_disabled.remove(&target_id);
                 Ok(CommandResult::TargetDeleted(target_id))
             }
@@ -92,6 +93,15 @@ impl ApplicationState {
                 }
                 self.history_retention_ms = retention_ms;
                 Ok(CommandResult::HistoryRetentionSet(retention_ms))
+            }
+            Command::SetHistoryRollupRetention { retention_ms } => {
+                if retention_ms == 0 {
+                    return Err(DomainError::InvalidEvaluation(
+                        "history rollup retention must be greater than zero".to_owned(),
+                    ));
+                }
+                self.history_rollup_retention_ms = retention_ms;
+                Ok(CommandResult::HistoryRollupRetentionSet(retention_ms))
             }
             Command::SetTargetPaused { target_id, paused } => {
                 let target = self

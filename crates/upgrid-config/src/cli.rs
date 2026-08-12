@@ -51,6 +51,10 @@ pub struct ConfigArgs {
     #[arg(long, value_name = "HOURS")]
     pub(super) history_retention_hours: Option<u64>,
 
+    /// Long-term hourly Evaluation rollup retention period.
+    #[arg(long, value_name = "DAYS")]
+    pub(super) history_rollup_retention_days: Option<u64>,
+
     /// PEM certificate chain for API HTTPS.
     #[arg(long, value_name = "PATH", requires = "tls_key")]
     pub(super) tls_cert: Option<PathBuf>,

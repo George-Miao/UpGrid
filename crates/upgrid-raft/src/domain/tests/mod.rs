@@ -10,6 +10,7 @@ mod alert_delivery;
 mod authentication;
 mod config_value;
 mod evaluation;
+mod history;
 mod lifecycle;
 mod multi_location;
 mod node;
