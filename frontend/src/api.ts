@@ -33,6 +33,7 @@ export interface Target {
   interval_seconds: number;
   timeout_seconds: number;
   failure_threshold: number;
+  locations: number;
   latest_evaluation: Evaluation | null;
   history: Evaluation[];
   notification_channel_ids: string[];
@@ -158,6 +159,7 @@ export interface TargetInput {
   interval_seconds: number;
   timeout_seconds: number;
   failure_threshold: number;
+  locations: number;
   headers: Record<string, string | { secret_id: string }>;
   body: string | { secret_id: string } | null;
   assertions: HttpAssertion[];

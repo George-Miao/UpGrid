@@ -56,7 +56,7 @@ export function renderTargetDetail(target: Target, saving: boolean, dirty: boole
                   : nothing
               }
               <div class="row"><label>Interval (seconds)<input name="interval" type="number" min="1" .value=${String(target.interval_seconds)} required /></label><label>Timeout (seconds)<input name="timeout" type="number" min="1" .value=${String(target.timeout_seconds)} required /></label></div>
-              <label>Failures before Down<input name="failures" type="number" min="1" .value=${String(target.failure_threshold)} required /></label>
+              <div class="row"><label>Failures before Down<input name="failures" type="number" min="1" .value=${String(target.failure_threshold)} required /></label><label>Evaluation locations<input name="locations" type="number" min="1" max="32" .value=${String(target.locations)} required /></label></div>
               ${renderChannelFields(channels, target.notification_channel_ids, target.use_default_channels)}
             `
         }

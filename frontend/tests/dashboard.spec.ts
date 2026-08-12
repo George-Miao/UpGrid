@@ -258,6 +258,30 @@ test("creates DNS, ICMP, and TLS target kinds", async ({ page }) => {
   }
 });
 
+test("configures multi-location target evaluation", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add target" }).click();
+  const create = page.getByRole("dialog", { name: "Add target" });
+  await create.getByLabel("Name").fill("Multi-location target");
+  await create.getByLabel("URL").fill("https://example.com/health");
+  await create.getByLabel("Evaluation locations").fill("3");
+  await create.getByRole("button", { name: "Create target" }).click();
+
+  const created = (await (await page.request.get("/api/v1/targets")).json()).find((target: { name: string }) => target.name === "Multi-location target");
+  expect(created.locations).toBe(3);
+
+  await expect(page.getByRole("button", { name: "Multi-location target" })).toContainText("3 locations");
+  await page.getByRole("button", { name: "Multi-location target" }).click();
+  const edit = page.getByRole("dialog", { name: "Target details" });
+  await expect(edit.getByLabel("Evaluation locations")).toHaveValue("3");
+  await edit.getByLabel("Evaluation locations").fill("2");
+  await edit.getByRole("button", { name: "Save changes" }).click();
+
+  const updated = await (await page.request.get(`/api/v1/targets/${created.id}`)).json();
+  expect(updated.locations).toBe(2);
+  await expect(page.getByRole("button", { name: "Multi-location target" })).toContainText("2 locations");
+});
+
 test("edits, inspects, and deletes a target", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Add target" }).click();

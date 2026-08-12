@@ -49,6 +49,7 @@ export class AppController extends AppState {
         interval_seconds: Number(fields.get("interval")),
         timeout_seconds: Number(fields.get("timeout")),
         failure_threshold: Number(fields.get("failures")),
+        locations: Number(fields.get("locations")),
         headers: Object.fromEntries(Object.entries(this.selected.headers).map(([name, value]) => [name, value.kind === "literal" ? value.value : { secret_id: value.secret_id }])),
         body: this.selected.body?.kind === "literal" ? this.selected.body.value : this.selected.body ? { secret_id: this.selected.body.secret_id } : null,
         assertions,

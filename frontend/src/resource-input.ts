@@ -52,6 +52,7 @@ export function targetInput(fields: FormData, notificationChannelIds: string[] =
     interval_seconds: Number(fields.get("interval")),
     timeout_seconds: Number(fields.get("timeout")),
     failure_threshold: Number(fields.get("failures")),
+    locations: Number(fields.get("locations") ?? 1),
     headers: {},
     body: null,
     assertions,

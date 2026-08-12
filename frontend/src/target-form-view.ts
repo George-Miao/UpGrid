@@ -124,7 +124,10 @@ export function renderTargetForm(channels: Channel[], secrets: Secret[], saving:
           <label>Interval (seconds)<input name="interval" type="number" min="1" value="60" required /></label>
           <label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label>
         </div>
-        <label>Failures before Down<input name="failures" type="number" min="1" value="3" required /></label>
+        <div class="row">
+          <label>Failures before Down<input name="failures" type="number" min="1" value="3" required /></label>
+          <label>Evaluation locations<input name="locations" type="number" min="1" max="32" value="1" required /></label>
+        </div>
         ${renderChannelFields(channels)}
         <div class="dialog-actions">
           <button class="button secondary" type="button" @click=${actions.close}>Cancel</button>

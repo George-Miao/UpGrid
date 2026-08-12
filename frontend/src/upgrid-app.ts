@@ -571,7 +571,7 @@ export class UpgridApp extends AppController {
           <i class="state ${state}" aria-label=${state}></i>
           <div>
             <div class="target-title"><h3>${target.name}</h3><span class="badge">${isNode ? "Node" : target.kind.toUpperCase()}</span></div>
-            <div class="meta">${target.paused ? "Paused · " : ""}${isHttp || isNode ? `${target.method} · ` : ""}${target.url} · every ${target.interval_seconds}s</div>
+            <div class="meta">${target.paused ? "Paused · " : ""}${isHttp || isNode ? `${target.method} · ` : ""}${target.url} · every ${target.interval_seconds}s${isNode ? "" : ` · ${target.locations} ${target.locations === 1 ? "location" : "locations"}`}</div>
           </div>
           <div class="target-side">
             ${history.length ? html`<div class="mini-chart" aria-hidden="true">${history.map((item) => html`<i class="mini-bar ${item.succeeded ? "up" : "down"}" style=${`height: ${Math.max(12, (item.latency_ms / maxLatency) * 100)}%`}></i>`)}</div>` : nothing}
