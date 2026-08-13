@@ -105,6 +105,9 @@ test("creates a target from the embedded dashboard", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await page.getByRole("button", { name: "Add target" }).click();
   const addTarget = page.getByRole("dialog", { name: "Add target" });
+  await addTarget.getByRole("tab", { name: "Notifications" }).click();
+  await expect(addTarget.getByText("No notification channels are available.")).toBeVisible();
+  await addTarget.getByRole("tab", { name: "General" }).click();
   await addTarget.getByLabel("Name").fill("Playwright target");
   await addTarget.getByLabel("URL").fill("https://example.com/health");
   await addTarget.getByRole("button", { name: "Create target" }).click();
@@ -523,7 +526,7 @@ test("filters and bulk-pauses selected targets", async ({ page }) => {
   await page.getByLabel("Search targets").fill("alpha");
   await expect(page.getByRole("button", { name: "Search alpha" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Search beta" })).not.toBeVisible();
-  await page.getByRole("switch", { name: "Select Search alpha" }).check();
+  await page.getByRole("checkbox", { name: "Select Search alpha" }).check();
   const pauseSelected = page.getByRole("button", { name: "Pause selected" });
   await expect(page.getByRole("button", { name: "Unselect all" }).locator("iconify-icon")).toBeVisible();
   const actionsMargin = await page.locator(".bulk-actions").evaluate((element) => Number.parseFloat(getComputedStyle(element).marginLeft));
@@ -534,7 +537,7 @@ test("filters and bulk-pauses selected targets", async ({ page }) => {
   await pauseSelected.click();
   await expect(page.getByRole("button", { name: "Search alpha" })).toContainText("Paused");
 
-  await page.getByRole("switch", { name: "Select Search alpha" }).check();
+  await page.getByRole("checkbox", { name: "Select Search alpha" }).check();
   await expect(page.getByRole("button", { name: "Pause selected" })).toHaveCount(0);
   const resumeSelected = page.getByRole("button", { name: "Resume selected" });
   await expect(resumeSelected).toHaveClass(/success/);
@@ -542,10 +545,10 @@ test("filters and bulk-pauses selected targets", async ({ page }) => {
   await resumeSelected.click();
   await expect(page.getByRole("button", { name: "Search alpha" })).not.toContainText("Paused");
 
-  await page.getByRole("switch", { name: "Select Search alpha" }).check();
+  await page.getByRole("checkbox", { name: "Select Search alpha" }).check();
   await page.getByRole("button", { name: "Unselect all" }).click();
   await expect(page.locator(".bulk")).toHaveCount(0);
-  await expect(page.getByRole("switch", { name: "Select Search alpha" })).not.toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Select Search alpha" })).not.toBeChecked();
 });
 
 test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
@@ -637,7 +640,7 @@ test("renames a Node Target and shows its evaluation history", async ({ page }) 
   await expect(node.getByText("Node", { exact: true })).toBeVisible();
   await expect(node.getByText(/RPC · up:\/\//)).toBeVisible();
   await expect(node.locator(".state")).toHaveClass(/up/, { timeout: 15_000 });
-  await expect(node.getByRole("switch", { name: "Select Node alpha" })).toBeDisabled();
+  await expect(node.getByRole("checkbox", { name: "Select Node alpha" })).toBeDisabled();
   const [name, badge] = await Promise.all([node.locator("h3").boundingBox(), node.getByText("Node", { exact: true }).boundingBox()]);
   expect(name).not.toBeNull();
   expect(badge).not.toBeNull();
@@ -759,7 +762,7 @@ test("creates a Cluster and optional resources through OOBE", async ({ page }) =
   await expect(page).toHaveURL(/\/setup\/target$/);
   await page.getByLabel("Name").fill("OOBE target");
   await page.getByLabel("URL").fill("https://example.com/health");
-  await page.getByRole("switch", { name: "OOBE webhook" }).check();
+  await page.getByRole("checkbox", { name: "OOBE webhook" }).check();
   await page.getByRole("button", { name: "Create and finish" }).click();
 
   await expect(page).toHaveURL(/\/$/);

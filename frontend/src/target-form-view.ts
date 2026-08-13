@@ -32,30 +32,33 @@ export function renderChannelFields(channels: Channel[], selected: string[] = []
         />
       </label>
       <div class="channel-options">
-        ${channels.map((channel) => {
-          const explicit = selected.includes(channel.id);
-          const inherited = useDefaults && channel.default;
-          return html`
-            <label class="switch">
-              <span class="switch-label">${channel.name} <span class="badge">${channel.kind}</span></span>
-              <input
-                class="switch-control"
-                name="channel_id"
-                type="checkbox"
-                role="switch"
-                value=${channel.id}
-                data-default=${String(channel.default)}
-                data-explicit=${String(explicit)}
-                .checked=${explicit || inherited}
-                ?disabled=${inherited}
-                @change=${(event: Event) => {
-                  const input = event.currentTarget as HTMLInputElement;
-                  input.dataset.explicit = String(input.checked);
-                }}
-              />
-            </label>
-          `;
-        })}
+        ${
+          channels.length
+            ? channels.map((channel) => {
+                const explicit = selected.includes(channel.id);
+                const inherited = useDefaults && channel.default;
+                return html`
+                  <label class="checkbox-option">
+                    <span class="switch-label">${channel.name} <span class="badge">${channel.kind}</span></span>
+                    <input
+                      class="checkbox-control"
+                      name="channel_id"
+                      type="checkbox"
+                      value=${channel.id}
+                      data-default=${String(channel.default)}
+                      data-explicit=${String(explicit)}
+                      .checked=${explicit || inherited}
+                      ?disabled=${inherited}
+                      @change=${(event: Event) => {
+                        const input = event.currentTarget as HTMLInputElement;
+                        input.dataset.explicit = String(input.checked);
+                      }}
+                    />
+                  </label>
+                `;
+              })
+            : html`<p class="meta">No notification channels are available.</p>`
+        }
       </div>
     </fieldset>`;
 }

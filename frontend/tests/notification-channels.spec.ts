@@ -244,7 +244,7 @@ test("uses trash icons for secret and Target deletion", async ({ page }) => {
   await targetDialog.getByLabel("Name").fill("Browser delete icon target");
   await targetDialog.getByLabel("URL").fill("http://127.0.0.1:18080/healthz");
   await targetDialog.getByRole("button", { name: "Create target" }).click();
-  await page.getByRole("switch", { name: "Select Browser delete icon target" }).check();
+  await page.getByRole("checkbox", { name: "Select Browser delete icon target" }).check();
   const deleteSelected = page.getByRole("button", { name: "Delete selected" });
   await expect(deleteSelected.locator("iconify-icon")).toBeVisible();
   await page.getByRole("button", { name: "Unselect all" }).click();
@@ -279,7 +279,7 @@ test("filters, acknowledges, and retries alert deliveries", async ({ page }) => 
   await targetDialog.getByLabel("Failures before Down").fill("1");
   await targetDialog.getByRole("tab", { name: "Notifications" }).click();
   await targetDialog.getByRole("switch", { name: "Use default channels" }).uncheck();
-  await targetDialog.getByRole("switch", { name: channelName }).check();
+  await targetDialog.getByRole("checkbox", { name: channelName }).check();
   await targetDialog.getByRole("button", { name: "Create target" }).click();
   const target = page.getByRole("button", { name: targetName });
   await expect(target.locator(".state")).toHaveClass(/down/, { timeout: 15_000 });
@@ -363,7 +363,7 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
   await nameInput.fill(targetName);
   await targetDialog.getByLabel("URL").fill("http://127.0.0.1:19091/");
   await targetDialog.getByRole("tab", { name: "Notifications" }).click();
-  const defaultChannel = targetDialog.getByRole("switch", { name: channelName });
+  const defaultChannel = targetDialog.getByRole("checkbox", { name: channelName });
   const useDefaults = targetDialog.getByRole("switch", { name: "Use default channels" });
   const channelHeading = targetDialog.locator(".channel-fields legend");
   const channelSection = targetDialog.locator(".channel-fields");

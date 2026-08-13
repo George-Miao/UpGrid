@@ -152,7 +152,7 @@ export class UpgridApp extends AppController {
     .alert-actions { display: flex; align-items: center; gap: 8px; }
     .target-wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; border-bottom: 1px solid var(--divider); padding-left: 20px; }
     .target-wrap:last-child { border-bottom: 0; }
-    .select-target { margin: 0; }
+    .select-target { width: 18px; min-height: 18px; height: 18px; margin: 0; accent-color: var(--button-bg); cursor: pointer; }
     .target { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px 17px 14px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
     .target-wrap, .target { transition: background-color 150ms ease; }
     .target-wrap:hover, .target-wrap:hover .target { background: var(--row-hover); }
@@ -222,9 +222,11 @@ export class UpgridApp extends AppController {
     .tls-fields .meta { white-space: normal; }
     form .badge { font-size: 12px; }
     .channel-options { display: grid; gap: 6px; }
-    .channel-options .switch { min-height: 36px; border-radius: 8px; padding: 5px 8px; background: var(--panel-2); }
+    .channel-options .checkbox-option { min-height: 36px; border-radius: 8px; padding: 5px 8px; background: var(--panel-2); }
     .switch-label { display: flex; min-width: 0; align-items: center; gap: 8px; }
     .switch-label .badge { margin-left: 0; }
+    .checkbox-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .checkbox-control { width: 18px; min-height: 18px; height: 18px; flex: none; accent-color: var(--button-bg); cursor: pointer; }
     .switch-control { width: 42px; min-height: 24px; height: 24px; flex: none; appearance: none; border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
     .switch-control::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
     .switch-control:checked { border-color: var(--button-border); background: var(--button-bg); }
@@ -641,8 +643,8 @@ export class UpgridApp extends AppController {
       <div class="target-wrap">
         ${
           !isNode
-            ? html`<input class="select-target switch-control" type="checkbox" role="switch" aria-label=${`Select ${target.name}`} .checked=${this.selectedIds.has(target.id)} @change=${(event: Event) => this.toggleSelected(target.id, (event.target as HTMLInputElement).checked)} />`
-            : html`<input class="select-target switch-control" type="checkbox" role="switch" aria-label=${`Select ${target.name}`} disabled />`
+            ? html`<input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} .checked=${this.selectedIds.has(target.id)} @change=${(event: Event) => this.toggleSelected(target.id, (event.target as HTMLInputElement).checked)} />`
+            : html`<input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} disabled />`
         }
         <button class=${`target ${isNode ? "node-target" : ""}`} aria-label=${target.name} @click=${() => this.openTarget(target)}>
           <i class="state ${state}" aria-label=${state}></i>
