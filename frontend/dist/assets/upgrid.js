@@ -1008,7 +1008,7 @@
       .toolbar { grid-template-columns: 1fr 1fr; }
       .toolbar input { grid-column: 1 / -1; }
       .heading { align-items: flex-start; gap: 16px; }
-      .target-wrap { align-items: start; padding-left: 14px; } .select-target { align-self: start; margin-top: 4px; } .target { grid-template-columns: auto minmax(0, 1fr); gap: 10px; padding: 12px 14px 12px 10px; }
+      .target-wrap { align-items: start; padding-left: 14px; } .select-target { align-self: start; margin-top: 6px; } .target { grid-template-columns: auto minmax(0, 1fr); gap: 10px; padding: 12px 14px 12px 10px; }
       .target-side { grid-column: 2; display: grid; grid-template-columns: minmax(88px, 1fr) auto; width: 100%; gap: 18px; margin-top: 4px; } .target > .state { align-self: start; margin-top: 5px; } .mini-chart { width: 100%; max-width: 140px; height: 28px; }
       .latency { min-width: 72px; text-align: right; }
       .channel-resource { grid-template-columns: 1fr; }
