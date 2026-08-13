@@ -4,6 +4,7 @@ import pauseIcon from "@iconify-icons/lucide/pause";
 import playIcon from "@iconify-icons/lucide/play";
 import deleteIcon from "@iconify-icons/lucide/trash-2";
 import closeIcon from "@iconify-icons/lucide/x";
+import userIcon from "@iconify-icons/lucide/user";
 import "iconify-icon";
 import "./setup-flow.ts";
 import "./http-assertion-editor.ts";
@@ -11,7 +12,7 @@ import type { ClusterMember, Target, TrashedTarget } from "./api.ts";
 import { AppController } from "./app-controller.ts";
 import { renderAlertsPage } from "./alerts-view.ts";
 import { type Section, sectionPaths, serviceHealth, themeIcons } from "./app-state.ts";
-import { renderAccessPanels, renderLogin } from "./auth-view.ts";
+import { type AuthActions, renderApiTokensPage, renderChangePassword, renderLogin, renderUsersPage } from "./auth-view.ts";
 import { renderChannelFields } from "./channel-form-view.ts";
 import { renderFooter } from "./footer-view.ts";
 import { helpTooltipStyles, renderHelpTooltip } from "./help-tooltip.ts";
@@ -96,16 +97,25 @@ export class UpgridApp extends AppController {
     .heading { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 30px; }
     .heading h1 { margin: 2px 0 0; font-size: clamp(27px, 4vw, 38px); line-height: 1.1; letter-spacing: -.035em; }
     .eyebrow { text-transform: uppercase; letter-spacing: .16em; }
-    .button { min-height: 44px; border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 120ms ease; }
+    .button { min-height: 44px; border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; white-space: nowrap; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 120ms ease; }
     .button:hover { border-color: var(--button-hover-border); }
     .button:active { transform: translateY(1px); }
     .button:disabled { cursor: not-allowed; opacity: .65; }
     .button[aria-busy="true"] { cursor: wait; }
     .icon-button { display: grid; width: 44px; height: 44px; min-height: 44px; place-items: center; padding: 0; }
     iconify-icon { display: inline-block; width: 18px; height: 18px; font-size: 18px; }
+    .account-menu { position: relative; }
+    .account-menu summary { list-style: none; }
+    .account-menu summary::-webkit-details-marker { display: none; }
+    .account-dropdown { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; display: grid; width: max-content; min-width: 180px; gap: 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 6px; box-shadow: 0 16px 40px var(--dialog-shadow); }
+    .account-dropdown .button { display: flex; width: 100%; min-height: 44px; align-items: center; justify-content: flex-start; box-sizing: border-box; border: 0; background: transparent; padding: 9px 13px; color: var(--muted); font: inherit; line-height: 1.2; text-align: left; text-decoration: none; }
+    .account-dropdown .button:hover, .account-dropdown .button:focus-visible { background: var(--row-hover); color: var(--text); }
+    .account-separator { height: 1px; margin: 4px 0; background: var(--divider); }
+    .account-dropdown .danger { color: var(--danger-text); }
+    .account-dropdown .danger:hover, .account-dropdown .danger:focus-visible { background: var(--notice-bg); color: var(--danger-text); }
     ${helpTooltipStyles}
     .auth-panel { width: min(440px, 100%); margin: auto; }
-    .access-panels { margin-top: 18px; }
+    .admin-page { width: min(760px, 100%); margin: auto; }
     .access-resource { align-items: end; }
     .access-form { display: grid; flex: 1; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 9px; }
     .compact-form { border-top: 1px solid var(--divider); }
@@ -175,7 +185,7 @@ export class UpgridApp extends AppController {
     .bulk-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
     .bulk, .bulk-actions .button { animation: reveal 160ms ease-out; }
     @keyframes reveal { from { opacity: 0; transform: translateY(-3px); } }
-    dialog { width: min(580px, calc(100% - 28px)); border: 1px solid var(--line); border-radius: 17px; background: var(--panel); color: var(--text); padding: 0; box-shadow: 0 28px 90px var(--dialog-shadow); opacity: 0; transform: translateY(8px) scale(.985); transition: opacity 170ms ease, transform 170ms ease, overlay 170ms allow-discrete, display 170ms allow-discrete; }
+    dialog { width: min(580px, calc(100% - 28px)); border: 1px solid var(--line); border-radius: 17px; background: var(--panel); color: var(--text); padding: 0; scrollbar-gutter: stable both-edges; box-shadow: 0 28px 90px var(--dialog-shadow); opacity: 0; transform: translateY(8px) scale(.985); transition: opacity 170ms ease, transform 170ms ease, overlay 170ms allow-discrete, display 170ms allow-discrete; }
     dialog[open] { opacity: 1; transform: translateY(0) scale(1); }
     dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(5px); opacity: 0; transition: opacity 170ms ease, overlay 170ms allow-discrete, display 170ms allow-discrete; }
     dialog[open]::backdrop { opacity: 1; }
@@ -204,9 +214,10 @@ export class UpgridApp extends AppController {
     .success:hover { border-color: var(--button-text); }
     .dialog-close { position: absolute; top: 12px; right: 14px; }
     .check { display: flex; align-items: center; gap: 8px; } .check input { width: 18px; min-height: 18px; height: 18px; flex: none; }
-    .channel-fields { display: grid; gap: 10px; margin: 8px 0 0; border: 0; padding: 0; }
-    .channel-fields legend { display: flex; width: 100%; align-items: center; gap: 12px; margin: 0 0 4px; padding: 0; color: var(--text); font-size: 14px; font-weight: 400; text-align: center; }
-    .channel-fields legend::before, .channel-fields legend::after { height: 1px; flex: 1; background: var(--line); content: ""; }
+    .channel-fields, .tls-fields { display: grid; gap: 10px; margin: 8px 0 0; border: 0; padding: 0; }
+    .channel-fields legend, .tls-fields legend { display: flex; width: 100%; align-items: center; gap: 12px; margin: 0 0 4px; padding: 0; color: var(--text); font-size: 14px; font-weight: 400; text-align: center; }
+    .channel-fields legend::before, .channel-fields legend::after, .tls-fields legend::before, .tls-fields legend::after { height: 1px; flex: 1; background: var(--line); content: ""; }
+    .tls-fields .meta { white-space: normal; }
     form .badge { font-size: 12px; }
     .channel-options { display: grid; gap: 6px; }
     .channel-options .check { min-height: 36px; border-radius: 8px; padding: 5px 8px; background: var(--panel-2); }
@@ -318,17 +329,21 @@ export class UpgridApp extends AppController {
       .filter((target) => `${target.name} ${target.url}`.toLowerCase().includes(this.search.toLowerCase()))
       .filter((target) => (this.statusFilter === "all" ? true : this.statusFilter === "paused" ? target.paused : target.availability === this.statusFilter))
       .sort((left, right) => (this.sort === "status" ? left.availability.localeCompare(right.availability) || left.name.localeCompare(right.name) : left.name.localeCompare(right.name)));
+    const authActions: AuthActions = {
+      login: (event) => void this.login(event),
+      logout: () => void this.logout(),
+      createIdentity: (event) => void this.createIdentity(event),
+      openAddUser: () => this.showDialog("add-user-dialog"),
+      closeAddUser: () => this.closeDialog("add-user-dialog"),
+      dismissDialog: (event) => this.dismissOnBackdrop(event),
+      updateIdentity: (identity, event) => void this.updateIdentity(identity, event),
+      deleteIdentity: (identity) => void this.deleteIdentity(identity),
+      createApiToken: (event) => void this.createApiToken(event),
+      revokeApiToken: (token) => void this.revokeApiToken(token),
+      dismissToken: () => (this.newApiToken = ""),
+    };
     if (this.authReady && !this.setupMode && !this.session) {
-      return html`${renderLogin(this.saving, this.error, {
-        login: (event) => void this.login(event),
-        logout: () => void this.logout(),
-        createIdentity: (event) => void this.createIdentity(event),
-        updateIdentity: (identity, event) => void this.updateIdentity(identity, event),
-        deleteIdentity: (identity) => void this.deleteIdentity(identity),
-        createApiToken: (event) => void this.createApiToken(event),
-        revokeApiToken: (token) => void this.revokeApiToken(token),
-        dismissToken: () => (this.newApiToken = ""),
-      })}${renderFooter()}`;
+      return html`${renderLogin(this.saving, this.error, authActions)}${renderFooter()}`;
     }
     if (this.setupMode && this.setup) {
       return html`
@@ -360,8 +375,16 @@ export class UpgridApp extends AppController {
           </nav>
           <div class="actions">
             <button class="button secondary icon-button" aria-label=${`Theme: ${this.theme[0].toUpperCase()}${this.theme.slice(1)}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button>
-            <span class="meta">${this.session?.username}</span>
-            <button class="button secondary" @click=${() => void this.logout()}>Sign out</button>
+            <details class="account-menu">
+              <summary class="button secondary icon-button" aria-label=${`Account menu for ${this.session?.username}`} title=${`Account: ${this.session?.username}`}><iconify-icon .icon=${userIcon} aria-hidden="true"></iconify-icon></summary>
+              <div class="account-dropdown" role="menu">
+                <a class="button secondary" role="menuitem" href=${sectionPaths.changePassword} @click=${(event: MouseEvent) => this.navigate(event, "changePassword")}>Change Password</a>
+                <a class="button secondary" role="menuitem" href=${sectionPaths.users} @click=${(event: MouseEvent) => this.navigate(event, "users")}>Add User</a>
+                <a class="button secondary" role="menuitem" href=${sectionPaths.apiTokens} @click=${(event: MouseEvent) => this.navigate(event, "apiTokens")}>API Token</a>
+                <div class="account-separator" role="separator"></div>
+                <button class="button danger" role="menuitem" type="button" @click=${() => void this.logout()}>Logout</button>
+              </div>
+            </details>
           </div>
         </header>
         ${this.error ? html`<div class="notice" role="alert">${this.error}</div>` : nothing}
@@ -396,10 +419,20 @@ export class UpgridApp extends AppController {
                 )
               : this.activeSection === "cluster"
                 ? this.renderClusterPage()
-                : this.renderTrashPage()
+                : this.activeSection === "trash"
+                  ? this.renderTrashPage()
+                  : this.activeSection === "changePassword"
+                    ? renderChangePassword(
+                        this.identities.find((identity) => identity.id === this.session?.identity_id),
+                        this.saving,
+                        authActions,
+                      )
+                    : this.activeSection === "users"
+                      ? renderUsersPage(this.identities, this.session?.identity_id, this.saving, authActions)
+                      : renderApiTokensPage(this.apiTokens, this.newApiToken, this.saving, authActions)
         }
       </main>${renderFooter()}
-      ${renderTargetForm(this.channels, this.secrets, this.saving, {
+      ${renderTargetForm(this.channels, this.saving, {
         backdrop: (event) => this.dismissOnBackdrop(event),
         close: () => this.closeTargetDialog(),
         create: (event) => void this.createTarget(event),
@@ -561,7 +594,7 @@ export class UpgridApp extends AppController {
       </section>
       <div class="page-columns">
       <section class="panel" aria-label="Cluster topology">
-        <div class="panel-head"><div><h2>Nodes</h2><p class="meta">Drain healthy Nodes before removal. Replace failed Nodes only after confirming the old process is permanently stopped.</p></div><span class="meta">${this.cluster?.members.length ?? 0} members</span></div>
+        <div class="panel-head"><div class="title-with-help"><h2>Nodes</h2>${renderHelpTooltip("nodes-removal-help", "About removing Nodes", "Drain healthy Nodes before removal. Replace failed Nodes only after confirming the old process is permanently stopped.")}</div><span class="meta">${this.cluster?.members.length ?? 0} members</span></div>
         ${this.cluster?.members.map((member) => this.renderClusterMember(member))}
         ${this.cluster?.members.length ? nothing : html`<div class="empty">Cluster topology unavailable.</div>`}
       </section>
@@ -581,16 +614,6 @@ export class UpgridApp extends AppController {
         }
       </section>
       </div>
-      ${renderAccessPanels(this.identities, this.apiTokens, this.session?.identity_id, this.newApiToken, this.saving, {
-        login: (event) => void this.login(event),
-        logout: () => void this.logout(),
-        createIdentity: (event) => void this.createIdentity(event),
-        updateIdentity: (identity, event) => void this.updateIdentity(identity, event),
-        deleteIdentity: (identity) => void this.deleteIdentity(identity),
-        createApiToken: (event) => void this.createApiToken(event),
-        revokeApiToken: (token) => void this.revokeApiToken(token),
-        dismissToken: () => (this.newApiToken = ""),
-      })}
     `;
   }
 

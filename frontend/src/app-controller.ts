@@ -240,6 +240,7 @@ export class AppController extends AppState {
         }),
       });
       form.reset();
+      this.closeDialog("add-user-dialog");
     });
   }
 

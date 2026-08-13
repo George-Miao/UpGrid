@@ -14,6 +14,9 @@ export const sectionPaths = {
   alerts: "/alerts",
   cluster: "/cluster",
   trash: "/trash",
+  changePassword: "/admin/change-password",
+  users: "/admin/users",
+  apiTokens: "/admin/api-tokens",
 } as const;
 export type Section = keyof typeof sectionPaths;
 
@@ -269,6 +272,7 @@ export class AppState extends LitElement {
     event.preventDefault();
     this.activeSection = section;
     window.history.pushState(null, "", sectionPaths[section]);
+    this.renderRoot.querySelector(".account-menu")?.removeAttribute("open");
   }
 
   protected closeDialog(id: string): void {
