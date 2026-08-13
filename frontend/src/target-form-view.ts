@@ -1,6 +1,5 @@
 import { html } from "lit";
 import type { Channel, Secret } from "./api.ts";
-import { renderHelpTooltip } from "./help-tooltip.ts";
 
 interface Actions {
   backdrop: (event: MouseEvent) => void;
@@ -109,17 +108,17 @@ function resetTargetKind(event: Event) {
   queueMicrotask(() => applyTargetKind(form, "http"));
 }
 
-export function renderTargetForm(channels: Channel[], secrets: Secret[], saving: boolean, actions: Actions) {
+export function renderTargetForm(channels: Channel[], saving: boolean, actions: Actions) {
   return html`
     <dialog id="target-dialog" aria-labelledby="add-target-title" @click=${actions.backdrop}>
-      <div class="dialog-head"><div class="title-with-help"><h2 id="add-target-title">Add target</h2>${renderHelpTooltip("target-secret-help", "About Target Secrets", "Advanced HTTP Targets can reference reusable Secrets for headers, request bodies, custom CA bundles, and mutual-TLS identities.")}</div><p>Start monitoring a service.</p></div>
+      <div class="dialog-head"><h2 id="add-target-title">Add target</h2><p>Start monitoring a service.</p></div>
       <form @submit=${actions.create} @reset=${resetTargetKind}>
         <label>Name<input name="name" placeholder="Production API" required autofocus /></label>
         <div class="row">
           <label>Type<select name="kind" @change=${selectTargetKind}><option value="http">HTTP</option><option value="tcp">TCP connect</option><option value="dns">DNS resolution</option><option value="icmp">ICMP echo</option><option value="tls">TLS certificate</option></select></label>
           <label>URL / endpoint<input name="url" type="url" placeholder=${endpointPlaceholders.http} required /></label>
         </div>
-        <div data-http-options><label>Method<input name="method" value="GET" required /></label><http-assertion-editor name="assertions" target-id="new"></http-assertion-editor>${renderTlsSecretFields(secrets)}</div>
+        <div data-http-options><label>Method<input name="method" value="GET" required /></label><http-assertion-editor name="assertions" target-id="new"></http-assertion-editor></div>
         <div class="row">
           <label>Interval (seconds)<input name="interval" type="number" min="1" value="60" required /></label>
           <label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label>

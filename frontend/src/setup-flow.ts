@@ -39,8 +39,8 @@ export class UpgridSetup extends LitElement {
     .cluster-join-fields button { height: 44px; white-space: nowrap; }
     form { display: grid; gap: 13px; }
     label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
-    input, select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font: inherit; font-size: 16px; transition: border-color 160ms ease, opacity 160ms ease; }
-    input:focus, select:focus { border-color: var(--focus); }
+    input:not([type="checkbox"]), select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font: inherit; font-size: 16px; transition: border-color 160ms ease, opacity 160ms ease; }
+    input:not([type="checkbox"]):focus, select:focus { border-color: var(--focus); }
     button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
     .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; }
     .switch input { width: 42px; min-height: 24px; height: 24px; flex: none; appearance: none; border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
@@ -66,7 +66,7 @@ export class UpgridSetup extends LitElement {
       .cluster-create button { align-self: end; }
       .cluster-copy p { display: none; }
       .cluster-join { grid-template-columns: auto minmax(0, 1fr); align-items: end; }
-      input, button { min-height: 38px; }
+      input:not([type="checkbox"]), button { min-height: 38px; }
       .cluster-join-fields button { height: 44px; }
     }
   `;

@@ -110,7 +110,7 @@ export class HttpAssertionEditor extends LitElement {
   protected render() {
     return html`
       <fieldset>
-        <legend>Ordered response assertions</legend>
+        <legend>Assertions</legend>
         ${this.draft.length ? this.draft.map((assertion, index) => this.renderAssertion(assertion, index)) : html`<p class="empty">No response assertions. HTTP status ranges still apply.</p>`}
         <button class="add" type="button" @click=${this.add}>Add assertion</button>
       </fieldset>

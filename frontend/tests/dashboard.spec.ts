@@ -161,8 +161,15 @@ test("creates and edits ordered HTTP assertions", async ({ page }) => {
   expect(updated[4]).toMatchObject({ source: "status == 200 && latency_ms < 30000" });
 });
 
-test("creates and edits custom HTTPS trust and mutual TLS Secrets", async ({ page }) => {
+test("omits advanced TLS controls during creation and edits existing TLS Secrets", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Add target" }).click();
+  const create = page.getByRole("dialog", { name: "Add target" });
+  await expect(create.getByLabel("Custom CA bundle Secret")).toHaveCount(0);
+  await expect(create.getByLabel("Client certificate Secret")).toHaveCount(0);
+  await expect(create.getByLabel("Client private key Secret")).toHaveCount(0);
+  await create.getByRole("button", { name: "Cancel" }).click();
+
   const createSecret = async (name: string, value: string) => {
     await page.getByRole("button", { name: "Add secret" }).click();
     const dialog = page.getByRole("dialog", { name: "Add secret" });
@@ -174,23 +181,43 @@ test("creates and edits custom HTTPS trust and mutual TLS Secrets", async ({ pag
   await createSecret("Browser client certificate", "client-certificate-pem");
   await createSecret("Browser client private key", "client-private-key-pem");
 
-  await page.getByRole("button", { name: "Add target" }).click();
-  const create = page.getByRole("dialog", { name: "Add target" });
-  await create.getByLabel("Name").fill("Mutual TLS target");
-  await create.getByLabel("URL").fill("https://example.com/health");
-  await create.getByLabel("Custom CA bundle Secret").selectOption({ label: "Browser private CA" });
-  await create.getByLabel("Client certificate Secret").selectOption({ label: "Browser client certificate" });
-  await create.getByLabel("Client private key Secret").selectOption({ label: "Browser client private key" });
-  await create.getByRole("button", { name: "Create target" }).click();
+  const secrets: { id: string; name: string }[] = await (await page.request.get("/api/v1/secrets")).json();
+  const caSecretId = secrets.find((secret) => secret.name === "Browser private CA")?.id;
+  const certificateSecretId = secrets.find((secret) => secret.name === "Browser client certificate")?.id;
+  const privateKeySecretId = secrets.find((secret) => secret.name === "Browser client private key")?.id;
+  expect(caSecretId).toBeDefined();
+  expect(certificateSecretId).toBeDefined();
+  expect(privateKeySecretId).toBeDefined();
 
-  const created = (await (await page.request.get("/api/v1/targets")).json()).find((target: { name: string }) => target.name === "Mutual TLS target");
-  expect(created).toMatchObject({
-    tls_ca_secret_id: expect.any(String),
-    tls_client_certificate_secret_id: expect.any(String),
-    tls_client_private_key_secret_id: expect.any(String),
+  const response = await page.request.post("/api/v1/targets", {
+    data: {
+      name: "Mutual TLS target",
+      kind: "http",
+      url: "https://example.com/health",
+      method: "GET",
+      accepted_statuses: [{ start: 200, end: 299 }],
+      follow_redirects: true,
+      max_redirects: 5,
+      interval_seconds: 60,
+      timeout_seconds: 10,
+      failure_threshold: 3,
+      locations: 1,
+      headers: {},
+      body: null,
+      assertions: [],
+      skip_tls_verification: false,
+      tls_ca_secret_id: caSecretId,
+      tls_client_certificate_secret_id: certificateSecretId,
+      tls_client_private_key_secret_id: privateKeySecretId,
+      notification_channel_ids: [],
+      use_default_channels: true,
+    },
   });
-  await expect(page.getByText("private-ca-pem")).toHaveCount(0);
+  expect(response.ok()).toBeTruthy();
+  const created = await response.json();
+  await page.goto("/");
 
+  await expect(page.getByText("private-ca-pem")).toHaveCount(0);
   await page.getByRole("button", { name: "Mutual TLS target" }).click();
   const edit = page.getByRole("dialog", { name: "Target details" });
   await expect(edit.getByLabel("Custom CA bundle Secret")).toHaveValue(created.tls_ca_secret_id);
