@@ -21,8 +21,7 @@ mod channel;
 mod test;
 
 #[cfg(test)]
-#[path = "tests.rs"]
-mod notification_tests;
+mod tests;
 
 pub use channel::ChannelError;
 use channel::{Delivery, Request};

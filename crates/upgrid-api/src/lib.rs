@@ -42,8 +42,7 @@ mod setup;
 mod targets;
 
 #[cfg(test)]
-#[path = "tests.rs"]
-mod api_tests;
+mod tests;
 
 pub use error::{Error, Result};
 use model::*;

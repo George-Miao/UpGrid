@@ -18,7 +18,7 @@ UpGrid is a Rust 2024 workspace with a Lit/TypeScript WebUI. Crates live under `
 
 ## Coding Style & Naming Conventions
 
-Use standard `rustfmt` output (four-space indentation and trailing commas). Name Rust modules and functions with `snake_case`, types with `UpperCamelCase`, and constants with `SCREAMING_SNAKE_CASE`. Start considering a module split near 200 lines; 500 lines is a hard maximum. Compose source with ordinary `mod` declarations—never `include!`. TypeScript uses two spaces, strict types, `camelCase` members, and `kebab-case` custom-element names. Never use `String` as an error type; define typed errors with `snafu` and propagate them with the `ResultExt` and `OptionExt` context APIs. Prefer typed boundaries and `tracing`.
+Use standard `rustfmt` output (four-space indentation and trailing commas). Name Rust modules and functions with `snake_case`, types with `UpperCamelCase`, and constants with `SCREAMING_SNAKE_CASE`. Start considering a module split near 200 lines; 500 lines is a hard maximum. Compose source with ordinary `mod` declarations—never `#[path = "..."]` or `include!`; rename files and modules to follow Rust's standard module layout. TypeScript uses two spaces, strict types, `camelCase` members, and `kebab-case` custom-element names. Never use `String` as an error type; define typed errors with `snafu` and propagate them with the `ResultExt` and `OptionExt` context APIs. Prefer typed boundaries and `tracing`.
 
 ## Testing Guidelines
 
