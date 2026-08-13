@@ -196,6 +196,7 @@ export class UpgridApp extends AppController {
     .dialog-head { position: relative; padding: 20px 58px 15px 22px; border-bottom: 1px solid var(--line); }
     .dialog-head h2 { margin: 0; font-size: 18px; }
     .dialog-head p { margin: 4px 0 0; color: var(--muted); }
+    .target-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 12px; padding-bottom: 12px; }
     form { display: grid; gap: 13px; padding: 20px 22px 22px; }
     .form-tabs { display: flex; width: fit-content; max-width: 100%; gap: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--nav-bg); padding: 4px; overflow-x: auto; }
     .form-tabs button { min-height: 34px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 7px 11px; white-space: nowrap; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; }
@@ -222,8 +223,8 @@ export class UpgridApp extends AppController {
     .dialog-close { position: absolute; top: 12px; right: 14px; }
     .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .channel-fields, .tls-fields { display: grid; gap: 10px; margin: 8px 0 0; border: 0; padding: 0; }
-    .channel-fields legend, .tls-fields legend { display: flex; width: 100%; align-items: center; gap: 12px; margin: 0 0 4px; padding: 0; color: var(--text); font-size: 14px; font-weight: 400; text-align: center; }
-    .channel-fields legend::before, .channel-fields legend::after, .tls-fields legend::before, .tls-fields legend::after { height: 1px; flex: 1; background: var(--line); content: ""; }
+    .tls-fields legend { display: flex; width: 100%; align-items: center; gap: 12px; margin: 0 0 4px; padding: 0; color: var(--text); font-size: 14px; font-weight: 400; text-align: center; }
+    .tls-fields legend::before, .tls-fields legend::after { height: 1px; flex: 1; background: var(--line); content: ""; }
     .tls-fields .meta { white-space: normal; }
     form .badge { font-size: 12px; }
     .channel-options { display: grid; gap: 6px; }

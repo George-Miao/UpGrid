@@ -107,11 +107,10 @@
       .cluster-join-fields button { height: 44px; }
     }
   `;J([xe({attribute:!1})],O.prototype,"setup",2);J([f()],O.prototype,"channelKind",2);J([f()],O.prototype,"channels",2);J([f()],O.prototype,"saving",2);J([f()],O.prototype,"error",2);O=J([Ve("upgrid-setup")],O);var Ps=Object.defineProperty,Ds=Object.getOwnPropertyDescriptor,ke=(t,e,i,s)=>{for(var n=s>1?void 0:s?Ds(e,i):e,a=t.length-1,o;a>=0;a--)(o=t[a])&&(n=(s?o(e,i,n):o(n))||n);return s&&n&&Ps(e,i,n),n};const Is={body_contains:"Body contains",body_regex:"Body regex",json_path:"JSONPath",response_header:"Response header",latency:"Latency threshold",script:"Script"};let L=class extends R{constructor(){super(...arguments),this.assertions=[],this.targetId="new",this.draft=[],this.loadedTarget="",this.internals=this.attachInternals()}get value(){return structuredClone(this.draft)}willUpdate(t){t.has("targetId")&&this.loadedTarget!==this.targetId&&(this.loadedTarget=this.targetId,this.draft=structuredClone(this.assertions))}updated(){this.internals.setFormValue(JSON.stringify(this.draft))}formResetCallback(){this.draft=structuredClone(this.assertions),this.internals.setFormValue(JSON.stringify(this.draft))}add(){this.draft=[...this.draft,_t("body_contains")],this.changed()}removeAssertion(t){this.draft=this.draft.filter((e,i)=>i!==t),this.changed()}move(t,e){const i=t+e;if(i<0||i>=this.draft.length)return;const s=[...this.draft];[s[t],s[i]]=[s[i],s[t]],this.draft=s,this.changed()}setKind(t,e){const i=e.currentTarget.value;this.replace(t,_t(i))}set(t,e,i){const s=i.currentTarget,n={...this.draft[t],[e]:e==="max_ms"?Number(s.value):s.value||null};this.replace(t,n)}replace(t,e){this.draft=this.draft.map((i,s)=>s===t?e:i),this.changed()}changed(){this.internals.setFormValue(JSON.stringify(this.draft)),this.dispatchEvent(new Event("input",{bubbles:!0,composed:!0}))}render(){return c`
-      <fieldset>
-        <legend>Assertions</legend>
-        ${this.draft.length?this.draft.map((t,e)=>this.renderAssertion(t,e)):c`<p class="empty">No response assertions. HTTP status ranges still apply.</p>`}
+      <div class="assertions">
         <button class="add" type="button" @click=${this.add}>Add assertion</button>
-      </fieldset>
+        ${this.draft.length?this.draft.map((t,e)=>this.renderAssertion(t,e)):c`<p class="empty">No assertions.</p>`}
+      </div>
     `}renderAssertion(t,e){return c`
       <div class="assertion">
         <label>Type<select aria-label=${`Assertion ${e+1} type`} .value=${t.kind} @change=${i=>this.setKind(e,i)}>${Object.entries(Is).map(([i,s])=>c`<option value=${i}>${s}</option>`)}</select></label>
@@ -123,9 +122,8 @@
         </div>
       </div>
     `}renderFields(t,e){switch(t.kind){case"body_contains":return c`<div class="fields single"><label>Required text<input aria-label=${`Assertion ${e+1} required text`} .value=${t.value} required @input=${i=>this.set(e,"value",i)} /></label></div>`;case"body_regex":return c`<div class="fields single"><label>Regular expression<input aria-label=${`Assertion ${e+1} regular expression`} .value=${t.pattern} required @input=${i=>this.set(e,"pattern",i)} /></label></div>`;case"json_path":return c`<div class="fields"><label>Path<input aria-label=${`Assertion ${e+1} JSONPath`} .value=${t.path} placeholder="$.status" required @input=${i=>this.set(e,"path",i)} /></label><label>Expected value (optional)<input aria-label=${`Assertion ${e+1} expected value`} .value=${t.expected??""} @input=${i=>this.set(e,"expected",i)} /></label></div>`;case"response_header":return c`<div class="fields"><label>Header name<input aria-label=${`Assertion ${e+1} header name`} .value=${t.name} placeholder="content-type" required @input=${i=>this.set(e,"name",i)} /></label><label>Exact value (optional)<input aria-label=${`Assertion ${e+1} header value`} .value=${t.value??""} @input=${i=>this.set(e,"value",i)} /></label></div>`;case"latency":return c`<div class="fields single"><label>Maximum milliseconds<input aria-label=${`Assertion ${e+1} maximum milliseconds`} type="number" min="1" .value=${String(t.max_ms)} required @input=${i=>this.set(e,"max_ms",i)} /></label></div>`;case"script":return c`<div class="fields single"><label>Boolean Rhai expression<textarea aria-label=${`Assertion ${e+1} script`} required @input=${i=>this.set(e,"source",i)}>${t.source}</textarea></label></div>`;default:return m}}};L.formAssociated=!0;L.styles=be`
-    :host { display: grid; gap: 10px; margin: 10px 0; }
-    fieldset { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
-    legend { color: var(--muted); font-size: 13px; padding: 0 4px; }
+    :host { display: grid; gap: 10px; }
+    .assertions { display: grid; gap: 10px; }
     .assertion { display: grid; grid-template-columns: minmax(140px, 0.7fr) minmax(180px, 1.3fr) auto; gap: 8px; align-items: end; }
     .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .fields.single { grid-template-columns: 1fr; }
@@ -133,8 +131,8 @@
     input, select, textarea { box-sizing: border-box; width: 100%; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); padding: 8px 9px; font: inherit; }
     textarea { min-height: 72px; resize: vertical; font-family: ui-monospace, monospace; }
     .actions { display: flex; gap: 4px; }
-    button { border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); padding: 8px 10px; cursor: pointer; }
-    button:disabled { cursor: default; opacity: 0.45; }
+    button { border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); padding: 8px 10px; cursor: pointer; user-select: none; }
+    button:disabled { cursor: not-allowed; opacity: 0.45; }
     .add { justify-self: start; }
     .empty { margin: 0; color: var(--muted); font-size: 13px; }
     @media (max-width: 720px) { .assertion { grid-template-columns: 1fr; } .fields { grid-template-columns: 1fr; } }
@@ -379,8 +377,7 @@
       </div>
     </footer>
   `}function Xt(t,e=[],i=!0){return c`
-    <fieldset class="channel-fields">
-      <legend>Notification channels</legend>
+    <div class="channel-fields">
       <label class="switch">
         <span>Use default channels</span>
         <input
@@ -389,7 +386,7 @@
           type="checkbox"
           role="switch"
           .checked=${i}
-          @change=${n=>{const a=n.currentTarget;a.closest("fieldset")?.querySelectorAll('input[data-default="true"]').forEach(r=>{r.disabled=a.checked,r.checked=a.checked||r.dataset.explicit==="true"}),a.form?.dispatchEvent(new Event("input",{bubbles:!0}))}}
+          @change=${n=>{const a=n.currentTarget;a.closest(".channel-fields")?.querySelectorAll('input[data-default="true"]').forEach(r=>{r.disabled=a.checked,r.checked=a.checked||r.dataset.explicit==="true"}),a.form?.dispatchEvent(new Event("input",{bubbles:!0}))}}
         />
       </label>
       <div class="channel-options">
@@ -410,7 +407,7 @@
                   </label>
                 `}):c`<p class="meta">No notification channels are available.</p>`}
       </div>
-    </fieldset>`}function Xs(t,e=null,i=null,s=null){const n=a=>c`
+    </div>`}function Xs(t,e=null,i=null,s=null){const n=a=>c`
     <option value="">Not configured</option>
     ${t.map(o=>c`<option value=${o.id} ?selected=${o.id===a}>${o.name}</option>`)}
   `;return c`
@@ -425,14 +422,16 @@
     </fieldset>
   `}const ei={http:"https://example.com/health",tcp:"database.internal:5432",dns:"service.internal",icmp:"192.0.2.10",tls:"example.com:443"};function Qe(t,e){t.querySelectorAll("[role='tab']").forEach(i=>{const s=i.dataset.tab===e;i.setAttribute("aria-selected",String(s)),i.tabIndex=s?0:-1}),t.querySelectorAll("[role='tabpanel']").forEach(i=>{i.hidden=i.dataset.panel!==e})}function ti(t,e){const i=t.elements.namedItem("url");i&&(i.placeholder=ei[e],i.type=e==="http"?"url":"text"),t.querySelectorAll("[data-http-only]").forEach(o=>{o.hidden=e!=="http"});const s=t.querySelector("[role='tab'][aria-selected='true']")?.dataset.tab??"general",n=t.querySelector("[data-tab='assertions']");n&&(n.disabled=e!=="http"),Qe(t,e!=="http"&&s==="assertions"?"general":s);const a=t.elements.namedItem("method");a&&(a.disabled=e!=="http",a.disabled&&(a.value="GET"))}function en(t){const e=t.currentTarget;e.form&&ti(e.form,e.value)}function oe(t){const e=t.currentTarget;e.form&&e.dataset.tab&&Qe(e.form,e.dataset.tab)}function tn(t){const e=t.currentTarget;queueMicrotask(()=>{ti(e,"http"),Qe(e,"general")})}function sn(t,e,i){return c`
     <dialog id="target-dialog" aria-labelledby="add-target-title" @click=${i.backdrop}>
-      <div class="dialog-head"><h2 id="add-target-title">Add target</h2></div>
-      <form @submit=${i.create} @reset=${tn}>
+      <div class="dialog-head target-dialog-head">
+        <h2 id="add-target-title">Add target</h2>
         <div class="form-tabs" role="tablist" aria-label="Target settings">
-          <button id="target-general-tab" type="button" role="tab" data-tab="general" aria-controls="target-general-panel" aria-selected="true" @click=${oe}>General</button>
-          <button id="target-assertions-tab" type="button" role="tab" data-tab="assertions" aria-controls="target-assertions-panel" aria-selected="false" tabindex="-1" @click=${oe}>Assertions</button>
-          <button id="target-evaluation-tab" type="button" role="tab" data-tab="evaluation" aria-controls="target-evaluation-panel" aria-selected="false" tabindex="-1" @click=${oe}>Evaluation</button>
-          <button id="target-notifications-tab" type="button" role="tab" data-tab="notifications" aria-controls="target-notifications-panel" aria-selected="false" tabindex="-1" @click=${oe}>Notifications</button>
+          <button id="target-general-tab" form="target-form" type="button" role="tab" data-tab="general" aria-controls="target-general-panel" aria-selected="true" @click=${oe}>General</button>
+          <button id="target-assertions-tab" form="target-form" type="button" role="tab" data-tab="assertions" aria-controls="target-assertions-panel" aria-selected="false" tabindex="-1" @click=${oe}>Assertions</button>
+          <button id="target-evaluation-tab" form="target-form" type="button" role="tab" data-tab="evaluation" aria-controls="target-evaluation-panel" aria-selected="false" tabindex="-1" @click=${oe}>Evaluation</button>
+          <button id="target-notifications-tab" form="target-form" type="button" role="tab" data-tab="notifications" aria-controls="target-notifications-panel" aria-selected="false" tabindex="-1" @click=${oe}>Notifications</button>
         </div>
+      </div>
+      <form id="target-form" @submit=${i.create} @reset=${tn}>
         <section id="target-general-panel" class="target-tab-panel" role="tabpanel" data-panel="general" aria-labelledby="target-general-tab">
           <label>Name<input name="name" placeholder="Production API" required autofocus /></label>
           <div class="row">
@@ -870,6 +869,7 @@
     .dialog-head { position: relative; padding: 20px 58px 15px 22px; border-bottom: 1px solid var(--line); }
     .dialog-head h2 { margin: 0; font-size: 18px; }
     .dialog-head p { margin: 4px 0 0; color: var(--muted); }
+    .target-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 12px; padding-bottom: 12px; }
     form { display: grid; gap: 13px; padding: 20px 22px 22px; }
     .form-tabs { display: flex; width: fit-content; max-width: 100%; gap: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--nav-bg); padding: 4px; overflow-x: auto; }
     .form-tabs button { min-height: 34px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 7px 11px; white-space: nowrap; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; }
@@ -896,8 +896,8 @@
     .dialog-close { position: absolute; top: 12px; right: 14px; }
     .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .channel-fields, .tls-fields { display: grid; gap: 10px; margin: 8px 0 0; border: 0; padding: 0; }
-    .channel-fields legend, .tls-fields legend { display: flex; width: 100%; align-items: center; gap: 12px; margin: 0 0 4px; padding: 0; color: var(--text); font-size: 14px; font-weight: 400; text-align: center; }
-    .channel-fields legend::before, .channel-fields legend::after, .tls-fields legend::before, .tls-fields legend::after { height: 1px; flex: 1; background: var(--line); content: ""; }
+    .tls-fields legend { display: flex; width: 100%; align-items: center; gap: 12px; margin: 0 0 4px; padding: 0; color: var(--text); font-size: 14px; font-weight: 400; text-align: center; }
+    .tls-fields legend::before, .tls-fields legend::after { height: 1px; flex: 1; background: var(--line); content: ""; }
     .tls-fields .meta { white-space: normal; }
     form .badge { font-size: 12px; }
     .channel-options { display: grid; gap: 6px; }

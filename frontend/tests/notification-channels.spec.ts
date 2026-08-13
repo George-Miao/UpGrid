@@ -365,16 +365,8 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
   await targetDialog.getByRole("tab", { name: "Notifications" }).click();
   const defaultChannel = targetDialog.getByRole("checkbox", { name: channelName });
   const useDefaults = targetDialog.getByRole("switch", { name: "Use default channels" });
-  const channelHeading = targetDialog.locator(".channel-fields legend");
-  const channelSection = targetDialog.locator(".channel-fields");
   await expect(defaultChannel).toBeChecked();
   await expect(defaultChannel).toBeDisabled();
-  await expect(channelHeading).toHaveCSS("font-size", "14px");
-  await expect(channelHeading).toHaveCSS("font-weight", "400");
-  const [headingBox, sectionBox] = await Promise.all([channelHeading.boundingBox(), channelSection.boundingBox()]);
-  expect(headingBox).not.toBeNull();
-  expect(sectionBox).not.toBeNull();
-  expect(Math.abs(headingBox!.x + headingBox!.width / 2 - (sectionBox!.x + sectionBox!.width / 2))).toBeLessThan(2);
   await useDefaults.uncheck();
   await expect(defaultChannel).not.toBeChecked();
   await expect(defaultChannel).toBeEnabled();

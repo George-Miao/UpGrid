@@ -10,7 +10,7 @@ interface Actions {
 export function renderChannelFields(channels: Channel[], selected: string[] = [], useDefaults = true) {
   const updateDefaults = (event: Event) => {
     const toggle = event.currentTarget as HTMLInputElement;
-    const fieldset = toggle.closest("fieldset");
+    const fieldset = toggle.closest(".channel-fields");
     fieldset?.querySelectorAll<HTMLInputElement>('input[data-default="true"]').forEach((input) => {
       input.disabled = toggle.checked;
       input.checked = toggle.checked || input.dataset.explicit === "true";
@@ -18,8 +18,7 @@ export function renderChannelFields(channels: Channel[], selected: string[] = []
     toggle.form?.dispatchEvent(new Event("input", { bubbles: true }));
   };
   return html`
-    <fieldset class="channel-fields">
-      <legend>Notification channels</legend>
+    <div class="channel-fields">
       <label class="switch">
         <span>Use default channels</span>
         <input
@@ -60,7 +59,7 @@ export function renderChannelFields(channels: Channel[], selected: string[] = []
             : html`<p class="meta">No notification channels are available.</p>`
         }
       </div>
-    </fieldset>`;
+    </div>`;
 }
 
 export function renderTlsSecretFields(secrets: Secret[], caSecretId: string | null = null, clientCertificateSecretId: string | null = null, clientPrivateKeySecretId: string | null = null) {
@@ -141,14 +140,16 @@ function resetTargetKind(event: Event) {
 export function renderTargetForm(channels: Channel[], saving: boolean, actions: Actions) {
   return html`
     <dialog id="target-dialog" aria-labelledby="add-target-title" @click=${actions.backdrop}>
-      <div class="dialog-head"><h2 id="add-target-title">Add target</h2></div>
-      <form @submit=${actions.create} @reset=${resetTargetKind}>
+      <div class="dialog-head target-dialog-head">
+        <h2 id="add-target-title">Add target</h2>
         <div class="form-tabs" role="tablist" aria-label="Target settings">
-          <button id="target-general-tab" type="button" role="tab" data-tab="general" aria-controls="target-general-panel" aria-selected="true" @click=${selectTargetTab}>General</button>
-          <button id="target-assertions-tab" type="button" role="tab" data-tab="assertions" aria-controls="target-assertions-panel" aria-selected="false" tabindex="-1" @click=${selectTargetTab}>Assertions</button>
-          <button id="target-evaluation-tab" type="button" role="tab" data-tab="evaluation" aria-controls="target-evaluation-panel" aria-selected="false" tabindex="-1" @click=${selectTargetTab}>Evaluation</button>
-          <button id="target-notifications-tab" type="button" role="tab" data-tab="notifications" aria-controls="target-notifications-panel" aria-selected="false" tabindex="-1" @click=${selectTargetTab}>Notifications</button>
+          <button id="target-general-tab" form="target-form" type="button" role="tab" data-tab="general" aria-controls="target-general-panel" aria-selected="true" @click=${selectTargetTab}>General</button>
+          <button id="target-assertions-tab" form="target-form" type="button" role="tab" data-tab="assertions" aria-controls="target-assertions-panel" aria-selected="false" tabindex="-1" @click=${selectTargetTab}>Assertions</button>
+          <button id="target-evaluation-tab" form="target-form" type="button" role="tab" data-tab="evaluation" aria-controls="target-evaluation-panel" aria-selected="false" tabindex="-1" @click=${selectTargetTab}>Evaluation</button>
+          <button id="target-notifications-tab" form="target-form" type="button" role="tab" data-tab="notifications" aria-controls="target-notifications-panel" aria-selected="false" tabindex="-1" @click=${selectTargetTab}>Notifications</button>
         </div>
+      </div>
+      <form id="target-form" @submit=${actions.create} @reset=${resetTargetKind}>
         <section id="target-general-panel" class="target-tab-panel" role="tabpanel" data-panel="general" aria-labelledby="target-general-tab">
           <label>Name<input name="name" placeholder="Production API" required autofocus /></label>
           <div class="row">

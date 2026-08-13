@@ -105,6 +105,11 @@ test("creates a target from the embedded dashboard", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await page.getByRole("button", { name: "Add target" }).click();
   const addTarget = page.getByRole("dialog", { name: "Add target" });
+  const [dialogHead, formTabs] = await Promise.all([addTarget.locator(".dialog-head").boundingBox(), addTarget.locator(".form-tabs").boundingBox()]);
+  expect(dialogHead).not.toBeNull();
+  expect(formTabs).not.toBeNull();
+  expect(formTabs!.y).toBeGreaterThanOrEqual(dialogHead!.y);
+  expect(formTabs!.y + formTabs!.height).toBeLessThanOrEqual(dialogHead!.y + dialogHead!.height);
   await addTarget.getByRole("tab", { name: "Notifications" }).click();
   await expect(addTarget.getByText("No notification channels are available.")).toBeVisible();
   await addTarget.getByRole("tab", { name: "General" }).click();
@@ -123,6 +128,8 @@ test("creates and edits ordered HTTP assertions", async ({ page }) => {
   await create.getByLabel("Name").fill("Assertion target");
   await create.getByLabel("URL").fill(new URL("/healthz", page.url()).toString());
   await create.getByRole("tab", { name: "Assertions" }).click();
+  await expect(create.locator("http-assertion-editor fieldset")).toHaveCount(0);
+  await expect(create.getByText("No assertions.", { exact: true })).toBeVisible();
 
   for (let index = 0; index < 6; index += 1) {
     await create.getByRole("button", { name: "Add assertion" }).click();
