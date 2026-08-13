@@ -543,7 +543,7 @@
               <summary class="button secondary icon-button" aria-label=${`Account menu for ${this.session?.username}`} title=${`Account: ${this.session?.username}`}><iconify-icon .icon=${Ti} aria-hidden="true"></iconify-icon></summary>
               <div class="account-dropdown" role="menu">
                 <a class="button secondary" role="menuitem" href=${F.changePassword} @click=${a=>this.navigate(a,"changePassword")}>Change Password</a>
-                <a class="button secondary" role="menuitem" href=${F.users} @click=${a=>this.navigate(a,"users")}>Add User</a>
+                <a class="button secondary" role="menuitem" href=${F.users} @click=${a=>this.navigate(a,"users")}>Manage user</a>
                 <a class="button secondary" role="menuitem" href=${F.apiTokens} @click=${a=>this.navigate(a,"apiTokens")}>API Token</a>
                 <div class="account-separator" role="separator"></div>
                 <button class="button danger" role="menuitem" type="button" @click=${()=>{this.logout()}}>Logout</button>
@@ -877,6 +877,8 @@
     input, select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font-size: 16px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease; }
     input:focus, select:focus { border-color: var(--focus); }
     button:focus-visible, a:focus-visible, .target:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+    button, a, summary, [role="button"], [role="tab"], input[type="checkbox"], input[type="radio"], select, .target, .switch, .checkbox-option { cursor: pointer; user-select: none; }
+    button:disabled, input:disabled, select:disabled { cursor: not-allowed; }
     input:disabled { cursor: not-allowed; opacity: .5; }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
     .danger-actions { display: flex; gap: 8px; margin-right: auto; }
