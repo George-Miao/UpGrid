@@ -131,6 +131,9 @@ export class UpgridApp extends AppController {
     .resource:last-child { border-bottom: 0; }
     .resource strong { display: block; font-size: 13px; }
     .resource code { color: var(--muted); font-size: 11px; }
+    .user-resource { padding: 0 20px 0 0; transition: background-color 150ms ease; }
+    .user-resource:hover { background: var(--row-hover); }
+    .resource-main { display: block; min-width: 0; flex: 1; border: 0; background: transparent; color: var(--text); padding: 13px 20px; text-align: left; }
     .badge { border: 1px solid var(--badge-border); border-radius: 999px; color: var(--badge-text); padding: 2px 7px; font-size: 10px; text-transform: uppercase; }
     .badge.up { border-color: var(--green); color: var(--green); }
     .badge.down { border-color: var(--red); color: var(--red); }

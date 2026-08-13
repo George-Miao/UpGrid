@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import deleteIcon from "@iconify-icons/lucide/trash-2";
 import type { ApiToken, Identity } from "./api.ts";
 
 export interface AuthActions {
@@ -47,6 +48,7 @@ export function renderChangePassword(identity: Identity | undefined, saving: boo
           <input name="username" type="hidden" .value=${identity.username} />
           <label>Username<input .value=${identity.username} autocomplete="username" disabled /></label>
           <label>New password<input name="password" type="password" minlength="12" autocomplete="new-password" required autofocus /></label>
+          <label>Confirm new password<input name="password_confirmation" type="password" minlength="12" autocomplete="new-password" required @input=${(event: Event) => (event.currentTarget as HTMLInputElement).setCustomValidity("")} /></label>
           <div class="dialog-actions"><button class="button" type="submit" ?disabled=${saving}>Change Password</button></div>
         </form>
       </section>
@@ -61,15 +63,14 @@ export function renderUsersPage(identities: Identity[], currentIdentityId: strin
         <div class="panel-head"><h2>Operator Identities</h2><span class="meta">${identities.length} administrators</span></div>
         ${identities.map(
           (identity) => html`
-            <div class="resource">
-              <div>
-                <strong>${identity.username}</strong>
-                <code>Operator Identity${identity.id === currentIdentityId ? " · Current user" : ""}</code>
-              </div>
-              <div class="actions">
-                <button class="button secondary" type="button" ?disabled=${saving} @click=${() => actions.openEditUser(identity)}>Edit</button>
-                <button class="button danger" type="button" ?disabled=${identity.id === currentIdentityId || saving} @click=${() => actions.deleteIdentity(identity)}>Delete</button>
-              </div>
+            <div class="resource user-resource">
+              <button class="resource-main" type="button" aria-label=${`Edit user ${identity.username}`} ?disabled=${saving} @click=${() => actions.openEditUser(identity)}>
+                <span>
+                  <strong>${identity.username}</strong>
+                  <code>Operator Identity${identity.id === currentIdentityId ? " · Current user" : ""}</code>
+                </span>
+              </button>
+              <button class="button danger icon-button" type="button" aria-label=${`Delete user ${identity.username}`} title=${`Delete ${identity.username}`} ?disabled=${identity.id === currentIdentityId || saving} @click=${() => actions.deleteIdentity(identity)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
             </div>`,
         )}
       </section>
@@ -79,6 +80,7 @@ export function renderUsersPage(identities: Identity[], currentIdentityId: strin
       <form @submit=${actions.createIdentity}>
         <label>Username<input name="username" autocomplete="username" required autofocus /></label>
         <label>Password<input name="password" type="password" minlength="12" autocomplete="new-password" required /></label>
+        <label>Confirm password<input name="password_confirmation" type="password" minlength="12" autocomplete="new-password" required @input=${(event: Event) => (event.currentTarget as HTMLInputElement).setCustomValidity("")} /></label>
         <div class="dialog-actions"><button class="button secondary" type="button" @click=${actions.closeAddUser}>Cancel</button><button class="button" type="submit" ?disabled=${saving}>${saving ? "Adding…" : "Add User"}</button></div>
       </form>
     </dialog>
@@ -90,6 +92,7 @@ export function renderUsersPage(identities: Identity[], currentIdentityId: strin
             <form @submit=${(event: SubmitEvent) => actions.updateIdentity(editingIdentity, event)}>
               <label>Username<input name="username" .value=${editingIdentity.username} autocomplete="username" required autofocus /></label>
               <label>New password<input name="password" type="password" minlength="12" autocomplete="new-password" placeholder="Keep current password" /></label>
+              <label>Confirm new password<input name="password_confirmation" type="password" minlength="12" autocomplete="new-password" placeholder="Keep current password" @input=${(event: Event) => (event.currentTarget as HTMLInputElement).setCustomValidity("")} /></label>
               <div class="dialog-actions"><button class="button secondary" type="button" @click=${actions.closeEditUser}>Cancel</button><button class="button" type="submit" ?disabled=${saving}>Save changes</button></div>
             </form>
           </dialog>`

@@ -226,10 +226,18 @@ export class AppController extends AppState {
       this.saving = false;
     }
   }
+  private passwordsMatch(form: HTMLFormElement): boolean {
+    const password = form.elements.namedItem("password") as HTMLInputElement | null;
+    const confirmation = form.elements.namedItem("password_confirmation") as HTMLInputElement | null;
+    if (!password || !confirmation) return true;
+    confirmation.setCustomValidity(password.value === confirmation.value ? "" : "Passwords do not match.");
+    return form.reportValidity();
+  }
 
   protected async createIdentity(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
+    if (!this.passwordsMatch(form)) return;
     const fields = new FormData(form);
     await this.saveResource(async () => {
       await request<Identity>("/api/v1/identities", {
@@ -246,7 +254,9 @@ export class AppController extends AppState {
 
   protected async updateIdentity(identity: Identity, event: SubmitEvent): Promise<void> {
     event.preventDefault();
-    const fields = new FormData(event.currentTarget as HTMLFormElement);
+    const form = event.currentTarget as HTMLFormElement;
+    if (!this.passwordsMatch(form)) return;
+    const fields = new FormData(form);
     const password = String(fields.get("password") ?? "");
     await this.saveResource(async () => {
       await request<Identity>(`/api/v1/identities/${identity.id}`, {

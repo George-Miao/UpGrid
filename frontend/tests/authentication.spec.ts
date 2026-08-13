@@ -33,16 +33,21 @@ test("manages replicated identities and revocable API Tokens", async ({ page }) 
   await page.getByRole("button", { name: "Add User" }).click();
   const addUser = page.getByRole("dialog", { name: "Add User" });
   await addUser.getByLabel("Username").fill(identityName);
-  await addUser.getByLabel("Password").fill("secondary-password");
+  await addUser.getByLabel("Password", { exact: true }).fill("secondary-password");
+  await addUser.getByLabel("Confirm password").fill("different-password");
+  await addUser.getByRole("button", { name: "Add User" }).click();
+  await expect(addUser.getByLabel("Confirm password")).toHaveJSProperty("validationMessage", "Passwords do not match.");
+  await addUser.getByLabel("Confirm password").fill("secondary-password");
   await addUser.getByRole("button", { name: "Add User" }).click();
 
   const identities = page.getByRole("region", { name: "Operator Identities" });
   const identity = identities.locator(".resource").last();
   await expect(identity).toContainText(identityName);
   const identityCount = await identities.locator(".resource").count();
-  await identity.getByRole("button", { name: "Edit" }).click();
+  await identity.getByRole("button", { name: `Edit user ${identityName}`, exact: true }).click();
   const editUser = page.getByRole("dialog", { name: "Edit User" });
   await expect(editUser.getByLabel("Username")).toHaveValue(identityName);
+  await expect(editUser.getByLabel("Confirm new password")).toBeVisible();
   await editUser.getByRole("button", { name: "Cancel" }).click();
 
   await page.getByLabel("Account menu for admin").click();
@@ -69,6 +74,6 @@ test("manages replicated identities and revocable API Tokens", async ({ page }) 
   const updatedIdentities = page.getByRole("region", { name: "Operator Identities" });
   const updatedIdentity = updatedIdentities.locator(".resource").nth(identityCount - 1);
   page.once("dialog", (dialog) => dialog.accept());
-  await updatedIdentity.getByRole("button", { name: "Delete" }).click();
+  await updatedIdentity.getByRole("button", { name: `Delete user ${identityName}`, exact: true }).click();
   await expect(updatedIdentities.locator(".resource")).toHaveCount(identityCount - 1);
 });
