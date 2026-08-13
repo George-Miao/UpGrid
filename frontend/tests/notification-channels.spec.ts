@@ -228,6 +228,14 @@ test("uses trash icons for secret and Target deletion", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Add secret" }).click();
   const secretDialog = page.getByRole("dialog", { name: "Add secret" });
+  const secretHelp = secretDialog.locator("#add-secret-help");
+  await expect(secretDialog.locator(".dialog-head p")).toHaveCount(0);
+  await page.mouse.move(0, 0);
+  await expect(secretHelp).toBeHidden();
+  const secretHelpTrigger = secretDialog.getByRole("button", { name: "About adding a Secret" });
+  await expect(secretHelpTrigger).toHaveCSS("cursor", "pointer");
+  await secretHelpTrigger.focus();
+  await expect(secretHelp).toBeVisible();
   await secretDialog.getByLabel("Name").fill("Browser delete icon secret");
   await secretDialog.getByLabel("Value").fill("temporary");
   await secretDialog.getByRole("button", { name: "Create secret" }).click();

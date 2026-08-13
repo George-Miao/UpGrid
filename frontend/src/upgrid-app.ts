@@ -478,9 +478,9 @@ export class UpgridApp extends AppController {
           : nothing
       }
       <dialog id="secret-dialog" aria-labelledby="secret-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><h2 id="secret-title">Add secret</h2><p>Create an encrypted, write-only value to reference from Target requests or webhook headers through the HTTP API.</p></div>
+        <div class="dialog-head"><div class="title-with-help"><h2 id="secret-title">Add secret</h2>${renderHelpTooltip("add-secret-help", "About adding a Secret", "Create an encrypted, write-only value to reference from Target requests or webhook headers through the HTTP API.")}</div></div>
         <form @submit=${this.createSecret}>
-          <label>Name<input name="name" placeholder="Webhook token" required /></label>
+          <label>Name<input name="name" placeholder="Webhook token" required autofocus /></label>
           <label>Value<input name="value" type="password" autocomplete="new-password" required /></label>
           <div class="dialog-actions"><button class="button secondary" type="button" @click=${() => this.closeDialog("secret-dialog")}>Cancel</button><button class="button" type="submit" ?disabled=${this.saving}>Create secret</button></div>
         </form>
