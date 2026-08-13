@@ -7,6 +7,10 @@ export interface AuthActions {
   createIdentity: (event: SubmitEvent) => void;
   openAddUser: () => void;
   closeAddUser: () => void;
+  openEditUser: (identity: Identity) => void;
+  closeEditUser: () => void;
+  openApiToken: () => void;
+  closeApiToken: () => void;
   dismissDialog: (event: MouseEvent) => void;
   updateIdentity: (identity: Identity, event: SubmitEvent) => void;
   deleteIdentity: (identity: Identity) => void;
@@ -49,7 +53,7 @@ export function renderChangePassword(identity: Identity | undefined, saving: boo
     </div>`;
 }
 
-export function renderUsersPage(identities: Identity[], currentIdentityId: string | undefined, saving: boolean, actions: AuthActions) {
+export function renderUsersPage(identities: Identity[], currentIdentityId: string | undefined, editingIdentity: Identity | undefined, saving: boolean, actions: AuthActions) {
   return html`
     <div class="admin-page">
       <div class="heading"><div><span class="eyebrow">Administration</span><h1>Users</h1></div><button class="button" type="button" @click=${actions.openAddUser}>Add User</button></div>
@@ -57,31 +61,46 @@ export function renderUsersPage(identities: Identity[], currentIdentityId: strin
         <div class="panel-head"><h2>Operator Identities</h2><span class="meta">${identities.length} administrators</span></div>
         ${identities.map(
           (identity) => html`
-            <div class="resource access-resource">
-              <form class="access-form" @submit=${(event: SubmitEvent) => actions.updateIdentity(identity, event)}>
-                <label>Username<input name="username" .value=${identity.username} required /></label>
-                <label>New password<input name="password" type="password" minlength="12" autocomplete="new-password" placeholder="Keep current password" /></label>
-                <button class="button secondary" type="submit" ?disabled=${saving}>Save</button>
-              </form>
-              <button class="button danger" type="button" ?disabled=${identity.id === currentIdentityId || saving} @click=${() => actions.deleteIdentity(identity)}>Delete</button>
+            <div class="resource">
+              <div>
+                <strong>${identity.username}</strong>
+                <code>Operator Identity${identity.id === currentIdentityId ? " · Current user" : ""}</code>
+              </div>
+              <div class="actions">
+                <button class="button secondary" type="button" ?disabled=${saving} @click=${() => actions.openEditUser(identity)}>Edit</button>
+                <button class="button danger" type="button" ?disabled=${identity.id === currentIdentityId || saving} @click=${() => actions.deleteIdentity(identity)}>Delete</button>
+              </div>
             </div>`,
         )}
       </section>
     </div>
     <dialog id="add-user-dialog" aria-labelledby="add-user-title" @click=${actions.dismissDialog}>
-      <div class="dialog-head"><h2 id="add-user-title">Add User</h2><p>Create a replicated Operator Identity.</p></div>
+      <div class="dialog-head"><h2 id="add-user-title">Add User</h2></div>
       <form @submit=${actions.createIdentity}>
         <label>Username<input name="username" autocomplete="username" required autofocus /></label>
         <label>Password<input name="password" type="password" minlength="12" autocomplete="new-password" required /></label>
         <div class="dialog-actions"><button class="button secondary" type="button" @click=${actions.closeAddUser}>Cancel</button><button class="button" type="submit" ?disabled=${saving}>${saving ? "Adding…" : "Add User"}</button></div>
       </form>
-    </dialog>`;
+    </dialog>
+    ${
+      editingIdentity
+        ? html`
+          <dialog id="edit-user-dialog" aria-labelledby="edit-user-title" @click=${actions.dismissDialog}>
+            <div class="dialog-head"><h2 id="edit-user-title">Edit User</h2></div>
+            <form @submit=${(event: SubmitEvent) => actions.updateIdentity(editingIdentity, event)}>
+              <label>Username<input name="username" .value=${editingIdentity.username} autocomplete="username" required autofocus /></label>
+              <label>New password<input name="password" type="password" minlength="12" autocomplete="new-password" placeholder="Keep current password" /></label>
+              <div class="dialog-actions"><button class="button secondary" type="button" @click=${actions.closeEditUser}>Cancel</button><button class="button" type="submit" ?disabled=${saving}>Save changes</button></div>
+            </form>
+          </dialog>`
+        : nothing
+    }`;
 }
 
 export function renderApiTokensPage(tokens: ApiToken[], newToken: string, saving: boolean, actions: AuthActions) {
   return html`
     <div class="admin-page">
-      <div class="heading"><div><span class="eyebrow">Administration</span><h1>API Tokens</h1></div></div>
+      <div class="heading"><div><span class="eyebrow">Administration</span><h1>API Tokens</h1></div><button class="button" type="button" @click=${actions.openApiToken}>New token</button></div>
       <section class="panel" aria-label="API Tokens">
         <div class="panel-head"><h2>API Tokens</h2><span class="meta">${tokens.length} active</span></div>
         ${newToken ? html`<div class="notice token-value" role="status"><strong>Copy this token now.</strong><code>${newToken}</code><button class="button secondary" @click=${actions.dismissToken}>Dismiss</button></div>` : nothing}
@@ -90,12 +109,14 @@ export function renderApiTokensPage(tokens: ApiToken[], newToken: string, saving
             ? tokens.map((token) => html`<div class="resource"><div><strong>${token.name}</strong><code>${token.expires_at_ms ? `Expires ${new Date(token.expires_at_ms).toLocaleString()}` : "Never expires"}</code></div><button class="button danger" @click=${() => actions.revokeApiToken(token)}>Revoke</button></div>`)
             : html`<div class="empty">No API Tokens.</div>`
         }
-        <form class="choice compact-form" @submit=${actions.createApiToken}>
-          <h3>Create API Token</h3>
-          <label>Name<input name="name" placeholder="Automation" required /></label>
-          <label>Expires in days<input name="expires_in_days" type="number" min="1" max="365" placeholder="Never" /></label>
-          <button class="button" type="submit" ?disabled=${saving}>Create API Token</button>
-        </form>
       </section>
-    </div>`;
+    </div>
+    <dialog id="api-token-dialog" aria-labelledby="api-token-title" @click=${actions.dismissDialog}>
+      <div class="dialog-head"><h2 id="api-token-title">New API Token</h2></div>
+      <form @submit=${actions.createApiToken}>
+        <label>Name<input name="name" placeholder="Automation" required autofocus /></label>
+        <label>Expires in days<input name="expires_in_days" type="number" min="1" max="365" placeholder="Never" /></label>
+        <div class="dialog-actions"><button class="button secondary" type="button" @click=${actions.closeApiToken}>Cancel</button><button class="button" type="submit" ?disabled=${saving}>${saving ? "Creating…" : "Create API Token"}</button></div>
+      </form>
+    </dialog>`;
 }

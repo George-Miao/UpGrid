@@ -258,6 +258,9 @@ export class AppController extends AppState {
       });
       if (identity.id === this.session?.identity_id && password) {
         await this.logout();
+      } else {
+        this.closeDialog("edit-user-dialog");
+        this.editingIdentity = undefined;
       }
     });
   }
@@ -282,6 +285,7 @@ export class AppController extends AppState {
       });
       this.newApiToken = created.value;
       form.reset();
+      this.closeDialog("api-token-dialog");
     });
   }
 

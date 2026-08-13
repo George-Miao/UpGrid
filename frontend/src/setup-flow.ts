@@ -39,14 +39,15 @@ export class UpgridSetup extends LitElement {
     .cluster-join-fields button { height: 44px; white-space: nowrap; }
     form { display: grid; gap: 13px; }
     label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
+    .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .switch-label { display: flex; min-width: 0; align-items: center; gap: 8px; }
+    .switch-control { width: 42px; min-height: 24px; height: 24px; flex: none; appearance: none; border: 1px solid var(--line); border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
+    .switch-control::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
+    .switch-control:checked { border-color: var(--button-border); background: var(--button-bg); }
+    .switch-control:checked::after { background: var(--button-text); transform: translateX(18px); }
     input:not([type="checkbox"]), select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font: inherit; font-size: 16px; transition: border-color 160ms ease, opacity 160ms ease; }
     input:not([type="checkbox"]):focus, select:focus { border-color: var(--focus); }
     button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
-    .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; }
-    .switch input { width: 42px; min-height: 24px; height: 24px; flex: none; appearance: none; border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
-    .switch input::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
-    .switch input:checked { border-color: var(--button-border); background: var(--button-bg); }
-    .switch input:checked::after { background: var(--button-text); transform: translateX(18px); }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
     .actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 5px; }
     button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; font: inherit; transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease, transform 120ms ease; }
@@ -248,7 +249,7 @@ export class UpgridSetup extends LitElement {
         ${
           this.channelKind === "webhook" ? html`<label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/upgrid" required /></label>` : html`<label>Bot token<input name="bot_token" type="password" autocomplete="off" required /></label><label>Chat ID<input name="chat_id" required /></label>`
         }
-        <label class="switch"><span>Default channel</span><input name="default" type="checkbox" role="switch" checked /></label>
+        <label class="switch"><span>Use as default channel</span><input class="switch-control" name="default" type="checkbox" role="switch" checked /></label>
         <div class="actions"><button class="secondary" type="button" @click=${this.next} ?disabled=${this.saving}>Skip</button><button type="submit" ?disabled=${this.saving}>Create and continue</button></div>
       </form></div>`;
   }
@@ -262,7 +263,7 @@ export class UpgridSetup extends LitElement {
         <label>URL<input name="url" type="url" placeholder="https://example.com/health" required /></label>
         <div class="row"><label>Method<input name="method" value="GET" required /></label><label>Interval (seconds)<input name="interval" type="number" min="1" value="60" required /></label></div>
         <div class="row"><label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label><label>Failures before Down<input name="failures" type="number" min="1" value="3" required /></label></div>
-        ${this.channels.length ? html`<fieldset><legend>Notification channels</legend>${this.channels.map((channel) => html`<label><span><input name="channel_id" type="checkbox" value=${channel.id} /> ${channel.name}</span></label>`)}</fieldset>` : nothing}
+        ${this.channels.length ? html`<fieldset><legend>Notification channels</legend>${this.channels.map((channel) => html`<label class="switch"><span class="switch-label">${channel.name}</span><input class="switch-control" name="channel_id" type="checkbox" role="switch" value=${channel.id} aria-label=${channel.name} /></label>`)}</fieldset>` : nothing}
         <div class="actions"><button class="secondary" type="button" @click=${this.next} ?disabled=${this.saving}>Skip</button><button type="submit" ?disabled=${this.saving}>Create and finish</button></div>
       </form></div>`;
   }

@@ -1,7 +1,7 @@
 import { LitElement } from "lit";
 import { state } from "lit/decorators.js";
 import darkIcon from "@iconify-icons/lucide/moon";
-import systemIcon from "@iconify-icons/lucide/palette";
+import systemIcon from "@iconify-icons/lucide/monitor";
 import brightIcon from "@iconify-icons/lucide/sun";
 import { ApiRequestError, type Alert, type ApiToken, type Channel, type Cluster, type HistoryPage, type Identity, type JoinToken, type Secret, type Session, type Setup, type Target, type TrashedTarget, type Transition, request } from "./api.ts";
 
@@ -52,6 +52,7 @@ export class AppState extends LitElement {
   @state() protected session?: Session;
   @state() protected authReady = false;
   @state() protected newApiToken = "";
+  @state() protected editingIdentity?: Identity;
   @state() protected error = "";
   @state() protected live = false;
   @state() protected saving = false;
@@ -92,18 +93,24 @@ export class AppState extends LitElement {
     }
     this.activeSection = sectionFromPath();
   };
+  private readonly backgroundClicked = (event: PointerEvent) => {
+    const menu = this.renderRoot.querySelector<HTMLDetailsElement>(".account-menu");
+    if (menu?.open && !event.composedPath().includes(menu)) menu.open = false;
+  };
 
   connectedCallback(): void {
     super.connectedCallback();
     this.applyTheme();
     this.systemTheme.addEventListener("change", this.systemThemeChanged);
     window.addEventListener("popstate", this.routeChanged);
+    document.addEventListener("pointerdown", this.backgroundClicked);
     void this.start();
   }
 
   disconnectedCallback(): void {
     this.systemTheme.removeEventListener("change", this.systemThemeChanged);
     window.removeEventListener("popstate", this.routeChanged);
+    document.removeEventListener("pointerdown", this.backgroundClicked);
     this.events?.close();
     super.disconnectedCallback();
   }

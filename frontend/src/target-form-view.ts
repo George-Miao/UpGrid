@@ -23,6 +23,7 @@ export function renderChannelFields(channels: Channel[], selected: string[] = []
       <label class="switch">
         <span>Use default channels</span>
         <input
+          class="switch-control"
           name="use_default_channels"
           type="checkbox"
           role="switch"
@@ -35,10 +36,13 @@ export function renderChannelFields(channels: Channel[], selected: string[] = []
           const explicit = selected.includes(channel.id);
           const inherited = useDefaults && channel.default;
           return html`
-            <label class="check">
+            <label class="switch">
+              <span class="switch-label">${channel.name} <span class="badge">${channel.kind}</span></span>
               <input
+                class="switch-control"
                 name="channel_id"
                 type="checkbox"
+                role="switch"
                 value=${channel.id}
                 data-default=${String(channel.default)}
                 data-explicit=${String(explicit)}
@@ -49,7 +53,6 @@ export function renderChannelFields(channels: Channel[], selected: string[] = []
                   input.dataset.explicit = String(input.checked);
                 }}
               />
-              ${channel.name} <span class="badge">${channel.kind}</span>
             </label>
           `;
         })}
@@ -83,14 +86,30 @@ const endpointPlaceholders: Record<string, string> = {
   tls: "example.com:443",
 };
 
+function activateTargetTab(form: HTMLFormElement, tabName: string) {
+  form.querySelectorAll<HTMLButtonElement>("[role='tab']").forEach((tab) => {
+    const selected = tab.dataset.tab === tabName;
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  });
+  form.querySelectorAll<HTMLElement>("[role='tabpanel']").forEach((panel) => {
+    panel.hidden = panel.dataset.panel !== tabName;
+  });
+}
+
 function applyTargetKind(form: HTMLFormElement, kind: string) {
   const endpoint = form.elements.namedItem("url") as HTMLInputElement | null;
   if (endpoint) {
     endpoint.placeholder = endpointPlaceholders[kind];
     endpoint.type = kind === "http" ? "url" : "text";
   }
-  const httpOptions = form.querySelector<HTMLElement>("[data-http-options]");
-  if (httpOptions) httpOptions.hidden = kind !== "http";
+  form.querySelectorAll<HTMLElement>("[data-http-only]").forEach((element) => {
+    element.hidden = kind !== "http";
+  });
+  const selectedTab = form.querySelector<HTMLButtonElement>("[role='tab'][aria-selected='true']")?.dataset.tab ?? "general";
+  const assertionsTab = form.querySelector<HTMLButtonElement>("[data-tab='assertions']");
+  if (assertionsTab) assertionsTab.disabled = kind !== "http";
+  activateTargetTab(form, kind !== "http" && selectedTab === "assertions" ? "general" : selectedTab);
   const method = form.elements.namedItem("method") as HTMLInputElement | null;
   if (method) {
     method.disabled = kind !== "http";
@@ -103,31 +122,54 @@ function selectTargetKind(event: Event) {
   if (select.form) applyTargetKind(select.form, select.value);
 }
 
+function selectTargetTab(event: Event) {
+  const tab = event.currentTarget as HTMLButtonElement;
+  if (tab.form && tab.dataset.tab) activateTargetTab(tab.form, tab.dataset.tab);
+}
+
 function resetTargetKind(event: Event) {
   const form = event.currentTarget as HTMLFormElement;
-  queueMicrotask(() => applyTargetKind(form, "http"));
+  queueMicrotask(() => {
+    applyTargetKind(form, "http");
+    activateTargetTab(form, "general");
+  });
 }
 
 export function renderTargetForm(channels: Channel[], saving: boolean, actions: Actions) {
   return html`
     <dialog id="target-dialog" aria-labelledby="add-target-title" @click=${actions.backdrop}>
-      <div class="dialog-head"><h2 id="add-target-title">Add target</h2><p>Start monitoring a service.</p></div>
+      <div class="dialog-head"><h2 id="add-target-title">Add target</h2></div>
       <form @submit=${actions.create} @reset=${resetTargetKind}>
-        <label>Name<input name="name" placeholder="Production API" required autofocus /></label>
-        <div class="row">
-          <label>Type<select name="kind" @change=${selectTargetKind}><option value="http">HTTP</option><option value="tcp">TCP connect</option><option value="dns">DNS resolution</option><option value="icmp">ICMP echo</option><option value="tls">TLS certificate</option></select></label>
-          <label>URL / endpoint<input name="url" type="url" placeholder=${endpointPlaceholders.http} required /></label>
+        <div class="form-tabs" role="tablist" aria-label="Target settings">
+          <button id="target-general-tab" type="button" role="tab" data-tab="general" aria-controls="target-general-panel" aria-selected="true" @click=${selectTargetTab}>General</button>
+          <button id="target-assertions-tab" type="button" role="tab" data-tab="assertions" aria-controls="target-assertions-panel" aria-selected="false" tabindex="-1" @click=${selectTargetTab}>Assertions</button>
+          <button id="target-evaluation-tab" type="button" role="tab" data-tab="evaluation" aria-controls="target-evaluation-panel" aria-selected="false" tabindex="-1" @click=${selectTargetTab}>Evaluation</button>
+          <button id="target-notifications-tab" type="button" role="tab" data-tab="notifications" aria-controls="target-notifications-panel" aria-selected="false" tabindex="-1" @click=${selectTargetTab}>Notifications</button>
         </div>
-        <div data-http-options><label>Method<input name="method" value="GET" required /></label><http-assertion-editor name="assertions" target-id="new"></http-assertion-editor></div>
-        <div class="row">
-          <label>Interval (seconds)<input name="interval" type="number" min="1" value="60" required /></label>
-          <label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label>
-        </div>
-        <div class="row">
-          <label>Failures before Down<input name="failures" type="number" min="1" value="3" required /></label>
-          <label>Evaluation locations<input name="locations" type="number" min="1" max="32" value="1" required /></label>
-        </div>
-        ${renderChannelFields(channels)}
+        <section id="target-general-panel" class="target-tab-panel" role="tabpanel" data-panel="general" aria-labelledby="target-general-tab">
+          <label>Name<input name="name" placeholder="Production API" required autofocus /></label>
+          <div class="row">
+            <label>Type<select name="kind" @change=${selectTargetKind}><option value="http">HTTP</option><option value="tcp">TCP connect</option><option value="dns">DNS resolution</option><option value="icmp">ICMP echo</option><option value="tls">TLS certificate</option></select></label>
+            <label>URL / endpoint<input name="url" type="url" placeholder=${endpointPlaceholders.http} required /></label>
+          </div>
+          <label data-http-only>Method<input name="method" value="GET" required /></label>
+        </section>
+        <section id="target-assertions-panel" class="target-tab-panel" role="tabpanel" data-panel="assertions" data-http-only aria-labelledby="target-assertions-tab" hidden>
+          <http-assertion-editor name="assertions" target-id="new"></http-assertion-editor>
+        </section>
+        <section id="target-evaluation-panel" class="target-tab-panel" role="tabpanel" data-panel="evaluation" aria-labelledby="target-evaluation-tab" hidden>
+          <div class="row">
+            <label>Interval (seconds)<input name="interval" type="number" min="1" value="60" required /></label>
+            <label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label>
+          </div>
+          <div class="row">
+            <label>Failures before Down<input name="failures" type="number" min="1" value="3" required /></label>
+            <label>Evaluation locations<input name="locations" type="number" min="1" max="32" value="1" required /></label>
+          </div>
+        </section>
+        <section id="target-notifications-panel" class="target-tab-panel" role="tabpanel" data-panel="notifications" aria-labelledby="target-notifications-tab" hidden>
+          ${renderChannelFields(channels)}
+        </section>
         <div class="dialog-actions">
           <button class="button secondary" type="button" @click=${actions.close}>Cancel</button>
           <button class="button" type="submit" ?disabled=${saving}>${saving ? "Creating…" : "Create target"}</button>

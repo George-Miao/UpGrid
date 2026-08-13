@@ -116,10 +116,6 @@ export class UpgridApp extends AppController {
     ${helpTooltipStyles}
     .auth-panel { width: min(440px, 100%); margin: auto; }
     .admin-page { width: min(760px, 100%); margin: auto; }
-    .access-resource { align-items: end; }
-    .access-form { display: grid; flex: 1; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 9px; }
-    .compact-form { border-top: 1px solid var(--divider); }
-    .compact-form h3 { margin: 0; }
     .token-value { margin: 14px; overflow-wrap: anywhere; }
     .token-value code { display: block; margin: 8px 0; }
     .overview-top { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; }
@@ -156,7 +152,7 @@ export class UpgridApp extends AppController {
     .alert-actions { display: flex; align-items: center; gap: 8px; }
     .target-wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; border-bottom: 1px solid var(--divider); padding-left: 20px; }
     .target-wrap:last-child { border-bottom: 0; }
-    .select-target { width: 24px; height: 24px; accent-color: var(--green); }
+    .select-target { margin: 0; }
     .target { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 17px 20px 17px 14px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
     .target-wrap, .target { transition: background-color 150ms ease; }
     .target-wrap:hover, .target-wrap:hover .target { background: var(--row-hover); }
@@ -186,6 +182,7 @@ export class UpgridApp extends AppController {
     .bulk, .bulk-actions .button { animation: reveal 160ms ease-out; }
     @keyframes reveal { from { opacity: 0; transform: translateY(-3px); } }
     dialog { width: min(580px, calc(100% - 28px)); border: 1px solid var(--line); border-radius: 17px; background: var(--panel); color: var(--text); padding: 0; scrollbar-gutter: stable both-edges; box-shadow: 0 28px 90px var(--dialog-shadow); opacity: 0; transform: translateY(8px) scale(.985); transition: opacity 170ms ease, transform 170ms ease, overlay 170ms allow-discrete, display 170ms allow-discrete; }
+    #target-dialog { width: min(720px, calc(100% - 28px)); }
     dialog[open] { opacity: 1; transform: translateY(0) scale(1); }
     dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(5px); opacity: 0; transition: opacity 170ms ease, overlay 170ms allow-discrete, display 170ms allow-discrete; }
     dialog[open]::backdrop { opacity: 1; }
@@ -197,6 +194,11 @@ export class UpgridApp extends AppController {
     .dialog-head h2 { margin: 0; font-size: 18px; }
     .dialog-head p { margin: 4px 0 0; color: var(--muted); }
     form { display: grid; gap: 13px; padding: 20px 22px 22px; }
+    .form-tabs { display: flex; width: fit-content; max-width: 100%; gap: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--nav-bg); padding: 4px; overflow-x: auto; }
+    .form-tabs button { min-height: 34px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 7px 11px; white-space: nowrap; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; }
+    .form-tabs button[aria-selected="true"] { background: var(--active-bg); color: var(--text); }
+    .form-tabs button:disabled { cursor: not-allowed; opacity: .45; }
+    .target-tab-panel { display: grid; gap: 13px; min-height: 190px; align-content: start; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
     label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
     [hidden] { display: none !important; }
@@ -213,24 +215,25 @@ export class UpgridApp extends AppController {
     .success { background: transparent; color: var(--green); border-color: var(--green); }
     .success:hover { border-color: var(--button-text); }
     .dialog-close { position: absolute; top: 12px; right: 14px; }
-    .check { display: flex; align-items: center; gap: 8px; } .check input { width: 18px; min-height: 18px; height: 18px; flex: none; }
+    .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .channel-fields, .tls-fields { display: grid; gap: 10px; margin: 8px 0 0; border: 0; padding: 0; }
     .channel-fields legend, .tls-fields legend { display: flex; width: 100%; align-items: center; gap: 12px; margin: 0 0 4px; padding: 0; color: var(--text); font-size: 14px; font-weight: 400; text-align: center; }
     .channel-fields legend::before, .channel-fields legend::after, .tls-fields legend::before, .tls-fields legend::after { height: 1px; flex: 1; background: var(--line); content: ""; }
     .tls-fields .meta { white-space: normal; }
     form .badge { font-size: 12px; }
     .channel-options { display: grid; gap: 6px; }
-    .channel-options .check { min-height: 36px; border-radius: 8px; padding: 5px 8px; background: var(--panel-2); }
-    .channel-options .badge { margin-left: auto; }
-    .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; }
-    .switch input { width: 42px; min-height: 24px; height: 24px; flex: none; appearance: none; border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
-    .switch input::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
-    .switch input:checked { border-color: var(--button-border); background: var(--button-bg); }
-    .switch input:checked::after { background: var(--button-text); transform: translateX(18px); }
+    .channel-options .switch { min-height: 36px; border-radius: 8px; padding: 5px 8px; background: var(--panel-2); }
+    .switch-label { display: flex; min-width: 0; align-items: center; gap: 8px; }
+    .switch-label .badge { margin-left: 0; }
+    .switch-control { width: 42px; min-height: 24px; height: 24px; flex: none; appearance: none; border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
+    .switch-control::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
+    .switch-control:checked { border-color: var(--button-border); background: var(--button-bg); }
+    .switch-control:checked::after { background: var(--button-text); transform: translateX(18px); }
     footer { display: flex; flex: 0 0 auto; width: calc(100% - 48px); max-width: 1152px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; margin: 0 auto; border-top: 1px solid var(--line); padding: 20px 0 24px; color: var(--muted); font-size: 12px; }
     .footer-links, .footer-powered { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; text-align: center; }
-    footer a { display: inline-flex; align-items: center; gap: 5px; border-radius: 4px; color: var(--green); text-decoration: underline; text-underline-offset: 3px; transition: color 160ms ease; }
+    footer a { display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; color: var(--muted); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; transition: color 160ms ease; }
     footer a:hover { color: var(--text); }
+    footer iconify-icon { width: 14px; height: 14px; font-size: 14px; }
     .history { margin: 0 22px 22px; border-top: 1px solid var(--line); padding-top: 18px; }
     .history-head, .chart-legend, .chart-legend span, .chart-axis { display: flex; align-items: center; }
     .history-head { justify-content: space-between; margin-bottom: 12px; }
@@ -308,7 +311,7 @@ export class UpgridApp extends AppController {
       .toolbar { grid-template-columns: 1fr 1fr; }
       .toolbar input { grid-column: 1 / -1; }
       .heading { align-items: flex-start; gap: 16px; }
-      .target-wrap { align-items: start; padding-left: 14px; } .select-target { align-self: start; margin-top: 0; } .target { grid-template-columns: auto minmax(0, 1fr); gap: 10px; padding: 12px 14px 12px 10px; }
+      .target-wrap { align-items: start; padding-left: 14px; } .select-target { align-self: start; margin-top: 4px; } .target { grid-template-columns: auto minmax(0, 1fr); gap: 10px; padding: 12px 14px 12px 10px; }
       .target-side { grid-column: 2; display: grid; grid-template-columns: minmax(88px, 1fr) auto; width: 100%; gap: 18px; margin-top: 4px; } .target > .state { align-self: start; margin-top: 5px; } .mini-chart { width: 100%; max-width: 140px; height: 28px; }
       .latency { min-width: 72px; text-align: right; }
       .channel-resource { grid-template-columns: 1fr; }
@@ -316,7 +319,7 @@ export class UpgridApp extends AppController {
       .alert-resource { grid-template-columns: 1fr; }
       .alert-actions { margin-top: 8px; }
       .channel-actions { justify-content: space-between; margin-top: 10px; }
-      .access-form { grid-template-columns: 1fr; }
+      .form-tabs { width: 100%; }
     }
   `;
   protected render() {
@@ -335,6 +338,16 @@ export class UpgridApp extends AppController {
       createIdentity: (event) => void this.createIdentity(event),
       openAddUser: () => this.showDialog("add-user-dialog"),
       closeAddUser: () => this.closeDialog("add-user-dialog"),
+      openEditUser: (identity) => {
+        this.editingIdentity = identity;
+        void this.updateComplete.then(() => this.showDialog("edit-user-dialog"));
+      },
+      closeEditUser: () => {
+        this.closeDialog("edit-user-dialog");
+        this.editingIdentity = undefined;
+      },
+      openApiToken: () => this.showDialog("api-token-dialog"),
+      closeApiToken: () => this.closeDialog("api-token-dialog"),
       dismissDialog: (event) => this.dismissOnBackdrop(event),
       updateIdentity: (identity, event) => void this.updateIdentity(identity, event),
       deleteIdentity: (identity) => void this.deleteIdentity(identity),
@@ -428,7 +441,7 @@ export class UpgridApp extends AppController {
                         authActions,
                       )
                     : this.activeSection === "users"
-                      ? renderUsersPage(this.identities, this.session?.identity_id, this.saving, authActions)
+                      ? renderUsersPage(this.identities, this.session?.identity_id, this.editingIdentity, this.saving, authActions)
                       : renderApiTokensPage(this.apiTokens, this.newApiToken, this.saving, authActions)
         }
       </main>${renderFooter()}
@@ -467,7 +480,7 @@ export class UpgridApp extends AppController {
           }}><option value="webhook">Webhook</option><option value="telegram">Telegram</option><option value="smtp">SMTP email</option></select></label>
           <label>Name<input name="name" placeholder="On-call" .value=${this.editingChannel?.name ?? ""} required /></label>
           ${renderChannelFields(this.channelKind, this.editingChannel)}
-          <label class="switch"><span>Default channel</span><input name="default" type="checkbox" role="switch" .checked=${this.editingChannel?.default ?? false} /></label>
+          <label class="switch"><span>Default channel</span><input class="switch-control" name="default" type="checkbox" role="switch" .checked=${this.editingChannel?.default ?? false} /></label>
           <div class="dialog-actions">${this.channelTestMessage ? html`<span class="meta" role="status" style="margin-right:auto">${this.channelTestMessage}</span>` : nothing}<button class="button secondary" type="button" @click=${() => {
             this.editingChannel = undefined;
             this.closeDialog("channel-dialog");
@@ -478,7 +491,7 @@ export class UpgridApp extends AppController {
         <div class="dialog-head"><h2 id="token-config-title">Create Join Token</h2><p>Choose how many days the token remains valid and whether it can be reused.</p></div>
         <form @submit=${this.createJoinToken}>
           <label>Expiration (days)<input name="expiration_days" type="number" min="1" step="1" value="1" required /></label>
-          <label class="switch"><span>Unlimited uses</span><input type="checkbox" role="switch" .checked=${this.unlimitedUses} @change=${(event: Event) => (this.unlimitedUses = (event.target as HTMLInputElement).checked)} /></label>
+          <label class="switch"><span>Unlimited uses</span><input class="switch-control" type="checkbox" role="switch" .checked=${this.unlimitedUses} @change=${(event: Event) => (this.unlimitedUses = (event.target as HTMLInputElement).checked)} /></label>
           <label>Maximum uses<input name="max_uses" type="number" min="1" step="1" value="1" ?disabled=${this.unlimitedUses} required /></label>
           <div class="dialog-actions"><button class="button secondary" type="button" @click=${() => this.closeDialog("token-config-dialog")}>Cancel</button><button class="button" type="submit" ?disabled=${this.saving}>${this.saving ? "Creating…" : "Create token"}</button></div>
         </form>
@@ -538,7 +551,7 @@ export class UpgridApp extends AppController {
         <div><span class="eyebrow">Recover deleted monitors</span><h1>Trash</h1></div>
       </section>
       <section class="panel" aria-label="Trashed Targets">
-        <div class="panel-head"><div><h2>Deleted Targets</h2><p class="meta">Settings and history remain recoverable until the retention deadline.</p></div><span class="meta">${this.trashedTargets.length} stored</span></div>
+        <div class="panel-head"><div class="title-with-help"><h2>Deleted Targets</h2>${renderHelpTooltip("trash-retention-help", "About deleted Target retention", "Settings and history remain recoverable until the retention deadline.")}</div><span class="meta">${this.trashedTargets.length} stored</span></div>
         ${this.trashedTargets.length ? this.trashedTargets.map((target) => this.renderTrashedTarget(target)) : html`<div class="empty">Trash is empty.</div>`}
       </section>
     `;
@@ -628,8 +641,8 @@ export class UpgridApp extends AppController {
       <div class="target-wrap">
         ${
           !isNode
-            ? html`<input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} .checked=${this.selectedIds.has(target.id)} @change=${(event: Event) => this.toggleSelected(target.id, (event.target as HTMLInputElement).checked)} />`
-            : html`<input class="select-target" type="checkbox" aria-label=${`Select ${target.name}`} disabled />`
+            ? html`<input class="select-target switch-control" type="checkbox" role="switch" aria-label=${`Select ${target.name}`} .checked=${this.selectedIds.has(target.id)} @change=${(event: Event) => this.toggleSelected(target.id, (event.target as HTMLInputElement).checked)} />`
+            : html`<input class="select-target switch-control" type="checkbox" role="switch" aria-label=${`Select ${target.name}`} disabled />`
         }
         <button class=${`target ${isNode ? "node-target" : ""}`} aria-label=${target.name} @click=${() => this.openTarget(target)}>
           <i class="state ${state}" aria-label=${state}></i>

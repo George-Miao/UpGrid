@@ -11,6 +11,10 @@ test("requires an Operator Identity and supports logout", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await page.getByLabel("Account menu for admin").click();
+  await expect(page.getByRole("menuitem", { name: "Change Password" })).toBeVisible();
+  await page.getByRole("heading", { name: "Overview" }).click();
+  await expect(page.getByRole("menuitem", { name: "Change Password" })).toBeHidden();
+  await page.getByLabel("Account menu for admin").click();
   await page.getByRole("menuitem", { name: "Change Password" }).click();
   await expect(page).toHaveURL(/\/admin\/change-password$/);
   await expect(page.getByRole("heading", { name: "Change Password" })).toBeVisible();
@@ -34,15 +38,20 @@ test("manages replicated identities and revocable API Tokens", async ({ page }) 
 
   const identities = page.getByRole("region", { name: "Operator Identities" });
   const identity = identities.locator(".resource").last();
-  await expect(identity.getByLabel("Username")).toHaveValue(identityName);
+  await expect(identity).toContainText(identityName);
   const identityCount = await identities.locator(".resource").count();
+  await identity.getByRole("button", { name: "Edit" }).click();
+  const editUser = page.getByRole("dialog", { name: "Edit User" });
+  await expect(editUser.getByLabel("Username")).toHaveValue(identityName);
+  await editUser.getByRole("button", { name: "Cancel" }).click();
 
   await page.getByLabel("Account menu for admin").click();
   await page.getByRole("menuitem", { name: "API Token" }).click();
   await expect(page).toHaveURL(/\/admin\/api-tokens$/);
 
   const tokens = page.getByRole("region", { name: "API Tokens" });
-  const createToken = tokens.getByRole("heading", { name: "Create API Token" }).locator("..");
+  await page.getByRole("button", { name: "New token" }).click();
+  const createToken = page.getByRole("dialog", { name: "New API Token" });
   await createToken.getByLabel("Name").fill(tokenName);
   await createToken.getByLabel("Expires in days").fill("1");
   await createToken.getByRole("button", { name: "Create API Token" }).click();

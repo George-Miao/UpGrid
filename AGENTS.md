@@ -20,6 +20,8 @@ UpGrid is a Rust 2024 workspace with a Lit/TypeScript WebUI. Crates live under `
 
 Use standard `rustfmt` output (four-space indentation and trailing commas). Name Rust modules and functions with `snake_case`, types with `UpperCamelCase`, and constants with `SCREAMING_SNAKE_CASE`. Start considering a module split near 200 lines; 500 lines is a hard maximum. Compose source with ordinary `mod` declarations—never `#[path = "..."]` or `include!`; rename files and modules to follow Rust's standard module layout. TypeScript uses two spaces, strict types, `camelCase` members, and `kebab-case` custom-element names. Never use `String` as an error type; define typed errors with `snafu` and propagate them with the `ResultExt` and `OptionExt` context APIs. Prefer typed boundaries and `tracing`.
 
+Panel and card headers contain only the title, controls, and compact status metadata. Never put explanatory descriptions in a box header; place that guidance in an accessible help tooltip beside the title.
+
 ## Testing Guidelines
 
 Use `#[compio::test]` for async Rust tests and local `#[cfg(test)]` modules for units. Name tests by behavior, for example `rejects_invalid_scheme`. Browser workflows use Playwright against the real embedded app; avoid tests coupled to Lit internals. Fixed-port `master`/`worker` fixtures are manual, so never run the unfiltered Rust suite in automation. Avoid port collisions and terminate spawned tasks.

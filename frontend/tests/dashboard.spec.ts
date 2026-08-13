@@ -90,7 +90,7 @@ test("disables maximum redirects when redirects are not followed", async ({ page
 
   await page.getByRole("button", { name: "Redirect settings" }).click();
   const details = page.getByRole("dialog", { name: "Target details" });
-  const followRedirects = details.getByLabel("Follow redirects");
+  const followRedirects = details.getByRole("switch", { name: "Follow redirects" });
   const maxRedirects = details.getByLabel("Maximum redirects");
   await expect(maxRedirects).toBeEnabled();
   await followRedirects.uncheck();
@@ -119,6 +119,7 @@ test("creates and edits ordered HTTP assertions", async ({ page }) => {
   const create = page.getByRole("dialog", { name: "Add target" });
   await create.getByLabel("Name").fill("Assertion target");
   await create.getByLabel("URL").fill(new URL("/healthz", page.url()).toString());
+  await create.getByRole("tab", { name: "Assertions" }).click();
 
   for (let index = 0; index < 6; index += 1) {
     await create.getByRole("button", { name: "Add assertion" }).click();
@@ -245,6 +246,7 @@ test("creates and edits a TCP-connect target", async ({ page }) => {
   await expect(addTarget.getByLabel("URL")).toHaveAttribute("placeholder", "database.internal:5432");
   await addTarget.getByLabel("Name").fill("Local TCP service");
   await addTarget.getByLabel("URL").fill(`${service.hostname}:${service.port}`);
+  await addTarget.getByRole("tab", { name: "Evaluation" }).click();
   await addTarget.getByLabel("Interval (seconds)").fill("1");
   await addTarget.getByLabel("Failures before Down").fill("1");
   await addTarget.getByRole("button", { name: "Create target" }).click();
@@ -291,6 +293,7 @@ test("configures multi-location target evaluation", async ({ page }) => {
   const create = page.getByRole("dialog", { name: "Add target" });
   await create.getByLabel("Name").fill("Multi-location target");
   await create.getByLabel("URL").fill("https://example.com/health");
+  await create.getByRole("tab", { name: "Evaluation" }).click();
   await create.getByLabel("Evaluation locations").fill("3");
   await create.getByRole("button", { name: "Create target" }).click();
 
@@ -345,7 +348,7 @@ test("trashes, restores, and permanently deletes a target", async ({ page }) => 
   const save = details.getByRole("button", { name: "Save changes" });
   await expect(save).toBeDisabled();
   await expect(save).toHaveCSS("cursor", "not-allowed");
-  const followRedirects = details.getByLabel("Follow redirects");
+  const followRedirects = details.getByRole("switch", { name: "Follow redirects" });
   await followRedirects.uncheck();
   await expect(save).toBeEnabled();
   await followRedirects.check();
@@ -375,6 +378,10 @@ test("trashes, restores, and permanently deletes a target", async ({ page }) => 
   await expect(page.getByText("Renamed lifecycle target")).not.toBeVisible();
 
   await page.getByRole("link", { name: "Trash" }).click();
+  const retentionTooltip = page.locator("#trash-retention-help");
+  await expect(retentionTooltip).toBeHidden();
+  await page.getByRole("button", { name: "About deleted Target retention" }).focus();
+  await expect(retentionTooltip).toBeVisible();
   const trashed = page.getByRole("region", { name: "Trashed Targets" }).getByText("Renamed lifecycle target", { exact: true });
   await expect(trashed).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
@@ -516,7 +523,7 @@ test("filters and bulk-pauses selected targets", async ({ page }) => {
   await page.getByLabel("Search targets").fill("alpha");
   await expect(page.getByRole("button", { name: "Search alpha" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Search beta" })).not.toBeVisible();
-  await page.getByLabel("Select Search alpha").check();
+  await page.getByRole("switch", { name: "Select Search alpha" }).check();
   const pauseSelected = page.getByRole("button", { name: "Pause selected" });
   await expect(page.getByRole("button", { name: "Unselect all" }).locator("iconify-icon")).toBeVisible();
   const actionsMargin = await page.locator(".bulk-actions").evaluate((element) => Number.parseFloat(getComputedStyle(element).marginLeft));
@@ -527,7 +534,7 @@ test("filters and bulk-pauses selected targets", async ({ page }) => {
   await pauseSelected.click();
   await expect(page.getByRole("button", { name: "Search alpha" })).toContainText("Paused");
 
-  await page.getByLabel("Select Search alpha").check();
+  await page.getByRole("switch", { name: "Select Search alpha" }).check();
   await expect(page.getByRole("button", { name: "Pause selected" })).toHaveCount(0);
   const resumeSelected = page.getByRole("button", { name: "Resume selected" });
   await expect(resumeSelected).toHaveClass(/success/);
@@ -535,10 +542,10 @@ test("filters and bulk-pauses selected targets", async ({ page }) => {
   await resumeSelected.click();
   await expect(page.getByRole("button", { name: "Search alpha" })).not.toContainText("Paused");
 
-  await page.getByLabel("Select Search alpha").check();
+  await page.getByRole("switch", { name: "Select Search alpha" }).check();
   await page.getByRole("button", { name: "Unselect all" }).click();
   await expect(page.locator(".bulk")).toHaveCount(0);
-  await expect(page.getByLabel("Select Search alpha")).not.toBeChecked();
+  await expect(page.getByRole("switch", { name: "Select Search alpha" })).not.toBeChecked();
 });
 
 test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
@@ -630,7 +637,7 @@ test("renames a Node Target and shows its evaluation history", async ({ page }) 
   await expect(node.getByText("Node", { exact: true })).toBeVisible();
   await expect(node.getByText(/RPC · up:\/\//)).toBeVisible();
   await expect(node.locator(".state")).toHaveClass(/up/, { timeout: 15_000 });
-  await expect(node.locator('input[type="checkbox"]')).toBeDisabled();
+  await expect(node.getByRole("switch", { name: "Select Node alpha" })).toBeDisabled();
   const [name, badge] = await Promise.all([node.locator("h3").boundingBox(), node.getByText("Node", { exact: true }).boundingBox()]);
   expect(name).not.toBeNull();
   expect(badge).not.toBeNull();
@@ -752,7 +759,7 @@ test("creates a Cluster and optional resources through OOBE", async ({ page }) =
   await expect(page).toHaveURL(/\/setup\/target$/);
   await page.getByLabel("Name").fill("OOBE target");
   await page.getByLabel("URL").fill("https://example.com/health");
-  await page.getByLabel("OOBE webhook").check();
+  await page.getByRole("switch", { name: "OOBE webhook" }).check();
   await page.getByRole("button", { name: "Create and finish" }).click();
 
   await expect(page).toHaveURL(/\/$/);

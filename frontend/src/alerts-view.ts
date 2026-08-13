@@ -113,7 +113,7 @@ export function renderAlertsPage(alerts: Alert[], transitions: Transition[], cha
               <div class="resource channel-resource">
                 <div class="channel-summary"><div class="channel-title"><strong>${channel.name}</strong><span class="badge">${channel.kind}</span></div><code>${channel.destination}</code></div>
                 <div class="channel-actions">
-                  <label class="switch"><span>Default</span><input type="checkbox" role="switch" aria-label=${`Default channel ${channel.name}`} .checked=${channel.default} @change=${(event: Event) => actions.setDefault(channel, (event.target as HTMLInputElement).checked)} /></label>
+                  <label class="switch"><span>Default</span><input class="switch-control" type="checkbox" role="switch" aria-label=${`Default channel ${channel.name}`} .checked=${channel.default} @change=${(event: Event) => actions.setDefault(channel, (event.target as HTMLInputElement).checked)} /></label>
                   <button class="button secondary icon-button" aria-label=${`Edit channel ${channel.name}`} title=${`Edit ${channel.name}`} @click=${() => actions.edit(channel)}><iconify-icon .icon=${editIcon} aria-hidden="true"></iconify-icon></button>
                   <button class="button danger icon-button" aria-label=${`Delete channel ${channel.name}`} title=${`Delete ${channel.name}`} @click=${() => actions.remove(channel)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
                 </div>
