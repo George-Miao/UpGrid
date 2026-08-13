@@ -8,7 +8,7 @@ No active items.
 
 ## Backlog
 
-No backlog items.
+- Restore custom CA bundle and mutual TLS controls to the Add target form.
 
 ## Iteration Policy
 
