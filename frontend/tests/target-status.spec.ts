@@ -16,6 +16,7 @@ test("marks an Up target suspicious while failures accumulate", async ({ page })
   await expect(target.locator(".state")).toHaveClass(/up/, { timeout: 15_000 });
   await target.click();
   const details = page.getByRole("dialog", { name: "Target details" });
+  await details.getByRole("tab", { name: "General" }).click();
   await details.getByLabel("URL").fill("http://127.0.0.1:19090/");
   await details.getByRole("button", { name: "Save changes" }).click();
 

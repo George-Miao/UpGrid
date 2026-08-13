@@ -4,6 +4,7 @@ import darkIcon from "@iconify-icons/lucide/moon";
 import systemIcon from "@iconify-icons/lucide/monitor";
 import brightIcon from "@iconify-icons/lucide/sun";
 import { ApiRequestError, type Alert, type ApiToken, type Channel, type Cluster, type HistoryPage, type Identity, type JoinToken, type Secret, type Session, type Setup, type Target, type TrashedTarget, type Transition, request } from "./api.ts";
+import type { TargetDetailTab } from "./target-detail-view.ts";
 
 const themes = ["system", "dark", "bright"] as const;
 type Theme = (typeof themes)[number];
@@ -80,6 +81,7 @@ export class AppState extends LitElement {
   @state() protected unlimitedUses = false;
   @state() protected theme = storedTheme();
   @state() protected detailDirty = false;
+  @state() protected detailTab: TargetDetailTab = "details";
   private events?: EventSource;
   private detailInitialState = "";
   private readonly systemTheme = matchMedia("(prefers-color-scheme: light)");
@@ -232,6 +234,7 @@ export class AppState extends LitElement {
 
   protected openTarget(target: Target): void {
     this.detailDirty = false;
+    this.detailTab = "details";
     this.selected = target;
     this.targetHistory = undefined;
     this.historyLoading = true;
@@ -258,6 +261,7 @@ export class AppState extends LitElement {
   protected closeDetailDialog(): void {
     this.renderRoot.querySelector<HTMLDialogElement>("#detail-dialog")?.close();
     this.detailDirty = false;
+    this.detailTab = "details";
     this.detailInitialState = "";
     this.selected = undefined;
     this.targetHistory = undefined;
@@ -284,6 +288,9 @@ export class AppState extends LitElement {
 
   protected closeDialog(id: string): void {
     this.renderRoot.querySelector<HTMLDialogElement>(`#${id}`)?.close();
+  }
+  protected selectDetailTab(tab: TargetDetailTab): void {
+    this.detailTab = tab;
   }
 
   protected toggleMaxRedirects(event: Event): void {

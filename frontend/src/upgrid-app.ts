@@ -243,6 +243,10 @@ export class UpgridApp extends AppController {
     footer a:hover { color: var(--text); }
     footer iconify-icon { width: 14px; height: 14px; font-size: 14px; }
     .history { margin: 0 22px 22px; border-top: 1px solid var(--line); padding-top: 18px; }
+    .detail-form .details-panel { gap: 0; }
+    .detail-form .history { margin: 0; }
+    .detail-form .history:first-child { border-top: 0; padding-top: 0; }
+    .detail-form .history + .history { margin-top: 18px; }
     .history-head, .chart-legend, .chart-legend span, .chart-axis { display: flex; align-items: center; }
     .history-head { justify-content: space-between; margin-bottom: 12px; }
     .history-head h3 { margin: 0; font-size: 14px; }
@@ -328,6 +332,7 @@ export class UpgridApp extends AppController {
       .alert-actions { margin-top: 8px; }
       .channel-actions { justify-content: space-between; margin-top: 10px; }
       .form-tabs { width: 100%; }
+      .target-dialog-head { align-items: flex-start; flex-direction: column; }
     }
   `;
   protected render() {
@@ -460,13 +465,14 @@ export class UpgridApp extends AppController {
       })}
       ${
         this.selected
-          ? renderTargetDetail(this.selected, this.targetHistory, this.historyLoading, this.saving, this.detailDirty, this.cluster?.members ?? [], this.channels, this.secrets, {
+          ? renderTargetDetail(this.selected, this.targetHistory, this.historyLoading, this.saving, this.detailDirty, this.detailTab, this.cluster?.members ?? [], this.channels, this.secrets, {
               backdrop: (event) => this.dismissOnBackdrop(event),
               close: () => this.closeDetailDialog(),
               update: (event) => void this.updateTarget(event),
               changed: (event) => this.updateDetailDirty(event),
               redirects: (event) => this.toggleMaxRedirects(event),
               delete: () => void this.deleteTarget(),
+              selectTab: (tab) => this.selectDetailTab(tab),
               pause: (paused) => void this.setPaused(paused),
             })
           : nothing

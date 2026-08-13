@@ -90,6 +90,7 @@ test("disables maximum redirects when redirects are not followed", async ({ page
 
   await page.getByRole("button", { name: "Redirect settings" }).click();
   const details = page.getByRole("dialog", { name: "Target details" });
+  await details.getByRole("tab", { name: "General" }).click();
   const followRedirects = details.getByRole("switch", { name: "Follow redirects" });
   const maxRedirects = details.getByLabel("Maximum redirects");
   await expect(maxRedirects).toBeEnabled();
@@ -151,6 +152,7 @@ test("creates and edits ordered HTTP assertions", async ({ page }) => {
 
   await page.getByRole("button", { name: "Assertion target" }).click();
   const edit = page.getByRole("dialog", { name: "Target details" });
+  await edit.getByRole("tab", { name: "Assertions" }).click();
   await edit.getByLabel("Assertion 1 required text").fill("healthy");
   await expect(edit.getByRole("button", { name: "Save changes" })).toBeEnabled();
   await edit.getByLabel("Assertion 2 regular expression").fill("healthy|ready");
@@ -231,6 +233,7 @@ test("omits advanced TLS controls during creation and edits existing TLS Secrets
   await expect(page.getByText("private-ca-pem")).toHaveCount(0);
   await page.getByRole("button", { name: "Mutual TLS target" }).click();
   const edit = page.getByRole("dialog", { name: "Target details" });
+  await edit.getByRole("tab", { name: "General" }).click();
   await expect(edit.getByLabel("Custom CA bundle Secret")).toHaveValue(created.tls_ca_secret_id);
   await expect(edit.getByLabel("Client certificate Secret")).toHaveValue(created.tls_client_certificate_secret_id);
   await expect(edit.getByLabel("Client private key Secret")).toHaveValue(created.tls_client_private_key_secret_id);
@@ -268,6 +271,7 @@ test("creates and edits a TCP-connect target", async ({ page }) => {
   await target.click();
 
   const details = page.getByRole("dialog", { name: "Target details" });
+  await details.getByRole("tab", { name: "General" }).click();
   await expect(details.getByLabel("Type")).toHaveValue("TCP");
   await expect(details.getByLabel("Method")).toHaveCount(0);
   await details.getByLabel("Name").fill("Renamed TCP service");
@@ -313,6 +317,7 @@ test("configures multi-location target evaluation", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Multi-location target" })).toContainText("3 locations");
   await page.getByRole("button", { name: "Multi-location target" }).click();
   const edit = page.getByRole("dialog", { name: "Target details" });
+  await edit.getByRole("tab", { name: "Evaluation" }).click();
   await expect(edit.getByLabel("Evaluation locations")).toHaveValue("3");
   await edit.getByLabel("Evaluation locations").fill("2");
   await edit.getByRole("button", { name: "Save changes" }).click();
@@ -355,6 +360,16 @@ test("trashes, restores, and permanently deletes a target", async ({ page }) => 
   await expect(pause).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await expect(pause.locator("iconify-icon")).toBeVisible();
   await expect(details.locator(".danger-actions").getByRole("button")).toHaveCount(2);
+  await expect(details.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+  const history = details.getByRole("list", { name: /Recent evaluation latency, 0 to/ });
+  await expect(history).toBeVisible();
+  await expect(history.getByRole("listitem").first()).toBeVisible();
+  const topology = await (await page.request.get("/api/v1/cluster")).json();
+  const evaluation = await history.getByRole("listitem").first().getAttribute("aria-label");
+  expect(topology.members.some((member: { name: string }) => evaluation?.includes(`Executed by ${member.name}`))).toBe(true);
+  await expect(details.locator(".chart-scale span")).toHaveCount(3);
+  await expect(details.locator(".chart-scale").getByText("0 ms", { exact: true })).toBeVisible();
+  await details.getByRole("tab", { name: "General" }).click();
   const save = details.getByRole("button", { name: "Save changes" });
   await expect(save).toBeDisabled();
   await expect(save).toHaveCSS("cursor", "not-allowed");
@@ -368,19 +383,11 @@ test("trashes, restores, and permanently deletes a target", async ({ page }) => 
   await expect(save).toBeEnabled();
   await name.fill("Target lifecycle");
   await expect(save).toBeDisabled();
-  const history = details.getByRole("list", { name: /Recent evaluation latency, 0 to/ });
-  await expect(history).toBeVisible();
-  await expect(history.getByRole("listitem").first()).toBeVisible();
-  const topology = await (await page.request.get("/api/v1/cluster")).json();
-  const evaluation = await history.getByRole("listitem").first().getAttribute("aria-label");
-  expect(topology.members.some((member: { name: string }) => evaluation?.includes(`Executed by ${member.name}`))).toBe(true);
-  await expect(details.locator(".chart-scale span")).toHaveCount(3);
-  await expect(details.locator(".chart-scale").getByText("0 ms", { exact: true })).toBeVisible();
   await name.fill("Renamed lifecycle target");
   await expect(save).toBeEnabled();
+  await details.getByRole("tab", { name: "Evaluation" }).click();
   await details.getByLabel("Failures before Down").fill("5");
-  await details.getByRole("button", { name: "Save changes" }).click();
-
+  await save.click();
   await expect(page.getByText("Renamed lifecycle target")).toBeVisible();
   await page.getByRole("button", { name: "Renamed lifecycle target" }).click();
   page.once("dialog", (dialog) => dialog.accept());
@@ -647,7 +654,7 @@ test("renames a Node Target and shows its evaluation history", async ({ page }) 
   await expect(node.getByText("Node", { exact: true })).toBeVisible();
   await expect(node.getByText(/RPC · up:\/\//)).toBeVisible();
   await expect(node.locator(".state")).toHaveClass(/up/, { timeout: 15_000 });
-  await expect(node.getByRole("checkbox", { name: "Select Node alpha" })).toBeDisabled();
+  await expect(node.locator(".select-target")).toBeDisabled();
   const [name, badge] = await Promise.all([node.locator("h3").boundingBox(), node.getByText("Node", { exact: true }).boundingBox()]);
   expect(name).not.toBeNull();
   expect(badge).not.toBeNull();
@@ -658,14 +665,18 @@ test("renames a Node Target and shows its evaluation history", async ({ page }) 
   const renamed = `${originalName}-renamed`;
   await node.locator("button.target").click();
   const details = page.getByRole("dialog", { name: "Node details" });
+  await expect(details.getByRole("tab", { name: "Details" })).toHaveAttribute("aria-selected", "true");
+  await expect(details.getByRole("listitem").first()).toHaveAttribute("aria-label", /reachable.*Executed by/);
+  await expect(details.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+  await details.getByRole("tab", { name: "General" }).click();
   await expect(details.getByLabel("RPC URL")).toBeDisabled();
   await expect(details.getByRole("button", { name: "Save changes" })).toBeDisabled();
-  await expect(details.getByRole("listitem").first()).toHaveAttribute("aria-label", /reachable.*Executed by/);
   await details.getByRole("textbox", { name: "Name", exact: true }).fill(renamed);
   await details.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("button", { name: renamed })).toBeVisible();
 
   await page.getByRole("button", { name: renamed }).click();
+  await page.getByRole("dialog", { name: "Node details" }).getByRole("tab", { name: "General" }).click();
   await page.getByRole("dialog", { name: "Node details" }).getByRole("textbox", { name: "Name", exact: true }).fill(originalName);
   await page.getByRole("dialog", { name: "Node details" }).getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("button", { name: originalName })).toBeVisible();
