@@ -211,7 +211,7 @@ export class UpgridApp extends AppController {
     .channel-options { display: grid; gap: 6px; }
     .channel-options .check { min-height: 36px; border-radius: 8px; padding: 5px 8px; background: var(--panel-2); }
     .channel-options .badge { margin-left: auto; }
-    .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; }
     .switch input { width: 42px; min-height: 24px; height: 24px; flex: none; appearance: none; border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
     .switch input::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
     .switch input:checked { border-color: var(--button-border); background: var(--button-bg); }
