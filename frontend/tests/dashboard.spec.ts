@@ -631,6 +631,20 @@ test("keeps primary navigation visible on mobile", async ({ page }) => {
   await expect.poll(() => page.evaluate(() => (window as typeof window & { tabScrollCalls: number }).tabScrollCalls)).toBe(0);
 });
 
+test("keeps Target tabs in the compact dialog title bar", async ({ page }) => {
+  await page.setViewportSize({ width: 468, height: 800 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add target" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Add target" });
+  const [title, tabs, notifications] = await Promise.all([dialog.getByRole("heading", { name: "Add target" }).boundingBox(), dialog.getByRole("tablist", { name: "Target settings" }).boundingBox(), dialog.getByRole("tab", { name: "Notifications" }).boundingBox()]);
+  expect(title).not.toBeNull();
+  expect(tabs).not.toBeNull();
+  expect(notifications).not.toBeNull();
+  expect(Math.abs(title!.y + title!.height / 2 - (tabs!.y + tabs!.height / 2))).toBeLessThan(2);
+  expect(notifications!.x + notifications!.width).toBeLessThanOrEqual(tabs!.x + tabs!.width);
+});
+
 test("aligns compact Target rows on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");

@@ -197,8 +197,9 @@ export class UpgridApp extends AppController {
     .dialog-head h2 { margin: 0; font-size: 18px; }
     .dialog-head p { margin: 4px 0 0; color: var(--muted); }
     .target-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 12px; padding-bottom: 12px; }
+    .target-dialog-head h2 { flex: none; }
     form { display: grid; gap: 13px; padding: 20px 22px 22px; }
-    .form-tabs { display: flex; width: fit-content; max-width: 100%; gap: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--nav-bg); padding: 4px; overflow-x: auto; }
+    .form-tabs { display: flex; width: fit-content; min-width: 0; max-width: 100%; gap: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--nav-bg); padding: 4px; overflow-x: auto; }
     .form-tabs button { min-height: 34px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 7px 11px; white-space: nowrap; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; }
     .form-tabs button[aria-selected="true"] { background: var(--active-bg); color: var(--text); }
     .form-tabs button:disabled { cursor: not-allowed; opacity: .45; }
@@ -331,8 +332,9 @@ export class UpgridApp extends AppController {
       .alert-resource { grid-template-columns: 1fr; }
       .alert-actions { margin-top: 8px; }
       .channel-actions { justify-content: space-between; margin-top: 10px; }
-      .form-tabs { width: 100%; }
-      .target-dialog-head { align-items: flex-start; flex-direction: column; }
+      .target-dialog-head { gap: 8px; }
+      .form-tabs { gap: 0; padding: 2px; }
+      .form-tabs button { min-height: 30px; padding: 5px 2px; font-size: 12px; }
     }
   `;
   protected render() {
