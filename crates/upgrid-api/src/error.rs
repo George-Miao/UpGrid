@@ -31,7 +31,7 @@ pub enum Error {
     #[snafu(display("Cluster setup state was poisoned"))]
     SetupStatePoisoned,
 
-    #[snafu(display("OOBE stopped without a Cluster choice"))]
+    #[snafu(display("OOBE stopped without a cluster choice"))]
     SetupStopped,
 
     #[snafu(transparent)]

@@ -384,7 +384,7 @@ export class UpgridApp extends AppController {
               <div><div class="brand-line"><strong>UpGrid</strong><div class="live"><i class="dot ${this.live ? "up" : ""}"></i>${this.live ? "ready" : "connecting"}</div></div><span>Distributed service monitoring</span></div>
             </div>
             <div></div>
-            <div class="actions"><button class="button secondary icon-button" aria-label=${`Theme: ${this.theme[0].toUpperCase()}${this.theme.slice(1)}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button></div>
+            <div class="actions"><button class="button secondary icon-button" aria-label=${`Theme: ${this.theme}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button></div>
           </header>
           ${this.error ? html`<div class="notice" role="alert">${this.error}</div>` : nothing}
           <upgrid-setup .setup=${this.setup} @setup-changed=${this.setupChanged}></upgrid-setup>
@@ -405,14 +405,14 @@ export class UpgridApp extends AppController {
             ${sections.map((section) => html`<a class=${this.activeSection === section ? "active" : ""} href=${sectionPaths[section]} @click=${(event: MouseEvent) => this.navigate(event, section)}>${section[0].toUpperCase()}${section.slice(1)}</a>`)}
           </nav>
           <div class="actions">
-            <button class="button secondary icon-button" aria-label=${`Theme: ${this.theme[0].toUpperCase()}${this.theme.slice(1)}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button>
+            <button class="button secondary icon-button" aria-label=${`Theme: ${this.theme}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button>
             <details class="account-menu">
               <summary class="button secondary icon-button" aria-label=${`Account menu for ${this.session?.username}`} title=${`Account: ${this.session?.username}`}><iconify-icon .icon=${userIcon} aria-hidden="true"></iconify-icon></summary>
               <div class="account-dropdown" role="menu">
                 <a class="button secondary" role="menuitem" href=${sectionPaths.manage} @click=${(event: MouseEvent) => this.navigate(event, "manage")}>Manage</a>
-                <a class="button secondary" role="menuitem" href=${sectionPaths.changePassword} @click=${(event: MouseEvent) => this.navigate(event, "changePassword")}>Change Password</a>
+                <a class="button secondary" role="menuitem" href=${sectionPaths.changePassword} @click=${(event: MouseEvent) => this.navigate(event, "changePassword")}>Change password</a>
                 <a class="button secondary" role="menuitem" href=${sectionPaths.users} @click=${(event: MouseEvent) => this.navigate(event, "users")}>Manage user</a>
-                <a class="button secondary" role="menuitem" href=${sectionPaths.apiTokens} @click=${(event: MouseEvent) => this.navigate(event, "apiTokens")}>API Token</a>
+                <a class="button secondary" role="menuitem" href=${sectionPaths.apiTokens} @click=${(event: MouseEvent) => this.navigate(event, "apiTokens")}>API token</a>
                 <div class="account-separator" role="separator"></div>
                 <button class="button danger" role="menuitem" type="button" @click=${() => void this.logout()}>Logout</button>
               </div>
@@ -486,7 +486,7 @@ export class UpgridApp extends AppController {
           : nothing
       }
       <dialog id="secret-dialog" aria-labelledby="secret-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><div class="title-with-help"><h2 id="secret-title">Add secret</h2>${renderHelpTooltip("add-secret-help", "About adding a Secret", "Create an encrypted, write-only value to reference from Target requests or webhook headers through the HTTP API.")}</div></div>
+        <div class="dialog-head"><div class="title-with-help"><h2 id="secret-title">Add secret</h2>${renderHelpTooltip("add-secret-help", "About adding a secret", "Create an encrypted, write-only value to reference from target requests or webhook headers through the HTTP API.")}</div></div>
         <form @submit=${this.createSecret}>
           <label>Name<input name="name" placeholder="Webhook token" required autofocus /></label>
           <label>Value<input name="value" type="password" autocomplete="new-password" required /></label>
@@ -494,7 +494,7 @@ export class UpgridApp extends AppController {
         </form>
       </dialog>
       <dialog id="channel-dialog" aria-labelledby="channel-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><h2 id="channel-title">${this.editingChannel ? "Edit channel" : "Add channel"}</h2><p>${this.editingChannel ? "Update this destination without changing its Channel type." : "Send transitions through Telegram, SMTP, or a generic webhook."}</p></div>
+        <div class="dialog-head"><h2 id="channel-title">${this.editingChannel ? "Edit channel" : "Add channel"}</h2><p>${this.editingChannel ? "Update this destination without changing its channel type." : "Send transitions through Telegram, SMTP, or a generic webhook."}</p></div>
         <form @submit=${this.createChannel}>
           <label>Type<select name="type" .value=${this.channelKind} ?disabled=${this.editingChannel !== undefined} @change=${(event: Event) => {
             this.channelKind = (event.target as HTMLSelectElement).value as ChannelKind;
@@ -510,7 +510,7 @@ export class UpgridApp extends AppController {
         </form>
       </dialog>
       <dialog id="token-config-dialog" aria-labelledby="token-config-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><h2 id="token-config-title">Create Join Token</h2><p>Choose how many days the token remains valid and whether it can be reused.</p></div>
+        <div class="dialog-head"><h2 id="token-config-title">Create join token</h2><p>Choose how many days the token remains valid and whether it can be reused.</p></div>
         <form @submit=${this.createJoinToken}>
           <label>Expiration (days)<input name="expiration_days" type="number" min="1" step="1" value="1" required /></label>
           <label class="switch"><span>Unlimited uses</span><input class="switch-control" type="checkbox" role="switch" .checked=${this.unlimitedUses} @change=${(event: Event) => (this.unlimitedUses = (event.target as HTMLInputElement).checked)} /></label>
@@ -519,7 +519,7 @@ export class UpgridApp extends AppController {
         </form>
       </dialog>
       <dialog id="join-dialog" aria-labelledby="join-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><h2 id="join-title">Join Token Created</h2><p>This command contains Cluster credentials. Revoke the token when no longer needed.</p></div>
+        <div class="dialog-head"><h2 id="join-title">Join token created</h2><p>This command contains cluster credentials. Revoke the token when no longer needed.</p></div>
         <div class="join-command">${this.joinCommand}</div>
         <div class="dialog-actions" style="padding: 0 22px 22px"><button class="button secondary" @click=${() => this.closeDialog("join-dialog")}>Close</button><button class="button" @click=${this.copyJoinCommand}>${this.copied ? "Copied" : "Copy command"}</button></div>
       </dialog>
@@ -542,7 +542,7 @@ export class UpgridApp extends AppController {
           </div>
           <nav aria-label="Primary"><a class="active" href="/">Status</a></nav>
           <div class="actions">
-            <button class="button secondary icon-button" aria-label=${`Theme: ${this.theme[0].toUpperCase()}${this.theme.slice(1)}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button>
+            <button class="button secondary icon-button" aria-label=${`Theme: ${this.theme}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button>
             <button class="button secondary" type="button" @click=${this.showLogin}>Sign in</button>
           </div>
         </header>
@@ -555,7 +555,7 @@ export class UpgridApp extends AppController {
           <div class=${`metric down ${down ? "active" : ""}`}><span>Down</span><strong>${down}</strong></div>
           <div class="metric"><span>Paused</span><strong>${paused}</strong></div>
         </section>
-        <section class="panel" aria-label="Public Target status" style="margin-top: 18px">
+        <section class="panel" aria-label="Public target status" style="margin-top: 18px">
           <div class="panel-head"><h2>Targets</h2><span class="meta">${targets.length} monitored</span></div>
           ${
             targets.length
@@ -565,7 +565,7 @@ export class UpgridApp extends AppController {
                   const detail = target.paused ? "Paused" : latest ? `${latest.latency_ms} ms · ${latest.status_code ?? (latest.succeeded ? "reachable" : "unreachable")}` : "Waiting for an evaluation";
                   return html`<div class="resource"><div><strong>${target.name}</strong><code>${target.kind.toUpperCase()} · ${detail}</code></div><span class=${`badge ${state}`}>${state}</span></div>`;
                 })
-              : html`<div class="empty">No Targets are configured.</div>`
+              : html`<div class="empty">No targets are configured.</div>`
           }
         </section>
       </main>${renderFooter()}`;
@@ -589,14 +589,14 @@ export class UpgridApp extends AppController {
           <div class=${`metric down ${down ? "active" : ""}`}><span>Down</span><strong>${down}</strong></div>
         </section>
         <section class="panel" aria-label="Secrets">
-          <div class="panel-head"><div class="title-with-help"><h2>Secrets</h2>${renderHelpTooltip("secrets-help", "About reusable Secrets", "Reusable Secrets are encrypted and write-only. Reference them from Target headers or bodies and webhook headers or other Notification Channel credentials. UpGrid reports whether each Secret is referenced by an active or trashed Target or a Notification Channel.")}</div><div class="actions">${unusedSecrets.length ? html`<button class="button danger" ?disabled=${this.saving} @click=${() => this.cleanupSecrets()}>Delete unused (${unusedSecrets.length})</button>` : nothing}<button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div></div>
+          <div class="panel-head"><div class="title-with-help"><h2>Secrets</h2>${renderHelpTooltip("secrets-help", "About reusable secrets", "Reusable secrets are encrypted and write-only. Reference them from target headers or bodies and webhook headers or other notification channel credentials. UpGrid reports whether each secret is referenced by an active or trashed target or a notification channel.")}</div><div class="actions">${unusedSecrets.length ? html`<button class="button danger" ?disabled=${this.saving} @click=${() => this.cleanupSecrets()}>Delete unused (${unusedSecrets.length})</button>` : nothing}<button class="button secondary" @click=${() => this.showDialog("secret-dialog")}>Add secret</button></div></div>
           ${
             this.secrets.length
               ? this.secrets.map(
                   (secret) =>
                     html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id} · ${secret.referenced ? "In use" : "Unused"}</code></div><button class="button danger icon-button" aria-label=${`Delete secret ${secret.name}`} title=${`Delete ${secret.name}`} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div>`,
                 )
-              : html`<div class="empty">No reusable Secrets.</div>`
+              : html`<div class="empty">No reusable secrets.</div>`
           }
         </section>
       </section>
@@ -608,7 +608,7 @@ export class UpgridApp extends AppController {
           <select aria-label="Sort targets" .value=${this.sort} @change=${(event: Event) => (this.sort = (event.target as HTMLSelectElement).value)}><option value="name">Sort by name</option><option value="status">Sort by status</option></select>
         </div>
         ${this.selectedIds.size ? html`<div class="bulk"><span class="meta">${this.selectedIds.size} selected</span><div class="bulk-actions"><button class="button secondary icon-button" aria-label="Unselect all" title="Unselect all" @click=${() => (this.selectedIds = new Set())}><iconify-icon .icon=${closeIcon} aria-hidden="true"></iconify-icon></button>${canPauseSelected ? html`<button class="button warning icon-button" aria-label="Pause selected" title="Pause selected" @click=${() => this.bulkPause(true)}><iconify-icon .icon=${pauseIcon} aria-hidden="true"></iconify-icon></button>` : nothing}${canResumeSelected ? html`<button class="button success icon-button" aria-label="Resume selected" title="Resume selected" @click=${() => this.bulkPause(false)}><iconify-icon .icon=${playIcon} aria-hidden="true"></iconify-icon></button>` : nothing}<button class="button danger icon-button" aria-label="Delete selected" title="Delete selected" @click=${this.bulkDelete}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div></div>` : nothing}
-        ${visibleTargets.length ? visibleTargets.map((target) => this.renderTarget(target)) : html`<div class="empty">${this.targets.length ? "No Targets match these filters." : "No targets yet. Add the first one to begin monitoring."}</div>`}
+        ${visibleTargets.length ? visibleTargets.map((target) => this.renderTarget(target)) : html`<div class="empty">${this.targets.length ? "No targets match these filters." : "No targets yet. Add the first one to begin monitoring."}</div>`}
       </section>
     `;
   }
@@ -618,8 +618,8 @@ export class UpgridApp extends AppController {
       <section class="heading" id="trash">
         <div><span class="eyebrow">Recover deleted monitors</span><h1>Trash</h1></div>
       </section>
-      <section class="panel" aria-label="Trashed Targets">
-        <div class="panel-head"><div class="title-with-help"><h2>Deleted Targets</h2>${renderHelpTooltip("trash-retention-help", "About deleted Target retention", "Settings and history remain recoverable until the retention deadline.")}</div><span class="meta">${this.trashedTargets.length} stored</span></div>
+      <section class="panel" aria-label="Trashed targets">
+        <div class="panel-head"><div class="title-with-help"><h2>Deleted targets</h2>${renderHelpTooltip("trash-retention-help", "About deleted target retention", "Settings and history remain recoverable until the retention deadline.")}</div><span class="meta">${this.trashedTargets.length} stored</span></div>
         ${this.trashedTargets.length ? this.trashedTargets.map((target) => this.renderTrashedTarget(target)) : html`<div class="empty">Trash is empty.</div>`}
       </section>
     `;
@@ -675,23 +675,23 @@ export class UpgridApp extends AppController {
       </section>
       <div class="page-columns">
       <section class="panel" aria-label="Cluster topology">
-        <div class="panel-head"><div class="title-with-help"><h2>Nodes</h2>${renderHelpTooltip("nodes-removal-help", "About removing Nodes", "Drain healthy Nodes before removal. Replace failed Nodes only after confirming the old process is permanently stopped.")}</div><span class="meta">${this.cluster?.members.length ?? 0} members</span></div>
+        <div class="panel-head"><div class="title-with-help"><h2>Nodes</h2>${renderHelpTooltip("nodes-removal-help", "About removing nodes", "Drain healthy nodes before removal. Replace failed nodes only after confirming the old process is permanently stopped.")}</div><span class="meta">${this.cluster?.members.length ?? 0} members</span></div>
         ${this.cluster?.members.map((member) => this.renderClusterMember(member))}
         ${this.cluster?.members.length ? nothing : html`<div class="empty">Cluster topology unavailable.</div>`}
       </section>
       <section class="panel" aria-label="Join tokens">
-        <div class="panel-head"><h2>Join Tokens</h2><span class="meta">${this.joinTokens.length} stored</span></div>
+        <div class="panel-head"><h2>Join tokens</h2><span class="meta">${this.joinTokens.length} stored</span></div>
         ${
           this.joinTokens.length
             ? this.joinTokens.map(
                 (token) => html`
               <div class="resource">
                 <div><strong>${token.id.slice(0, 12)}…</strong><code>Expires ${new Date(token.expires_at_ms).toLocaleString()} · ${token.remaining_uses === null ? "unlimited uses" : `${token.remaining_uses} uses left`}</code></div>
-                <button class="button danger" aria-label=${`Revoke Join Token ${token.id.slice(0, 12)}`} @click=${() => this.revokeJoinToken(token)}>Revoke</button>
+                <button class="button danger" aria-label=${`Revoke join token ${token.id.slice(0, 12)}`} @click=${() => this.revokeJoinToken(token)}>Revoke</button>
               </div>
             `,
               )
-            : html`<div class="empty">No Join Tokens.</div>`
+            : html`<div class="empty">No join tokens.</div>`
         }
       </section>
       </div>

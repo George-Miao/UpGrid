@@ -9,7 +9,7 @@ test("marks an Up target suspicious while failures accumulate", async ({ page })
   await addTarget.getByLabel("URL").fill(healthUrl);
   await addTarget.getByRole("tab", { name: "Evaluation" }).click();
   await addTarget.getByLabel("Interval (seconds)").fill("1");
-  await addTarget.getByLabel("Failures before Down").fill("100");
+  await addTarget.getByLabel("Failures before down").fill("100");
   await addTarget.getByRole("button", { name: "Create target" }).click();
 
   const target = page.getByRole("button", { name: "Suspicious threshold target" });
@@ -27,6 +27,6 @@ test("marks an Up target suspicious while failures accumulate", async ({ page })
   await expect(health.locator(".dot")).toHaveClass(/degraded/);
   await target.click();
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Move Target to Trash" }).click();
+  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Move target to trash" }).click();
   await expect(target).not.toBeVisible();
 });

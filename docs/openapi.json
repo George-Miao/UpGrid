@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "UpGrid Cluster API",
+    "title": "UpGrid cluster API",
     "version": "0.1.0"
   },
   "paths": {
@@ -340,7 +340,7 @@
           {
             "name": "id",
             "in": "path",
-            "description": "API Token ID",
+            "description": "API token ID",
             "required": true,
             "schema": {
               "type": "string",
@@ -1095,7 +1095,7 @@
           {
             "name": "id",
             "in": "path",
-            "description": "Operator Identity ID",
+            "description": "Operator identity ID",
             "required": true,
             "schema": {
               "type": "string",
@@ -1182,7 +1182,7 @@
           {
             "name": "id",
             "in": "path",
-            "description": "Operator Identity ID",
+            "description": "Operator identity ID",
             "required": true,
             "schema": {
               "type": "string",
@@ -1494,7 +1494,7 @@
           {
             "name": "force",
             "in": "query",
-            "description": "Release assignments and remove a failed Node without waiting for drain completion",
+            "description": "Release assignments and remove a failed node without waiting for drain completion",
             "required": true,
             "schema": {
               "type": "boolean"

@@ -24,8 +24,8 @@ export function renderChannelFields(kind: ChannelKind, channel?: Channel) {
             "telegram-token-help",
             "About Telegram bot token storage",
             channel
-              ? "Get a replacement token from Telegram's @BotFather. Leave this blank to keep the automatically managed Secret, or enter the replacement token."
-              : "Get a bot token from Telegram's @BotFather. Creating the Channel encrypts it as an automatically managed Secret. Test sends use the entered value without storing it.",
+              ? "Get a replacement token from Telegram's @BotFather. Leave this blank to keep the automatically managed secret, or enter the replacement token."
+              : "Get a bot token from Telegram's @BotFather. Creating the channel encrypts it as an automatically managed secret. Test sends use the entered value without storing it.",
           )}</span
         ><input
           name="bot_token"
@@ -70,7 +70,7 @@ export function renderChannelFields(kind: ChannelKind, channel?: Channel) {
         ${renderHelpTooltip(
           "smtp-password-help",
           "About SMTP password storage",
-          channel ? "Leave this blank to keep the automatically managed Secret. Clear the username to disable authentication." : "Enter a username and password together to enable authentication. The password is encrypted as an automatically managed Secret.",
+          channel ? "Leave this blank to keep the automatically managed secret. Clear the username to disable authentication." : "Enter a username and password together to enable authentication. The password is encrypted as an automatically managed secret.",
         )}
       </div>
       <input

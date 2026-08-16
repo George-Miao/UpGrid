@@ -134,7 +134,7 @@ export function renderTargetDetail(target: Target, longTermHistory: HistoryPage 
             ? html`
               <section id="target-evaluation-panel" class="target-tab-panel" role="tabpanel" aria-label="Evaluation" ?hidden=${tab !== "evaluation"}>
                 <div class="row"><label>Interval (seconds)<input name="interval" type="number" min="1" .value=${String(target.interval_seconds)} required /></label><label>Timeout (seconds)<input name="timeout" type="number" min="1" .value=${String(target.timeout_seconds)} required /></label></div>
-                <div class="row"><label>Failures before Down<input name="failures" type="number" min="1" .value=${String(target.failure_threshold)} required /></label><label>Evaluation locations<input name="locations" type="number" min="1" max="32" .value=${String(target.locations)} required /></label></div>
+                <div class="row"><label>Failures before down<input name="failures" type="number" min="1" .value=${String(target.failure_threshold)} required /></label><label>Evaluation locations<input name="locations" type="number" min="1" max="32" .value=${String(target.locations)} required /></label></div>
               </section>
               <section id="target-notifications-panel" class="target-tab-panel" role="tabpanel" aria-label="Notifications" ?hidden=${tab !== "notifications"}>
                 ${renderChannelFields(channels, target.notification_channel_ids, target.use_default_channels)}
@@ -147,7 +147,7 @@ export function renderTargetDetail(target: Target, longTermHistory: HistoryPage 
             ? isNode
               ? nothing
               : html`<div class="dialog-actions"><div class="danger-actions">
-                  <button class="button danger icon-button" type="button" aria-label="Move Target to Trash" title="Move to Trash" @click=${actions.delete}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
+                  <button class="button danger icon-button" type="button" aria-label="Move target to trash" title="Move to trash" @click=${actions.delete}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
                   <button class=${`button ${target.paused ? "success" : "warning"} icon-button`} type="button" aria-label=${target.paused ? "Resume evaluations" : "Pause evaluations"} title=${target.paused ? "Resume evaluations" : "Pause evaluations"} @click=${() => actions.pause(!target.paused)}><iconify-icon .icon=${target.paused ? playIcon : pauseIcon} aria-hidden="true"></iconify-icon></button>
                 </div></div>`
             : html`<div class="dialog-actions"><button class="button" type="submit" aria-busy=${saving ? "true" : "false"} ?disabled=${saving || !dirty}>Save changes</button></div>`

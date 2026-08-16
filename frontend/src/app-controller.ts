@@ -78,7 +78,7 @@ export class AppController extends AppState {
   }
 
   protected async deleteTarget(): Promise<void> {
-    if (!this.selected || !window.confirm("Move this Target and its history to Trash? You can restore it before its retention period expires.")) return;
+    if (!this.selected || !window.confirm("Move this target and its history to trash? You can restore it before its retention period expires.")) return;
     this.saving = true;
     try {
       await request<void>(`/api/v1/targets/${this.selected.id}`, { method: "DELETE" });
@@ -300,7 +300,7 @@ export class AppController extends AppState {
   }
 
   protected async revokeApiToken(token: ApiToken): Promise<void> {
-    if (!window.confirm(`Revoke API Token ${token.name}?`)) return;
+    if (!window.confirm(`Revoke API token ${token.name}?`)) return;
     await this.saveResource(() => request(`/api/v1/api-tokens/${token.id}`, { method: "DELETE" }));
   }
 
@@ -314,7 +314,7 @@ export class AppController extends AppState {
   }
 
   protected async removeNode(member: ClusterMember, force: boolean): Promise<void> {
-    const action = force ? `Replace failed Node ${member.name}? Confirm that it is permanently stopped. Its assignments will be released immediately.` : `Remove drained Node ${member.name} from the Cluster?`;
+    const action = force ? `Replace failed node ${member.name}? Confirm that it is permanently stopped. Its assignments will be released immediately.` : `Remove drained node ${member.name} from the cluster?`;
     if (!window.confirm(action)) return;
     await this.saveResource(() => request(`/api/v1/nodes/${member.id}?force=${force}`, { method: "DELETE" }));
     if (force && !this.error) this.openTokenDialog();
@@ -387,7 +387,7 @@ export class AppController extends AppState {
   }
 
   protected async revokeJoinToken(token: JoinToken): Promise<void> {
-    if (!window.confirm("Revoke this Join Token? Nodes using it will no longer be admitted.")) return;
+    if (!window.confirm("Revoke this join token? Nodes using it will no longer be admitted.")) return;
     this.saving = true;
     try {
       await request<void>(`/api/v1/join-tokens/${token.id}`, { method: "DELETE" });
@@ -413,7 +413,7 @@ export class AppController extends AppState {
       field.remove();
     }
     if (!copied) {
-      this.error = "Could not copy the Join command";
+      this.error = "Could not copy the join command";
       return;
     }
     this.copied = true;

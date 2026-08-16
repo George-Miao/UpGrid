@@ -76,7 +76,7 @@ pub(super) async fn rename_node(
         .node_names
         .get(&id)
         .cloned()
-        .expect("renamed Node has a replicated name");
+        .expect("Renamed node has a replicated name");
     Ok(Json(NodeNameView { id, name }))
 }
 
@@ -115,7 +115,7 @@ pub(super) async fn set_node_drain(
     path = "/api/v1/nodes/{id}",
     params(
         ("id" = Uuid, Path),
-        ("force" = bool, Query, description = "Release assignments and remove a failed Node without waiting for drain completion"),
+        ("force" = bool, Query, description = "Release assignments and remove a failed node without waiting for drain completion"),
     ),
     responses(
         (status = 200, body = RemovedNodeView),
@@ -133,7 +133,7 @@ pub(super) async fn remove_node(
     let status = require_member(&state, id).await?;
     if status.local_node_id == id {
         return Err(conflict(
-            "a Node cannot remove itself; send this request to another Cluster member",
+            "A node cannot remove itself; send this request to another cluster member",
         ));
     }
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
@@ -144,7 +144,7 @@ pub(super) async fn remove_node(
         .count();
     if !query.force {
         if !snapshot.draining_nodes.contains(&id) {
-            return Err(conflict("drain the Node before removing it"));
+            return Err(conflict("Drain the node before removing it"));
         }
         if active_assignments != 0 {
             return Err(conflict(format!(
@@ -171,12 +171,12 @@ pub(super) async fn remove_node(
         })
         .await
     {
-        tracing::warn!(%error, %id, "could not clear removed Node drain metadata");
+        tracing::warn!(%error, %id, "Could not clear removed node drain metadata");
     }
     Ok(Json(RemovedNodeView {
         id,
         status: "removed",
-        replacement: "Create a one-use Join Token, start a fresh Node, and join it to the Cluster.",
+        replacement: "Create a one-use join token, start a fresh node, and join it to the cluster.",
     }))
 }
 

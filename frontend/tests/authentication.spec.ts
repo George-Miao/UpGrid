@@ -11,13 +11,13 @@ test("requires an Operator Identity and supports logout", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await page.getByLabel("Account menu for admin").click();
-  await expect(page.getByRole("menuitem", { name: "Change Password" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Change password" })).toBeVisible();
   await page.getByRole("heading", { name: "Overview" }).click();
-  await expect(page.getByRole("menuitem", { name: "Change Password" })).toBeHidden();
+  await expect(page.getByRole("menuitem", { name: "Change password" })).toBeHidden();
   await page.getByLabel("Account menu for admin").click();
-  await page.getByRole("menuitem", { name: "Change Password" }).click();
+  await page.getByRole("menuitem", { name: "Change password" }).click();
   await expect(page).toHaveURL(/\/admin\/change-password$/);
-  await expect(page.getByRole("heading", { name: "Change Password" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Change password" })).toBeVisible();
   await page.getByLabel("Account menu for admin").click();
   await page.getByRole("menuitem", { name: "Logout" }).click();
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
@@ -92,36 +92,36 @@ test("manages replicated identities and revocable API Tokens", async ({ page }) 
   await page.goto("/admin/users");
   await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Add User" }).click();
-  const addUser = page.getByRole("dialog", { name: "Add User" });
+  await page.getByRole("button", { name: "Add user" }).click();
+  const addUser = page.getByRole("dialog", { name: "Add user" });
   await addUser.getByLabel("Username").fill(identityName);
   await addUser.getByLabel("Password", { exact: true }).fill("secondary-password");
   await addUser.getByLabel("Confirm password").fill("different-password");
-  await addUser.getByRole("button", { name: "Add User" }).click();
+  await addUser.getByRole("button", { name: "Add user" }).click();
   await expect(addUser.getByLabel("Confirm password")).toHaveJSProperty("validationMessage", "Passwords do not match.");
   await addUser.getByLabel("Confirm password").fill("secondary-password");
-  await addUser.getByRole("button", { name: "Add User" }).click();
+  await addUser.getByRole("button", { name: "Add user" }).click();
 
-  const identities = page.getByRole("region", { name: "Operator Identities" });
+  const identities = page.getByRole("region", { name: "Operator identities" });
   const identity = identities.locator(".resource").last();
   await expect(identity).toContainText(identityName);
   const identityCount = await identities.locator(".resource").count();
   await identity.getByRole("button", { name: `Edit user ${identityName}`, exact: true }).click();
-  const editUser = page.getByRole("dialog", { name: "Edit User" });
+  const editUser = page.getByRole("dialog", { name: "Edit user" });
   await expect(editUser.getByLabel("Username")).toHaveValue(identityName);
   await expect(editUser.getByLabel("Confirm new password")).toBeVisible();
   await editUser.getByRole("button", { name: "Cancel" }).click();
 
   await page.getByLabel("Account menu for admin").click();
-  await page.getByRole("menuitem", { name: "API Token" }).click();
+  await page.getByRole("menuitem", { name: "API token" }).click();
   await expect(page).toHaveURL(/\/admin\/api-tokens$/);
 
-  const tokens = page.getByRole("region", { name: "API Tokens" });
+  const tokens = page.getByRole("region", { name: "API tokens" });
   await page.getByRole("button", { name: "New token" }).click();
-  const createToken = page.getByRole("dialog", { name: "New API Token" });
+  const createToken = page.getByRole("dialog", { name: "New API token" });
   await createToken.getByLabel("Name").fill(tokenName);
   await createToken.getByLabel("Expires in days").fill("1");
-  await createToken.getByRole("button", { name: "Create API Token" }).click();
+  await createToken.getByRole("button", { name: "Create API token" }).click();
   const issued = tokens.getByRole("status");
   await expect(issued).toContainText("Copy this token now");
   await expect(issued.locator("code")).toContainText("upgrid_");
@@ -133,7 +133,7 @@ test("manages replicated identities and revocable API Tokens", async ({ page }) 
   await expect(token).toHaveCount(0);
 
   await page.goto("/admin/users");
-  const updatedIdentities = page.getByRole("region", { name: "Operator Identities" });
+  const updatedIdentities = page.getByRole("region", { name: "Operator identities" });
   const updatedIdentity = updatedIdentities.locator(".resource").nth(identityCount - 1);
   page.once("dialog", (dialog) => dialog.accept());
   await updatedIdentity.getByRole("button", { name: `Delete user ${identityName}`, exact: true }).click();

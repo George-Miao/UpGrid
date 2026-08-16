@@ -98,7 +98,7 @@ export class UpgridSetup extends LitElement {
 
   private async createCluster(event: SubmitEvent): Promise<void> {
     event.preventDefault();
-    if (!window.confirm("Create a new single-Node Cluster?")) return;
+    if (!window.confirm("Create a new single-node cluster?")) return;
     const fields = new FormData(event.currentTarget as HTMLFormElement);
     const adminUsername = String(fields.get("admin_username") ?? "").trim();
     const adminPassword = String(fields.get("admin_password") ?? "");
@@ -216,26 +216,26 @@ export class UpgridSetup extends LitElement {
 
   private renderCluster() {
     return html`
-      <span class="eyebrow">First-run setup</span><h1>Choose your Cluster</h1>
-      <p class="lead">Review this Node’s name, then create a new Cluster or use an invitation to join one.</p>
+      <span class="eyebrow">First-run setup</span><h1>Choose your cluster</h1>
+      <p class="lead">Review this node’s name, then create a new cluster or use an invitation to join one.</p>
       <div class="cluster-panel">
         <div class="cluster-identity">
           <label for="setup-node-name">Node name<input id="setup-node-name" .value=${this.setup.node_name} required /></label>
         </div>
         <form class="cluster-create" @submit=${this.createCluster}>
-          <div class="cluster-copy"><h2>Start a new Cluster</h2><p>Create its first replicated administrator identity.</p></div>
+          <div class="cluster-copy"><h2>Start a new cluster</h2><p>Create its first replicated administrator identity.</p></div>
           <div class="cluster-create-fields">
             <label>Administrator username<input name="admin_username" autocomplete="username" value="admin" required /></label>
             <label>Administrator password<input name="admin_password" type="password" minlength="12" autocomplete="new-password" required /></label>
           </div>
-          <button type="submit" ?disabled=${this.saving}>${this.saving ? "Setting up…" : "Create new Cluster"}</button>
+          <button type="submit" ?disabled=${this.saving}>${this.saving ? "Setting up…" : "Create new cluster"}</button>
         </form>
         <div class="cluster-divider"><span>Or</span></div>
         <form class="cluster-join" @submit=${this.joinCluster}>
-          <div class="cluster-copy"><h2>Join an existing Cluster</h2><p>Paste an <code>up://</code> Join Token from a current member.</p></div>
+          <div class="cluster-copy"><h2>Join an existing cluster</h2><p>Paste an <code>up://</code> join token from a current member.</p></div>
           <div class="cluster-join-fields">
-            <label>Join Token<input name="join_link" type="url" pattern="up://.*" placeholder="up://node.example/token" autocomplete="off" required /></label>
-            <button class="secondary" type="submit" ?disabled=${this.saving}>Join Cluster</button>
+            <label>Join token<input name="join_link" type="url" pattern="up://.*" placeholder="up://node.example/token" autocomplete="off" required /></label>
+            <button class="secondary" type="submit" ?disabled=${this.saving}>Join cluster</button>
           </div>
         </form>
       </div>`;
@@ -243,7 +243,7 @@ export class UpgridSetup extends LitElement {
 
   private renderChannel() {
     return html`
-      <span class="eyebrow">Optional · Step 2 of 3</span><h1>Add a notification channel</h1>
+      <span class="eyebrow">Optional · step 2 of 3</span><h1>Add a notification channel</h1>
       <p class="lead">Send availability transitions to Telegram or a webhook. <span class="count">${this.setup.channel_count} already configured</span></p>
       <div class="panel"><form class="choice" @submit=${this.createChannel}>
         <label>Type<select name="type" @change=${(event: Event) => (this.channelKind = (event.target as HTMLSelectElement).value as "webhook" | "telegram")}><option value="webhook">Webhook</option><option value="telegram">Telegram</option></select></label>
@@ -258,13 +258,13 @@ export class UpgridSetup extends LitElement {
 
   private renderTarget() {
     return html`
-      <span class="eyebrow">Optional · Step 3 of 3</span><h1>Monitor your first Target</h1>
+      <span class="eyebrow">Optional · step 3 of 3</span><h1>Monitor your first target</h1>
       <p class="lead">Configure an HTTP endpoint now or continue to the dashboard. <span class="count">${this.setup.target_count} already configured</span></p>
       <div class="panel"><form class="choice" @submit=${this.createTarget}>
         <label>Name<input name="name" placeholder="Production API" required /></label>
         <label>URL<input name="url" type="url" placeholder="https://example.com/health" required /></label>
         <div class="row"><label>Method<input name="method" value="GET" required /></label><label>Interval (seconds)<input name="interval" type="number" min="1" value="60" required /></label></div>
-        <div class="row"><label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label><label>Failures before Down<input name="failures" type="number" min="1" value="3" required /></label></div>
+        <div class="row"><label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label><label>Failures before down<input name="failures" type="number" min="1" value="3" required /></label></div>
         ${
           this.channels.length
             ? html`<fieldset><legend>Notification channels</legend>${this.channels.map((channel) => html`<label class="checkbox-option"><span>${channel.name}</span><input class="checkbox-control" name="channel_id" type="checkbox" value=${channel.id} /></label>`)}</fieldset>`

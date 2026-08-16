@@ -72,7 +72,7 @@ async fn serve(
         raft_url: config.raft_url,
         node_name: config
             .node_name
-            .expect("orchestration resolves the Node name before starting the API"),
+            .expect("Orchestration resolves the node name before starting the API"),
         oobe,
         startup_warning,
     };
@@ -197,7 +197,7 @@ pub fn openapi_json() -> Result<String> {
 }
 
 fn configure_openapi(openapi: &mut utoipa::openapi::OpenApi) {
-    openapi.info = Info::new("UpGrid Cluster API", env!("CARGO_PKG_VERSION"));
+    openapi.info = Info::new("UpGrid cluster API", env!("CARGO_PKG_VERSION"));
     openapi
         .components
         .get_or_insert_with(Components::new)

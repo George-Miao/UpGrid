@@ -151,15 +151,15 @@ fn ignored_join_warning(
 ) -> Option<String> {
     let JoinIntent::Valid(link) = configured else {
         return Some(
-            "Configured Join Token is invalid and was ignored because this Node already belongs \
-             to a Cluster."
+            "Configured join token is invalid and was ignored because this node already belongs \
+             to a cluster."
                 .to_owned(),
         );
     };
     let Ok(remote) = UpgridNode::new(link.remote().clone()).map(|node| node.to_string()) else {
         return Some(
-            "Configured Join Token cannot identify a Cluster member and was ignored because this \
-             Node already belongs to a Cluster."
+            "Configured join token cannot identify a cluster member and was ignored because this \
+             node already belongs to a cluster."
                 .to_owned(),
         );
     };
@@ -167,7 +167,7 @@ fn ignored_join_warning(
         return None;
     }
     Some(format!(
-        "Configured Join Token points to {remote}, which is not a member of this Node's current \
-         Cluster. The token was ignored."
+        "Configured join token points to {remote}, which is not a member of this node's current \
+         cluster. The token was ignored."
     ))
 }

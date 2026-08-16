@@ -70,10 +70,10 @@ export function renderTlsSecretFields(secrets: Secret[], caSecretId: string | nu
   return html`
     <fieldset class="tls-fields">
       <legend>HTTPS trust and mutual TLS</legend>
-      <label>Custom CA bundle Secret<select name="tls_ca_secret_id">${options(caSecretId)}</select></label>
+      <label>Custom CA bundle secret<select name="tls_ca_secret_id">${options(caSecretId)}</select></label>
       <div class="row">
-        <label>Client certificate Secret<select name="tls_client_certificate_secret_id">${options(clientCertificateSecretId)}</select></label>
-        <label>Client private key Secret<select name="tls_client_private_key_secret_id">${options(clientPrivateKeySecretId)}</select></label>
+        <label>Client certificate secret<select name="tls_client_certificate_secret_id">${options(clientCertificateSecretId)}</select></label>
+        <label>Client private key secret<select name="tls_client_private_key_secret_id">${options(clientPrivateKeySecretId)}</select></label>
       </div>
       <p class="meta">PEM values stay encrypted. Client certificate and private key must be configured together.</p>
     </fieldset>
@@ -167,7 +167,7 @@ export function renderTargetForm(channels: Channel[], saving: boolean, actions: 
             <label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label>
           </div>
           <div class="row">
-            <label>Failures before Down<input name="failures" type="number" min="1" value="3" required /></label>
+            <label>Failures before down<input name="failures" type="number" min="1" value="3" required /></label>
             <label>Evaluation locations<input name="locations" type="number" min="1" max="32" value="1" required /></label>
           </div>
         </section>
