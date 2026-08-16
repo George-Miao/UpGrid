@@ -23,6 +23,68 @@ test("requires an Operator Identity and supports logout", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 });
 
+test("controls public status access from Manage", async ({ page, browser, baseURL }) => {
+  await page.goto("/admin/manage");
+  await expect(page.getByRole("heading", { name: "Manage" })).toBeVisible();
+  const publicAccess = page.getByRole("switch", { name: "Allow status viewing without login" });
+  await expect(publicAccess).not.toBeChecked();
+
+  const guest = await browser.newContext();
+  await guest.clearCookies();
+  const guestPage = await guest.newPage();
+  await guestPage.clock.install();
+  await guestPage.goto("/");
+  await expect(guestPage.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect((await guest.request.get(`${baseURL}/api/v1/status`)).status()).toBe(401);
+
+  await publicAccess.check();
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(publicAccess).toBeChecked();
+
+  const response = await guest.request.get(`${baseURL}/api/v1/status`);
+  expect(response.status()).toBe(200);
+  expect(Object.keys(await response.json())).toEqual(["targets"]);
+  await guestPage.reload();
+  await expect(guestPage.getByRole("heading", { name: "Status" })).toBeVisible();
+  await expect(guestPage.getByRole("button", { name: "Sign in" })).toBeVisible();
+
+  let markPollStarted!: () => void;
+  const pollStarted = new Promise<void>((resolve) => {
+    markPollStarted = resolve;
+  });
+  let releasePoll!: () => void;
+  const pollReleased = new Promise<void>((resolve) => {
+    releasePoll = resolve;
+  });
+  let markPollFinished!: () => void;
+  const pollFinished = new Promise<void>((resolve) => {
+    markPollFinished = resolve;
+  });
+  await guestPage.route("**/api/v1/status", async (route) => {
+    markPollStarted();
+    await pollReleased;
+    const pollResponse = await route.fetch();
+    await route.fulfill({ response: pollResponse });
+    markPollFinished();
+  });
+  await guestPage.clock.fastForward(30_000);
+  await pollStarted;
+  await guestPage.getByRole("button", { name: "Sign in" }).click();
+  await expect(guestPage.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  releasePoll();
+  await pollFinished;
+  await guestPage.clock.runFor(100);
+  await expect(guestPage.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await guestPage.unroute("**/api/v1/status");
+
+  await publicAccess.uncheck();
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(publicAccess).not.toBeChecked();
+  await guestPage.reload();
+  await expect(guestPage.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await guest.close();
+});
+
 test("manages replicated identities and revocable API Tokens", async ({ page }) => {
   const suffix = Date.now();
   const identityName = `playwright-operator-${suffix}`;

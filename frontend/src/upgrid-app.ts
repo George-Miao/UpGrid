@@ -8,11 +8,11 @@ import userIcon from "@iconify-icons/lucide/user";
 import "iconify-icon";
 import "./setup-flow.ts";
 import "./http-assertion-editor.ts";
-import type { ClusterMember, Target, TrashedTarget } from "./api.ts";
+import type { ClusterMember, PublicStatusTarget, Target, TrashedTarget } from "./api.ts";
 import { AppController } from "./app-controller.ts";
 import { renderAlertsPage } from "./alerts-view.ts";
 import { type Section, sectionPaths, serviceHealth, themeIcons } from "./app-state.ts";
-import { type AuthActions, renderApiTokensPage, renderChangePassword, renderLogin, renderUsersPage } from "./auth-view.ts";
+import { type AuthActions, renderApiTokensPage, renderChangePassword, renderLogin, renderManagePage, renderUsersPage } from "./auth-view.ts";
 import { renderChannelFields } from "./channel-form-view.ts";
 import { renderFooter } from "./footer-view.ts";
 import { helpTooltipStyles, renderHelpTooltip } from "./help-tooltip.ts";
@@ -223,6 +223,8 @@ export class UpgridApp extends AppController {
     .success:hover { border-color: var(--button-text); }
     .dialog-close { position: absolute; top: 12px; right: 14px; }
     .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .setting-copy { display: grid; gap: 3px; color: var(--text); }
+    .setting-copy small { color: var(--muted); font-size: 12px; font-weight: 400; }
     .channel-fields, .tls-fields { display: grid; gap: 10px; margin: 8px 0 0; border: 0; padding: 0; }
     .tls-fields legend { display: flex; width: 100%; align-items: center; gap: 12px; margin: 0 0 4px; padding: 0; color: var(--text); font-size: 14px; font-weight: 400; text-align: center; }
     .tls-fields legend::before, .tls-fields legend::after { height: 1px; flex: 1; background: var(--line); content: ""; }
@@ -370,7 +372,7 @@ export class UpgridApp extends AppController {
       revokeApiToken: (token) => void this.revokeApiToken(token),
       dismissToken: () => (this.newApiToken = ""),
     };
-    if (this.authReady && !this.setupMode && !this.session) {
+    if (this.authReady && !this.setupMode && !this.session && !this.publicStatus) {
       return html`${renderLogin(this.saving, this.error, authActions)}${renderFooter()}`;
     }
     if (this.setupMode && this.setup) {
@@ -388,6 +390,7 @@ export class UpgridApp extends AppController {
           <upgrid-setup .setup=${this.setup} @setup-changed=${this.setupChanged}></upgrid-setup>
         </main>${renderFooter()}`;
     }
+    if (!this.session && this.publicStatus) return this.renderPublicStatusPage(this.publicStatus.targets);
     return html`
       <main class="shell">
         <header>
@@ -406,6 +409,7 @@ export class UpgridApp extends AppController {
             <details class="account-menu">
               <summary class="button secondary icon-button" aria-label=${`Account menu for ${this.session?.username}`} title=${`Account: ${this.session?.username}`}><iconify-icon .icon=${userIcon} aria-hidden="true"></iconify-icon></summary>
               <div class="account-dropdown" role="menu">
+                <a class="button secondary" role="menuitem" href=${sectionPaths.manage} @click=${(event: MouseEvent) => this.navigate(event, "manage")}>Manage</a>
                 <a class="button secondary" role="menuitem" href=${sectionPaths.changePassword} @click=${(event: MouseEvent) => this.navigate(event, "changePassword")}>Change Password</a>
                 <a class="button secondary" role="menuitem" href=${sectionPaths.users} @click=${(event: MouseEvent) => this.navigate(event, "users")}>Manage user</a>
                 <a class="button secondary" role="menuitem" href=${sectionPaths.apiTokens} @click=${(event: MouseEvent) => this.navigate(event, "apiTokens")}>API Token</a>
@@ -449,15 +453,17 @@ export class UpgridApp extends AppController {
                 ? this.renderClusterPage()
                 : this.activeSection === "trash"
                   ? this.renderTrashPage()
-                  : this.activeSection === "changePassword"
-                    ? renderChangePassword(
-                        this.identities.find((identity) => identity.id === this.session?.identity_id),
-                        this.saving,
-                        authActions,
-                      )
-                    : this.activeSection === "users"
-                      ? renderUsersPage(this.identities, this.session?.identity_id, this.editingIdentity, this.saving, authActions)
-                      : renderApiTokensPage(this.apiTokens, this.newApiToken, this.saving, authActions)
+                  : this.activeSection === "manage"
+                    ? renderManagePage(this.settings, this.saving, (event) => void this.updateSettings(event))
+                    : this.activeSection === "changePassword"
+                      ? renderChangePassword(
+                          this.identities.find((identity) => identity.id === this.session?.identity_id),
+                          this.saving,
+                          authActions,
+                        )
+                      : this.activeSection === "users"
+                        ? renderUsersPage(this.identities, this.session?.identity_id, this.editingIdentity, this.saving, authActions)
+                        : renderApiTokensPage(this.apiTokens, this.newApiToken, this.saving, authActions)
         }
       </main>${renderFooter()}
       ${renderTargetForm(this.channels, this.saving, {
@@ -519,6 +525,52 @@ export class UpgridApp extends AppController {
       </dialog>
     `;
   }
+  private renderPublicStatusPage(targets: PublicStatusTarget[]) {
+    const up = targets.filter((target) => target.availability === "up" && !target.paused).length;
+    const down = targets.filter((target) => target.availability === "down" && !target.paused).length;
+    const paused = targets.filter((target) => target.paused).length;
+    const health = serviceHealth(targets, this.live);
+    return html`
+      <main class="shell">
+        <header>
+          <div class="brand">
+            <img src="/favicon.svg" alt="" />
+            <div>
+              <div class="brand-line"><strong>UpGrid</strong><div class="live"><i class="dot ${health.tone}"></i>${health.label}</div></div>
+              <span>Distributed service monitoring</span>
+            </div>
+          </div>
+          <nav aria-label="Primary"><a class="active" href="/">Status</a></nav>
+          <div class="actions">
+            <button class="button secondary icon-button" aria-label=${`Theme: ${this.theme[0].toUpperCase()}${this.theme.slice(1)}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button>
+            <button class="button secondary" type="button" @click=${this.showLogin}>Sign in</button>
+          </div>
+        </header>
+        <section class="heading">
+          <div><span class="eyebrow">Public status</span><h1>Status</h1></div>
+        </section>
+        <section class="summary" aria-label="Target summary">
+          <div class="metric"><span>Targets</span><strong>${targets.length}</strong></div>
+          <div class="metric"><span>Up</span><strong>${up}</strong></div>
+          <div class=${`metric down ${down ? "active" : ""}`}><span>Down</span><strong>${down}</strong></div>
+          <div class="metric"><span>Paused</span><strong>${paused}</strong></div>
+        </section>
+        <section class="panel" aria-label="Public Target status" style="margin-top: 18px">
+          <div class="panel-head"><h2>Targets</h2><span class="meta">${targets.length} monitored</span></div>
+          ${
+            targets.length
+              ? targets.map((target) => {
+                  const latest = target.latest_evaluation;
+                  const state = target.paused ? "paused" : target.availability === "down" ? "down" : target.consecutive_failures > 0 ? "suspicious" : target.availability;
+                  const detail = target.paused ? "Paused" : latest ? `${latest.latency_ms} ms · ${latest.status_code ?? (latest.succeeded ? "reachable" : "unreachable")}` : "Waiting for an evaluation";
+                  return html`<div class="resource"><div><strong>${target.name}</strong><code>${target.kind.toUpperCase()} · ${detail}</code></div><span class=${`badge ${state}`}>${state}</span></div>`;
+                })
+              : html`<div class="empty">No Targets are configured.</div>`
+          }
+        </section>
+      </main>${renderFooter()}`;
+  }
+
   private renderOverview(visibleTargets: Target[], up: number, down: number, pending: number) {
     const selectedTargets = this.targets.filter((target) => this.selectedIds.has(target.id));
     const canPauseSelected = selectedTargets.some((target) => !target.paused);

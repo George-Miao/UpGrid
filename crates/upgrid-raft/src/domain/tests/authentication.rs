@@ -83,3 +83,16 @@ fn deleting_an_identity_revokes_its_api_tokens() {
     state.apply(Command::DeleteIdentity(first.id)).unwrap();
     assert!(state.api_tokens.is_empty());
 }
+
+#[test]
+fn public_status_access_requires_explicit_enablement() {
+    let mut state = ApplicationState::default();
+    assert!(!state.public_status_enabled);
+
+    let result = state
+        .apply(Command::SetPublicStatusEnabled { enabled: true })
+        .unwrap();
+
+    assert_eq!(result, CommandResult::PublicStatusEnabledSet(true));
+    assert!(state.public_status_enabled);
+}

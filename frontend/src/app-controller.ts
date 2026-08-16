@@ -1,4 +1,4 @@
-import { type Alert, type ApiToken, type Channel, type ClusterMember, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type Secret, type SecretCleanup, type Session, type Setup, type Target, type TargetInput, type TrashedTarget, request } from "./api.ts";
+import { type Alert, type ApiToken, type Channel, type ClusterMember, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type ManageSettings, type Secret, type SecretCleanup, type Session, type Setup, type Target, type TargetInput, type TrashedTarget, request } from "./api.ts";
 import { AppState } from "./app-state.ts";
 import { channelInput, targetInput } from "./resource-input.ts";
 import type { HttpAssertionEditor } from "./http-assertion-editor.ts";
@@ -337,6 +337,19 @@ export class AppController extends AppState {
           channel_id: alert.channel_id,
           scheduled_at_ms: alert.scheduled_at_ms,
           kind: alert.kind,
+        }),
+      }),
+    );
+  }
+
+  protected async updateSettings(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const fields = new FormData(event.currentTarget as HTMLFormElement);
+    await this.saveResource(() =>
+      request<ManageSettings>("/api/v1/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          public_status_enabled: fields.get("public_status_enabled") === "on",
         }),
       }),
     );

@@ -107,6 +107,10 @@ impl ApplicationState {
                 self.history_rollup_retention_ms = retention_ms;
                 Ok(CommandResult::HistoryRollupRetentionSet(retention_ms))
             }
+            Command::SetPublicStatusEnabled { enabled } => {
+                self.public_status_enabled = enabled;
+                Ok(CommandResult::PublicStatusEnabledSet(enabled))
+            }
             Command::SetTargetPaused { target_id, paused } => {
                 let target = self
                     .targets

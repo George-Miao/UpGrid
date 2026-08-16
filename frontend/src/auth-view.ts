@@ -1,6 +1,6 @@
 import { html, nothing } from "lit";
 import deleteIcon from "@iconify-icons/lucide/trash-2";
-import type { ApiToken, Identity } from "./api.ts";
+import type { ApiToken, Identity, ManageSettings } from "./api.ts";
 
 export interface AuthActions {
   login: (event: SubmitEvent) => void;
@@ -122,4 +122,31 @@ export function renderApiTokensPage(tokens: ApiToken[], newToken: string, saving
         <div class="dialog-actions"><button class="button secondary" type="button" @click=${actions.closeApiToken}>Cancel</button><button class="button" type="submit" ?disabled=${saving}>${saving ? "Creating…" : "Create API Token"}</button></div>
       </form>
     </dialog>`;
+}
+
+export function renderManagePage(settings: ManageSettings | undefined, saving: boolean, update: (event: SubmitEvent) => void) {
+  return html`
+    <div class="admin-page">
+      <div class="heading"><div><span class="eyebrow">Administration</span><h1>Manage</h1></div></div>
+      <section class="panel" aria-labelledby="public-access-title">
+        <div class="panel-head"><h2 id="public-access-title">Public status access</h2></div>
+        <form @submit=${update}>
+          <label class="switch">
+            <span class="setting-copy">
+              Allow status viewing without login
+              <small>External visitors can see Target names, states, and recent evaluation metrics. URLs, configuration, alerts, Cluster data, and administration remain private.</small>
+            </span>
+            <input
+              class="switch-control"
+              name="public_status_enabled"
+              type="checkbox"
+              role="switch"
+              .checked=${settings?.public_status_enabled ?? false}
+              ?disabled=${settings === undefined || saving}
+            />
+          </label>
+          <div class="dialog-actions"><button class="button" type="submit" ?disabled=${settings === undefined || saving}>${saving ? "Saving…" : "Save changes"}</button></div>
+        </form>
+      </section>
+    </div>`;
 }

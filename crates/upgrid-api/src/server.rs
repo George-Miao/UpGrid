@@ -9,6 +9,7 @@ use super::identities::*;
 use super::join::*;
 use super::nodes::*;
 use super::resources::*;
+use super::status::*;
 use super::targets::*;
 use super::*;
 use crate::error::{
@@ -76,6 +77,14 @@ async fn serve(
         startup_warning,
     };
     let (api, mut openapi) = api_routes().with_state(state.clone()).split_for_parts();
+    let (status, status_openapi) = status_routes()
+        .with_state::<()>(state.clone())
+        .split_for_parts();
+    let status = status.layer(middleware::from_fn_with_state(
+        state.clone(),
+        require_public_status_enabled,
+    ));
+    openapi.merge(status_openapi);
     configure_openapi(&mut openapi);
     let specification = std::sync::Arc::new(openapi);
     let api = Router::new()
@@ -95,6 +104,7 @@ async fn serve(
         .route("/admin/change-password", get(index))
         .route("/admin/users", get(index))
         .route("/admin/api-tokens", get(index))
+        .route("/admin/manage", get(index))
         .route("/setup", get(index))
         .route("/setup/channel", get(index))
         .route("/setup/target", get(index))
@@ -108,6 +118,7 @@ async fn serve(
                 }
             }),
         )
+        .merge(status)
         .merge(api);
     if let (Some(cert), Some(key)) = (tls_cert, tls_key) {
         let tls = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key)
@@ -134,6 +145,7 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(update_identity, delete_identity))
         .routes(routes!(list_api_tokens, create_api_token))
         .routes(routes!(revoke_api_token))
+        .routes(routes!(get_settings, update_settings))
         .routes(routes!(list_targets, create_target))
         .routes(routes!(get_target, update_target, delete_target))
         .routes(routes!(get_target_history))
@@ -167,8 +179,14 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(events))
 }
 
+fn status_routes() -> OpenApiRouter<WebState> {
+    OpenApiRouter::new().routes(routes!(get_status))
+}
+
 pub fn openapi_json() -> Result<String> {
     let (_, mut openapi) = api_routes().split_for_parts();
+    let (_, status_openapi) = status_routes().split_for_parts();
+    openapi.merge(status_openapi);
     configure_openapi(&mut openapi);
     serde_json::to_string_pretty(&openapi)
         .context(OpenApiSnafu)

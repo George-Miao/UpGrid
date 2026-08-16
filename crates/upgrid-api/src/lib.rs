@@ -39,6 +39,7 @@ mod nodes;
 mod resources;
 mod server;
 mod setup;
+mod status;
 mod targets;
 
 #[cfg(test)]

@@ -114,6 +114,9 @@ pub enum Command {
         retention_ms: u64,
         now_ms: u64,
     },
+    SetPublicStatusEnabled {
+        enabled: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -166,6 +169,7 @@ pub enum CommandResult {
     TargetPurged(TargetId),
     TargetTrashRetentionSet(u64),
     TargetTrashPruned(u64),
+    PublicStatusEnabledSet(bool),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
