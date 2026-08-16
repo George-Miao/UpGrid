@@ -29,7 +29,9 @@ export class HttpAssertionEditor extends LitElement {
     .actions { display: flex; gap: 4px; }
     button { border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); padding: 8px 10px; cursor: pointer; user-select: none; }
     button:disabled { cursor: not-allowed; opacity: 0.45; }
-    .add { justify-self: start; }
+    .add { min-height: 44px; justify-self: start; border-color: var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 120ms ease; }
+    .add:hover { border-color: var(--button-hover-border); }
+    .add:active { transform: translateY(1px); }
     .empty { margin: 0; color: var(--muted); font-size: 13px; }
     @media (max-width: 720px) { .assertion { grid-template-columns: 1fr; } .fields { grid-template-columns: 1fr; } }
   `;
