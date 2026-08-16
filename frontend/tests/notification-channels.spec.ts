@@ -87,7 +87,7 @@ test("explains Secret usage from related forms", async ({ page }) => {
   const channelDialog = page.getByRole("dialog", { name: "Add channel" });
   await channelDialog.getByLabel("Type").selectOption("telegram");
   await channelDialog.getByRole("button", { name: "About Telegram bot token storage" }).focus();
-  await expect(channelDialog.locator("#telegram-token-help")).toContainText("automatically managed Secret");
+  await expect(channelDialog.locator("#telegram-token-help")).toContainText("Get a bot token from Telegram's @BotFather");
   await expect(channelDialog.locator("#telegram-token-help")).toBeVisible();
 });
 

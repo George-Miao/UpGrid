@@ -23,7 +23,9 @@ export function renderChannelFields(kind: ChannelKind, channel?: Channel) {
           ${renderHelpTooltip(
             "telegram-token-help",
             "About Telegram bot token storage",
-            channel ? "Leave this blank to keep the automatically managed Secret, or enter a replacement token." : "Creating the Channel encrypts this token as an automatically managed Secret. Test sends use the entered value without storing it.",
+            channel
+              ? "Get a replacement token from Telegram's @BotFather. Leave this blank to keep the automatically managed Secret, or enter the replacement token."
+              : "Get a bot token from Telegram's @BotFather. Creating the Channel encrypts it as an automatically managed Secret. Test sends use the entered value without storing it.",
           )}</span
         ><input
           name="bot_token"
