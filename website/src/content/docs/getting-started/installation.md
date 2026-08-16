@@ -15,13 +15,13 @@ docker run --name upgrid \
   ghcr.io/george-miao/upgrid:latest
 ```
 
-The image listens for HTTP on port `8080`, exposes QUIC/Raft on UDP port `11451`, and stores durable state in `/var/lib/upgrid`. Open `/setup` to create the Cluster's first Operator Identity. Set `UPGRID_RAFT_URL` to an advertised hostname reachable by every Node before building a multi-Node Cluster.
+The image listens for HTTP on port `8080`, exposes QUIC/Raft on UDP port `11451`, and stores durable state in `/var/lib/upgrid`. Open `/setup` to create the cluster's first operator identity. Set `UPGRID_RAFT_URL` to an advertised hostname reachable by every node before building a multi-node cluster.
 
 See the [environment-variable reference](/reference/configuration/#settings) for every supported `UPGRID_` setting and its default.
 
 ## Install a precompiled binary
 
-The [v0.1.0 GitHub Release](https://github.com/George-Miao/UpGrid/releases/tag/v0.1.0) provides dynamically linked Linux binaries for both common server architectures:
+The [v0.1.0 GitHub release](https://github.com/George-Miao/UpGrid/releases/tag/v0.1.0) provides dynamically linked Linux binaries for both common server architectures:
 
 - [Linux AMD64](https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/upgrid-v0.1.0-linux-amd64.tar.gz)
 - [Linux ARM64](https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/upgrid-v0.1.0-linux-arm64.tar.gz)
@@ -37,7 +37,7 @@ tar --extract --gzip --file upgrid-v0.1.0-linux-amd64.tar.gz
 ./upgrid --help
 ```
 
-Use a durable directory for each Node and ensure its API TCP port and Raft UDP port are reachable where required.
+Use a durable directory for each node and ensure its API TCP port and Raft UDP port are reachable where required.
 
 ## Build from source
 
@@ -53,10 +53,10 @@ nix develop
 cargo build --release
 ```
 
-The binary is written to `target/release/upgrid`. UpGrid reads built-in defaults, an optional TOML file, environment variables, and CLI arguments in that order; see the full [Configuration reference](/reference/configuration/).
+The binary is written to `target/release/upgrid`. UpGrid reads built-in defaults, an optional TOML file, environment variables, and CLI arguments in that order; see the full [configuration reference](/reference/configuration/).
 
-:::caution
-Every Node needs its own data directory. Never clone an existing Node's directory to provision another member.
+:::Caution
+Every node needs its own data directory. Never clone an existing node's directory to provision another member.
 :::
 
-Next, [start your first Node](/getting-started/first-node/).
+Next, [start your first node](/getting-started/first-node/).
