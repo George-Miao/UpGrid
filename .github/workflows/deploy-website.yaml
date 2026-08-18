@@ -1,0 +1,31 @@
+name: Deploy Website
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.18.0
+      - name: Install Dependencies
+        run: pnpm --dir website install --frozen-lockfile
+      - name: Build
+        run: pnpm --dir website build
+      - name: Deploy
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          packageManager: pnpm
+          wranglerVersion: 4.65.0
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          command: deploy --assets ./website/dist --name upgrid-website --latest --domain upgrid.rs

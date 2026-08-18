@@ -1,0 +1,36 @@
+name: Deploy Website PR Preview
+on: pull_request
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.18.0
+      - name: Install Dependencies
+        run: pnpm --dir website install --frozen-lockfile
+      - name: Build
+        run: pnpm --dir website build
+      - name: Deploy
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          packageManager: pnpm
+          wranglerVersion: 4.65.0
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          command: versions upload --assets ./website/dist --name upgrid-website --latest
+      - name: Comment PR
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          comment-tag: preview-deployed
+          message: |
+            **Preview Deployed!**
+
+            Your changes have been deployed to a preview environment. You can view it here: ${{ steps.deploy.outputs.deployment-url }}
