@@ -9,16 +9,20 @@ export const helpTooltipStyles = css`
   .help-tooltip-trigger:hover { background: var(--panel-2); color: var(--text); }
   .help-tooltip-trigger iconify-icon { width: 16px; height: 16px; font-size: 16px; }
   .help-tooltip { position: absolute; top: calc(100% + 6px); left: -60px; z-index: 10; width: 280px; max-width: calc(100vw - 64px); border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2); color: var(--text); box-shadow: 0 10px 30px var(--dialog-shadow); padding: 9px 10px; font-size: 12px; font-weight: 400; line-height: 1.45; opacity: 0; visibility: hidden; transform: translateY(-3px); pointer-events: none; transition: opacity 140ms ease, transform 140ms ease, visibility 140ms; }
-  .help-tooltip-wrap:hover .help-tooltip, .help-tooltip-wrap:focus-within .help-tooltip { opacity: 1; visibility: visible; transform: translateY(0); }
+  .help-tooltip a { display: inline-block; margin-top: 5px; color: var(--green); font-weight: 600; }
+  .help-tooltip-wrap:hover .help-tooltip, .help-tooltip-wrap:focus-within .help-tooltip { opacity: 1; visibility: visible; transform: translateY(0); pointer-events: auto; }
 `;
 
-export function renderHelpTooltip(id: string, label: string, message: string) {
+export function renderHelpTooltip(id: string, label: string, message: string, link?: { href: string; label: string }) {
   return html`
     <span class="help-tooltip-wrap">
       <button class="help-tooltip-trigger" type="button" aria-label=${label} aria-describedby=${id}>
         <iconify-icon .icon=${infoIcon} aria-hidden="true"></iconify-icon>
       </button>
-      <span class="help-tooltip" id=${id} role="tooltip">${message}</span>
+      <span class="help-tooltip" id=${id} role="tooltip">
+        ${message}
+        ${link ? html`<a href=${link.href} target="_blank" rel="noreferrer">${link.label}</a>` : null}
+      </span>
     </span>
   `;
 }

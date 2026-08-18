@@ -91,6 +91,7 @@ export default defineConfig({
             { label: 'Configuration', slug: 'reference/configuration' },
             { label: 'Docker', slug: 'reference/docker' },
             { label: 'Up protocol', slug: 'reference/up-protocol' },
+            { label: 'Script assertions', slug: 'reference/script-assertions' },
             { label: 'HTTP API', slug: 'reference/api' },
           ],
         },

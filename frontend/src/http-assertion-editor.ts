@@ -4,6 +4,7 @@ import deleteIcon from "@iconify-icons/lucide/trash-2";
 import { css, html, LitElement, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HttpAssertion } from "./api.ts";
+import { helpTooltipStyles, renderHelpTooltip } from "./help-tooltip.ts";
 
 type AssertionKind = HttpAssertion["kind"];
 
@@ -21,6 +22,7 @@ export class HttpAssertionEditor extends LitElement {
   static formAssociated = true;
 
   static styles = css`
+    ${helpTooltipStyles}
     :host { display: grid; gap: 10px; }
     .assertions, .assertion-list { display: grid; gap: 10px; }
     .assertion-list { max-height: min(420px, 50vh); overflow-y: auto; padding-right: 4px; scrollbar-gutter: stable; }
@@ -154,7 +156,7 @@ export class HttpAssertionEditor extends LitElement {
       case "latency":
         return html`<div class="fields single"><label>Maximum milliseconds<input aria-label=${`Assertion ${index + 1} maximum milliseconds`} type="number" min="1" .value=${String(assertion.max_ms)} required @input=${(event: Event) => this.set(index, "max_ms", event)} /></label></div>`;
       case "script":
-        return html`<div class="fields single"><label>Boolean Rhai expression<textarea aria-label=${`Assertion ${index + 1} script`} required @input=${(event: Event) => this.set(index, "source", event)}>${assertion.source}</textarea></label></div>`;
+        return html`<div class="fields single"><label><span class="title-with-help">Boolean Rhai expression ${renderHelpTooltip(`script-assertion-${index + 1}-help`, `About script assertion ${index + 1}`, "Return true to pass. The script can read the response status, latency, body, final URL, and headers.", { href: "https://upgrid.rs/reference/script-assertions/", label: "Read the script assertion reference" })}</span><textarea aria-label=${`Assertion ${index + 1} script`} required @input=${(event: Event) => this.set(index, "source", event)}>${assertion.source}</textarea></label></div>`;
       default:
         return nothing;
     }

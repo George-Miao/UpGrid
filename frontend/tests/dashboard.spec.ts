@@ -141,6 +141,10 @@ test("creates and edits ordered HTTP assertions", async ({ page }) => {
   for (const [index, kind] of kinds.entries()) {
     await create.getByLabel(`Assertion ${index + 1} type`).selectOption(kind);
   }
+  await create.getByRole("button", { name: "About script assertion 6" }).focus();
+  const scriptReference = create.getByRole("link", { name: "Read the script assertion reference" });
+  await expect(scriptReference).toBeVisible();
+  await expect(scriptReference).toHaveAttribute("href", "https://upgrid.rs/reference/script-assertions/");
   await create.getByLabel("Assertion 1 required text").fill("ok");
   await create.getByLabel("Assertion 2 regular expression").fill("ok|healthy");
   await create.getByLabel("Assertion 3 JSONPath").fill("$.healthy");
