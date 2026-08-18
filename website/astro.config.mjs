@@ -11,6 +11,48 @@ export default defineConfig({
       description: 'Run and operate a distributed UpGrid service-monitoring cluster.',
       logo: { src: './src/assets/logo.svg', alt: 'UpGrid' },
       customCss: ['./src/styles/upgrid.css'],
+      head: [
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:image',
+            content: 'https://upgrid.rs/opengraph.png',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image:type', content: 'image/png' },
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image:width', content: '1200' },
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image:height', content: '630' },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:image:alt',
+            content: 'UpGrid distributed service monitoring dashboard',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:image',
+            content: 'https://upgrid.rs/opengraph.png',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:image:alt',
+            content: 'UpGrid distributed service monitoring dashboard',
+          },
+        },
+      ],
       editLink: {
         baseUrl: 'https://github.com/George-Miao/UpGrid/edit/main/website/',
       },
