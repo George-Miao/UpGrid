@@ -28,6 +28,15 @@ The default cluster transport port is UDP `11451`. If a URL uses another port, o
 
 The HTTP API is separate. Operators use TCP port `8080` by default, but cluster members do not use that port for Raft traffic.
 
+## Network policy
+
+- Expose the API only through HTTPS or a trusted private network.
+- Allow each cluster node to reach every advertised `up://` address.
+- Restrict inter-node transport ports to cluster members.
+- Manage operator identities and API tokens in the cluster page; Raft replicates them to every node.
+- Back up durable state, but never restore one node's directory as a new identity.
+- Drain healthy nodes before planned removal. Force-remove a failed node only after fencing its old process, then replace it with a fresh data directory and node identity.
+
 ## Firewall rules
 
 Apply these rules to every node:
@@ -49,7 +58,7 @@ When you add a node, update both sides before it joins:
 
 Publish the transport port as UDP when peers connect through the container host:
 
-The command also uses the custom `io_uring` seccomp profile from [Install UpGrid](/getting-started/installation/#allow-io_uring-in-docker).
+The command also uses the custom `io_uring` seccomp profile from the [Docker reference](/reference/docker/#allow-io_uring-in-docker).
 
 ```sh
 docker run \

@@ -17,7 +17,7 @@ No active items.
   - Keep Nix as an optional environment setup.
   - Compile the Rust workspace with system SQLite.
   - Confirm that the binary links system SQLite.
-  - Build and inspect the installation guide.
+  - Build and inspect the single-node setup guide.
 
 ## Iteration policy
 

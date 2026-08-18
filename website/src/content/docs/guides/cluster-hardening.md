@@ -33,7 +33,7 @@ tls_cert = "/etc/upgrid/api-chain.pem"
 tls_key = "/etc/upgrid/api-key.pem"
 ```
 
-Restrict API access to operator networks. The API port is separate from the `up://` port and does not need to be open between cluster members. See [Deployment](/reference/deployment/) for reverse proxy and native HTTPS examples.
+Restrict API access to operator networks. The API port is separate from the `up://` port and does not need to be open between cluster members. See [recipes](/guides/recipes/) for reverse proxy and native HTTPS examples.
 
 Treat every operator password and API token as a cluster administrator credential. Create only the identities and tokens that operators and integrations need. Revoke unused tokens. Remove unattended setup usernames and passwords from configuration after cluster creation.
 

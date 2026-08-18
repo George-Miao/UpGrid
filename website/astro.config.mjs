@@ -63,7 +63,6 @@ export default defineConfig({
           label: 'Start here',
           items: [
             { label: 'Overview', link: '/' },
-            { label: 'Install UpGrid', slug: 'getting-started/installation' },
             { label: 'Single-node setup', slug: 'getting-started/first-node' },
             { label: 'Multi-node setup', slug: 'getting-started/multi-node' },
           ],
@@ -80,14 +79,15 @@ export default defineConfig({
             { label: 'Monitor services', slug: 'guides/targets' },
             { label: 'Send notifications', slug: 'guides/notifications' },
             { label: 'How UpGrid works', slug: 'guides/architecture' },
+            { label: 'Recipes', slug: 'guides/recipes' },
           ],
         },
         {
           label: 'Reference',
           items: [
             { label: 'Configuration', slug: 'reference/configuration' },
+            { label: 'Docker', slug: 'reference/docker' },
             { label: 'Up protocol', slug: 'reference/up-protocol' },
-            { label: 'Deployment', slug: 'reference/deployment' },
             { label: 'HTTP API', slug: 'reference/api' },
           ],
         },

@@ -7,7 +7,15 @@ Use this setup when two or more hosts must share monitoring work and replicated 
 
 If you only need one node, use the [single-node setup](/getting-started/first-node/). It does not publish the cluster transport port or need a cluster transport firewall rule.
 
-## Plan the cluster network
+Before you start a process, prepare each host with one of these installation options:
+
+- [Docker image and seccomp profile](/getting-started/first-node/#docker-cli)
+- [Precompiled Linux binary](/getting-started/first-node/#precompiled-linux-binary)
+- [Source build](/getting-started/first-node/#build-from-source)
+
+The published `docker-compose.yaml` file is for a single node. It does not publish the cluster transport port. Use the multi-node Docker commands on this page instead.
+
+## 1. Plan the cluster network
 
 Choose a stable DNS name or IP address for each node. The first endpoint can look like this:
 
@@ -26,11 +34,14 @@ The `up://` endpoint uses QUIC over UDP. An HTTP reverse proxy cannot forward it
 
 See [Network setup](/guides/network-setup/) for complete DNS, firewall, container, and address translation rules.
 
-## Start the first node
+## 2. Start the first node
 
-The following Docker command publishes the API and the cluster transport port:
+Choose one of these run methods.
 
-Download the custom `io_uring` seccomp profile as described in [Install UpGrid](/getting-started/installation/#allow-io_uring-in-docker) before you run the container.
+<details class="run-option" id="first-node-docker">
+<summary>Docker CLI</summary>
+
+The following command publishes the API and the cluster transport port:
 
 ```sh
 docker run --name upgrid \
@@ -43,7 +54,12 @@ docker run --name upgrid \
   ghcr.io/george-miao/upgrid:latest
 ```
 
-For a precompiled binary, set the same advertised endpoint with `--raft-url`:
+</details>
+
+<details class="run-option" id="first-node-binary">
+<summary>Precompiled or source-built binary</summary>
+
+Set the advertised endpoint with `--raft-url`:
 
 ```sh
 upgrid \
@@ -53,9 +69,15 @@ upgrid \
   --node-name edge-one
 ```
 
-Open `http://127.0.0.1:8080/setup` and choose **Create new cluster**. Enter the first administrator username and password. You can then create a notification channel and target, or skip those steps.
+</details>
 
-## Add a new node
+## 3. Create the cluster
+
+Open `http://<host>:8080/setup` and choose **Create new cluster**. Enter the first administrator username and password. You can then create a notification channel and target, or skip those steps.
+
+## 4. Add a new node
+
+### Prepare the new host
 
 Prepare the new host before you create its join token:
 
@@ -63,6 +85,11 @@ Prepare the new host before you create its join token:
 2. Allow inbound UDP traffic on its endpoint from every existing member.
 3. Update each existing member's firewall rule to allow traffic from the new node.
 4. Open **cluster** in `node-1`'s WebUI, select **Create token**, and create a one-use token.
+
+Choose one of these run methods for the new node.
+
+<details class="run-option" id="new-node-binary">
+<summary>Precompiled or source-built binary</summary>
 
 Run the generated command on the new host with an empty data directory:
 
@@ -75,7 +102,12 @@ upgrid \
   --node-name edge-two
 ```
 
-To run the new node with Docker on a separate host, use the same values as environment variables:
+</details>
+
+<details class="run-option" id="new-node-docker">
+<summary>Docker CLI</summary>
+
+Use the same values as environment variables:
 
 ```sh
 docker run --name upgrid \
@@ -88,6 +120,10 @@ docker run --name upgrid \
   --volume upgrid-data:/var/lib/upgrid \
   ghcr.io/george-miao/upgrid:latest
 ```
+
+</details>
+
+## 5. Verify membership
 
 The joining node must reach the endpoint in the token. After admission, every node must reach every advertised `up://` endpoint. Check that the new member appears in **cluster**, then create a new one-use token for the next node.
 

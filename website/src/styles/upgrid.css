@@ -29,6 +29,12 @@
   --sl-color-black: #ffffff;
 }
 
+.starlight-aside--note {
+  --sl-color-asides-border: var(--sl-color-accent);
+  --sl-color-asides-text-accent: var(--sl-color-accent-high);
+  background-color: var(--sl-color-accent-low);
+}
+
 .site-title img {
   width: 2.25rem;
   height: 2.25rem;
@@ -73,4 +79,20 @@ code {
 .sl-markdown-content table code:not(:where(.not-content *)) {
   overflow-wrap: normal;
   white-space: nowrap;
+}
+
+.sl-markdown-content details.run-option {
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+
+.sl-markdown-content details.run-option > summary {
+  cursor: pointer;
+  font-weight: 600;
+  user-select: none;
+}
+
+.sl-markdown-content details.run-option[open] > summary {
+  margin-bottom: 1rem;
 }

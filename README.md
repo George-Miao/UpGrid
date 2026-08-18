@@ -2,7 +2,7 @@
 
 Distributed uptime monitoring that stays available with your infrastructure.
 
-[Website](https://upgrid.rs) · [documentation](https://upgrid.rs/getting-started/installation/) · [HTTP API](https://upgrid.rs/reference/api/) · [deployment guide](https://upgrid.rs/reference/deployment/)
+[Website](https://upgrid.rs) · [Get started](https://upgrid.rs/getting-started/first-node/) · [HTTP API](https://upgrid.rs/reference/api/)
 
 ![UpGrid WebUI in bright and dark themes](website/src/assets/webui-showcase.png)
 
@@ -24,17 +24,17 @@ Every node exposes the same authenticated API and responsive WebUI. Followers tr
 Docker is the preferred installation method. Stable releases use their Git tag and update `latest`. Every `main` commit uses `main-<6-character-commit>` and updates `latest-unstable`. Start a single node with persistent storage using the latest stable release:
 
 ```sh
+curl --fail --remote-name https://upgrid.rs/upgrid-seccomp.json
 docker run --name upgrid \
-  --security-opt seccomp=unconfined \
+  --security-opt seccomp=./upgrid-seccomp.json \
   --publish 8080:8080 \
-  --publish 11451:11451/udp \
   --volume upgrid-data:/var/lib/upgrid \
   ghcr.io/george-miao/upgrid:latest
 ```
 
-UpGrid uses `io_uring` on Linux. This quick-start command disables seccomp syscall filtering because Docker's default profile blocks the required calls. See [Install UpGrid](https://upgrid.rs/getting-started/installation/#allow-io_uring-in-docker) for the custom profile that keeps Docker's default syscall filter.
+UpGrid uses `io_uring` on Linux. Docker requires the provided seccomp profile because its default profile blocks the required calls. See the [Docker reference](https://upgrid.rs/reference/docker/#allow-io_uring-in-docker) for details and the less secure fallback.
 
-The project root also includes a single-node [`compose.yaml`](compose.yaml) and the custom [`upgrid-seccomp.json`](upgrid-seccomp.json) profile. Run the configuration from the project root:
+The project root also includes a single-node [`docker-compose.yaml`](docker-compose.yaml) and the custom [`upgrid-seccomp.json`](upgrid-seccomp.json) profile. Run the configuration from the project root:
 
 ```sh
 docker compose pull
@@ -43,7 +43,7 @@ docker compose up -d
 
 Open [http://127.0.0.1:8080/setup](http://127.0.0.1:8080/setup), review the generated node name, and choose **Create new cluster**. Setup creates the first replicated operator identity before it can add a notification channel or service target.
 
-Set `UPGRID_RAFT_URL` to a hostname reachable by every node before expanding this container into a multi-node cluster.
+Use the [multi-node setup](https://upgrid.rs/getting-started/multi-node/) before you expand this deployment. It adds the advertised `up://` endpoint and UDP port.
 
 See the [environment-variable reference](https://upgrid.rs/reference/configuration/#settings) for every container setting and its default.
 
