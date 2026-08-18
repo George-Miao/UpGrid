@@ -34,7 +34,6 @@ uuid.workspace = true
 [dev-dependencies]
 criterion.workspace = true
 tracing-subscriber.workspace = true
-upgrid-transport = { workspace = true, features = ["test-util"] }
 
 [[bench]]
 name = "persistence"
