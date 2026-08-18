@@ -37,6 +37,7 @@ export class HttpAssertionEditor extends LitElement {
     button:disabled { cursor: not-allowed; opacity: 0.45; }
     .icon-button { display: grid; width: 34px; height: 34px; min-height: 34px; place-items: center; padding: 0; }
     .icon-button iconify-icon { display: inline-block; width: 16px; height: 16px; font-size: 16px; }
+    .icon-button.move { color: var(--green); }
     .icon-button.danger { color: var(--danger-text); }
     .add { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; justify-self: end; border-color: var(--line); background: var(--panel-2); color: var(--text); padding: 6px 10px; font-size: 13px; font-weight: 600; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease; }
     .add::before { color: var(--green); content: "+"; font-size: 18px; font-weight: 400; line-height: 12px; }
@@ -135,8 +136,8 @@ export class HttpAssertionEditor extends LitElement {
         <label>Type<select aria-label=${`Assertion ${index + 1} type`} .value=${assertion.kind} @change=${(event: Event) => this.setKind(index, event)}>${Object.entries(labels).map(([kind, label]) => html`<option value=${kind}>${label}</option>`)}</select></label>
         ${this.renderFields(assertion, index)}
         <div class="actions">
-          <button class="icon-button" type="button" aria-label=${`Move assertion ${index + 1} up`} title="Move up" ?disabled=${index === 0} @click=${() => this.move(index, -1)}><iconify-icon .icon=${upIcon} aria-hidden="true"></iconify-icon></button>
-          <button class="icon-button" type="button" aria-label=${`Move assertion ${index + 1} down`} title="Move down" ?disabled=${index === this.draft.length - 1} @click=${() => this.move(index, 1)}><iconify-icon .icon=${downIcon} aria-hidden="true"></iconify-icon></button>
+          <button class="icon-button move" type="button" aria-label=${`Move assertion ${index + 1} up`} title="Move up" ?disabled=${index === 0} @click=${() => this.move(index, -1)}><iconify-icon .icon=${upIcon} aria-hidden="true"></iconify-icon></button>
+          <button class="icon-button move" type="button" aria-label=${`Move assertion ${index + 1} down`} title="Move down" ?disabled=${index === this.draft.length - 1} @click=${() => this.move(index, 1)}><iconify-icon .icon=${downIcon} aria-hidden="true"></iconify-icon></button>
           <button class="icon-button danger" type="button" aria-label=${`Remove assertion ${index + 1}`} title="Remove assertion" @click=${() => this.removeAssertion(index)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
         </div>
       </div>
