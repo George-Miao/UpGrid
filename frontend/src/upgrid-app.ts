@@ -116,6 +116,8 @@ export class UpgridApp extends AppController {
     ${helpTooltipStyles}
     .auth-panel { width: min(440px, 100%); margin: auto; }
     .admin-page { width: min(760px, 100%); margin: auto; }
+    .change-password-page { width: min(440px, 100%); }
+    .change-password-page .auth-panel { width: 100%; }
     .token-value { margin: 14px; overflow-wrap: anywhere; }
     .token-value code { display: block; margin: 8px 0; }
     .overview-top { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; }

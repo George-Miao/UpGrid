@@ -18,6 +18,10 @@ test("requires an Operator Identity and supports logout", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Change password" }).click();
   await expect(page).toHaveURL(/\/admin\/change-password$/);
   await expect(page.getByRole("heading", { name: "Change password" })).toBeVisible();
+  const [headingBox, passwordPanelBox] = await Promise.all([page.getByRole("heading", { name: "Change password" }).boundingBox(), page.locator(".change-password-page .auth-panel").boundingBox()]);
+  expect(headingBox).not.toBeNull();
+  expect(passwordPanelBox).not.toBeNull();
+  expect(Math.abs(headingBox!.x - passwordPanelBox!.x)).toBeLessThan(1);
   await page.getByLabel("Account menu for admin").click();
   await page.getByRole("menuitem", { name: "Logout" }).click();
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();

@@ -41,7 +41,7 @@ export function renderLogin(saving: boolean, error: string, actions: AuthActions
 export function renderChangePassword(identity: Identity | undefined, saving: boolean, actions: AuthActions) {
   if (!identity) return html`<div class="empty">Current identity unavailable.</div>`;
   return html`
-    <div class="admin-page">
+    <div class="admin-page change-password-page">
       <div class="heading"><div><span class="eyebrow">Administration</span><h1>Change password</h1></div></div>
       <section class="panel auth-panel">
         <form class="choice" @submit=${(event: SubmitEvent) => actions.updateIdentity(identity, event)}>
