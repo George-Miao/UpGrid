@@ -16,6 +16,15 @@ jobs:
         run: pnpm --dir website install --frozen-lockfile
       - name: Build
         run: pnpm --dir website build
+      - name: Enable preview URLs
+        uses: cloudflare/wrangler-action@v3
+        with:
+          packageManager: pnpm
+          wranglerVersion: 4.65.0
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          command: triggers deploy --config ./website/wrangler.jsonc
       - name: Deploy
         id: deploy
         uses: cloudflare/wrangler-action@v3
@@ -25,7 +34,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          command: versions upload --assets ./website/dist --name upgrid-website --latest
+          command: versions upload --config ./website/wrangler.jsonc --latest
       - name: Comment PR
         uses: thollander/actions-comment-pull-request@v3
         with:
