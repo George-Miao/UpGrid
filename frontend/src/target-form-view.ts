@@ -88,12 +88,18 @@ const endpointPlaceholders: Record<string, string> = {
   tls: "example.com:443",
 };
 
+function targetTablist(form: HTMLFormElement) {
+  return form.closest("dialog")?.querySelector<HTMLElement>(".form-tabs");
+}
+
 function activateTargetTab(form: HTMLFormElement, tabName: string) {
-  form.querySelectorAll<HTMLButtonElement>("[role='tab']").forEach((tab) => {
-    const selected = tab.dataset.tab === tabName;
-    tab.setAttribute("aria-selected", String(selected));
-    tab.tabIndex = selected ? 0 : -1;
-  });
+  targetTablist(form)
+    ?.querySelectorAll<HTMLButtonElement>("[role='tab']")
+    .forEach((tab) => {
+      const selected = tab.dataset.tab === tabName;
+      tab.setAttribute("aria-selected", String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    });
   form.querySelectorAll<HTMLElement>("[role='tabpanel']").forEach((panel) => {
     panel.hidden = panel.dataset.panel !== tabName;
   });
@@ -108,8 +114,9 @@ function applyTargetKind(form: HTMLFormElement, kind: string) {
   form.querySelectorAll<HTMLElement>("[data-http-only]").forEach((element) => {
     element.hidden = kind !== "http";
   });
-  const selectedTab = form.querySelector<HTMLButtonElement>("[role='tab'][aria-selected='true']")?.dataset.tab ?? "general";
-  const assertionsTab = form.querySelector<HTMLButtonElement>("[data-tab='assertions']");
+  const tablist = targetTablist(form);
+  const selectedTab = tablist?.querySelector<HTMLButtonElement>("[role='tab'][aria-selected='true']")?.dataset.tab ?? "general";
+  const assertionsTab = tablist?.querySelector<HTMLButtonElement>("[data-tab='assertions']");
   if (assertionsTab) assertionsTab.disabled = kind !== "http";
   activateTargetTab(form, kind !== "http" && selectedTab === "assertions" ? "general" : selectedTab);
   const method = form.elements.namedItem("method") as HTMLInputElement | null;

@@ -129,6 +129,8 @@ test("creates and edits ordered HTTP assertions", async ({ page }) => {
   await create.getByLabel("Name").fill("Assertion target");
   await create.getByLabel("URL").fill(new URL("/healthz", page.url()).toString());
   await create.getByRole("tab", { name: "Assertions" }).click();
+  await expect(create.getByRole("tab", { name: "Assertions" })).toHaveAttribute("aria-selected", "true");
+  await expect(create.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "false");
   await expect(create.locator("http-assertion-editor fieldset")).toHaveCount(0);
   await expect(create.getByText("No assertions.", { exact: true })).toBeVisible();
 

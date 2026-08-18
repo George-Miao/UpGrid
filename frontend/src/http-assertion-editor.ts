@@ -1,3 +1,6 @@
+import downIcon from "@iconify-icons/lucide/arrow-down";
+import upIcon from "@iconify-icons/lucide/arrow-up";
+import deleteIcon from "@iconify-icons/lucide/trash-2";
 import { css, html, LitElement, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HttpAssertion } from "./api.ts";
@@ -19,7 +22,8 @@ export class HttpAssertionEditor extends LitElement {
 
   static styles = css`
     :host { display: grid; gap: 10px; }
-    .assertions { display: grid; gap: 10px; }
+    .assertions, .assertion-list { display: grid; gap: 10px; }
+    .assertion-list { max-height: min(420px, 50vh); overflow-y: auto; padding-right: 4px; scrollbar-gutter: stable; }
     .assertion { display: grid; grid-template-columns: minmax(140px, 0.7fr) minmax(180px, 1.3fr) auto; gap: 8px; align-items: end; }
     .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .fields.single { grid-template-columns: 1fr; }
@@ -29,10 +33,14 @@ export class HttpAssertionEditor extends LitElement {
     .actions { display: flex; gap: 4px; }
     button { border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); padding: 8px 10px; cursor: pointer; user-select: none; }
     button:disabled { cursor: not-allowed; opacity: 0.45; }
-    .add { min-height: 44px; justify-self: start; border-color: var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 120ms ease; }
-    .add:hover { border-color: var(--button-hover-border); }
+    .icon-button { display: grid; width: 34px; height: 34px; min-height: 34px; place-items: center; padding: 0; }
+    .icon-button iconify-icon { display: inline-block; width: 16px; height: 16px; font-size: 16px; }
+    .icon-button.danger { color: var(--danger-text); }
+    .add { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; justify-self: end; border-color: var(--line); background: var(--panel-2); color: var(--text); padding: 6px 10px; font-size: 13px; font-weight: 600; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease; }
+    .add::before { color: var(--green); content: "+"; font-size: 18px; font-weight: 400; line-height: 12px; }
+    .add:hover { border-color: var(--green); color: var(--green); }
     .add:active { transform: translateY(1px); }
-    .empty { margin: 0; color: var(--muted); font-size: 13px; }
+    .empty { margin: 0; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted); padding: 22px 16px; font-size: 13px; text-align: center; }
     @media (max-width: 720px) { .assertion { grid-template-columns: 1fr; } .fields { grid-template-columns: 1fr; } }
   `;
 
@@ -111,8 +119,10 @@ export class HttpAssertionEditor extends LitElement {
   protected render() {
     return html`
       <div class="assertions">
-        <button class="add" type="button" @click=${this.add}>Add assertion</button>
-        ${this.draft.length ? this.draft.map((assertion, index) => this.renderAssertion(assertion, index)) : html`<p class="empty">No assertions.</p>`}
+        <button class="add" type="button" aria-label="Add assertion" @click=${this.add}>Add assertion</button>
+        <div class="assertion-list">
+          ${this.draft.length ? this.draft.map((assertion, index) => this.renderAssertion(assertion, index)) : html`<p class="empty">No assertions.</p>`}
+        </div>
       </div>
     `;
   }
@@ -123,9 +133,9 @@ export class HttpAssertionEditor extends LitElement {
         <label>Type<select aria-label=${`Assertion ${index + 1} type`} .value=${assertion.kind} @change=${(event: Event) => this.setKind(index, event)}>${Object.entries(labels).map(([kind, label]) => html`<option value=${kind}>${label}</option>`)}</select></label>
         ${this.renderFields(assertion, index)}
         <div class="actions">
-          <button type="button" aria-label=${`Move assertion ${index + 1} up`} ?disabled=${index === 0} @click=${() => this.move(index, -1)}>Up</button>
-          <button type="button" aria-label=${`Move assertion ${index + 1} down`} ?disabled=${index === this.draft.length - 1} @click=${() => this.move(index, 1)}>Down</button>
-          <button type="button" aria-label=${`Remove assertion ${index + 1}`} @click=${() => this.removeAssertion(index)}>Remove</button>
+          <button class="icon-button" type="button" aria-label=${`Move assertion ${index + 1} up`} title="Move up" ?disabled=${index === 0} @click=${() => this.move(index, -1)}><iconify-icon .icon=${upIcon} aria-hidden="true"></iconify-icon></button>
+          <button class="icon-button" type="button" aria-label=${`Move assertion ${index + 1} down`} title="Move down" ?disabled=${index === this.draft.length - 1} @click=${() => this.move(index, 1)}><iconify-icon .icon=${downIcon} aria-hidden="true"></iconify-icon></button>
+          <button class="icon-button danger" type="button" aria-label=${`Remove assertion ${index + 1}`} title="Remove assertion" @click=${() => this.removeAssertion(index)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
         </div>
       </div>
     `;
