@@ -53,7 +53,7 @@ export function renderTargetDetail(target: Target, longTermHistory: HistoryPage 
   const tab = tabs.some(({ id }) => id === activeTab) ? activeTab : "details";
   return html`
     <dialog id="detail-dialog" aria-labelledby="target-detail-title" @click=${actions.backdrop}>
-      <div class="dialog-head target-dialog-head">
+      <div class="dialog-head target-dialog-head detail-dialog-head">
         <h2 id="target-detail-title">${isNode ? "Node details" : "Target details"}</h2>
         <div class="form-tabs" role="tablist" aria-label=${`${isNode ? "Node" : "Target"} details`}>
           ${tabs.map(({ id, label }) => html`<button form="detail-form" type="button" role="tab" aria-controls=${`target-${id}-panel`} aria-selected=${String(tab === id)} tabindex=${tab === id ? "0" : "-1"} @click=${() => actions.selectTab(id)}>${label}</button>`)}

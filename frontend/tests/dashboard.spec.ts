@@ -686,6 +686,10 @@ test("renames a Node Target and shows its evaluation history", async ({ page }) 
   await node.locator("button.target").click();
   const details = page.getByRole("dialog", { name: "Node details" });
   await expect(details.getByRole("tab", { name: "Details" })).toHaveAttribute("aria-selected", "true");
+  const [tabsBox, closeBox] = await Promise.all([details.getByRole("tablist", { name: "Node details" }).boundingBox(), details.getByRole("button", { name: "Close Node details" }).boundingBox()]);
+  expect(tabsBox).not.toBeNull();
+  expect(closeBox).not.toBeNull();
+  expect(tabsBox!.x + tabsBox!.width).toBeLessThanOrEqual(closeBox!.x - 8);
   await expect(details.getByRole("listitem").first()).toHaveAttribute("aria-label", /reachable.*Executed by/);
   await expect(details.getByRole("button", { name: "Save changes" })).toHaveCount(0);
   await details.getByRole("tab", { name: "General" }).click();
