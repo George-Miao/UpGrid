@@ -56,6 +56,24 @@ if [[ "$ready" != true ]]; then
   cat "$test_data/server.log" >&2
   exit 1
 fi
+http_version=$(curl --fail --silent --http2 --cacert "$test_data/cert.pem" \
+  --output /dev/null --write-out '%{http_version}' \
+  https://localhost:18443/healthz)
+if [[ "$http_version" != "2" ]]; then
+  echo "TLS API negotiated HTTP/$http_version instead of HTTP/2" >&2
+  exit 1
+fi
+exec 3<>/dev/tcp/127.0.0.1/18443
+request_pids=()
+for _ in {1..8}; do
+  curl --fail --silent --max-time 5 --cacert "$test_data/cert.pem" \
+    https://localhost:18443/healthz >/dev/null &
+  request_pids+=("$!")
+done
+for pid in "${request_pids[@]}"; do
+  wait "$pid"
+done
+exec 3>&-
 
 curl --fail --silent --cacert "$test_data/cert.pem" \
   --cookie-jar "$test_data/cookies" \

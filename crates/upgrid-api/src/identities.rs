@@ -292,7 +292,7 @@ pub(super) async fn revoke_api_token(
 }
 
 async fn password_verifier(password: String) -> Result<PasswordVerifier, ApiError> {
-    tokio::task::spawn_blocking(move || PasswordVerifier::create(&password))
+    compio::runtime::spawn_blocking(move || PasswordVerifier::create(&password))
         .await
         .map_err(|_| ApiError::unavailable("password hashing task stopped"))?
         .map_err(ApiError::bad_request)

@@ -15,6 +15,7 @@ use super::*;
 use crate::error::{
     BindSnafu, ListenerSnafu, OpenApiSnafu, RuntimeSnafu, ServeSnafu, ThreadSpawnSnafu, TlsSnafu,
 };
+use crate::listener::{TlsListener, tls_acceptor};
 
 pub fn start(
     config: Config,
@@ -43,19 +44,30 @@ pub fn start(
         oobe,
         startup_warning,
     };
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .thread_name("upgrid-web-worker")
-        .build()
-        .context(RuntimeSnafu)?;
+    let (runtime_tx, runtime_rx) = std::sync::mpsc::sync_channel(1);
     std::thread::Builder::new()
         .name("upgrid-web".to_owned())
         .spawn(move || {
+            let runtime = match compio::runtime::Runtime::new() {
+                Ok(runtime) => runtime,
+                Err(error) => {
+                    let _ = runtime_tx.send(Err(error));
+                    return;
+                }
+            };
+            if runtime_tx.send(Ok(())).is_err() {
+                return;
+            }
             if let Err(error) = runtime.block_on(serve(listener, config, state)) {
                 tracing::error!(%error, "web API stopped");
             }
         })
         .context(ThreadSpawnSnafu)?;
+    runtime_rx
+        .recv()
+        .map_err(std::io::Error::other)
+        .context(RuntimeSnafu)?
+        .context(RuntimeSnafu)?;
     tracing::debug!(%bind, "web API ready");
     Ok(())
 }
@@ -108,18 +120,14 @@ async fn serve(listener: std::net::TcpListener, config: Config, state: WebState)
         )
         .merge(status)
         .merge(api);
+    let listener = compio::net::TcpListener::from_std(listener).context(ListenerSnafu)?;
     if let (Some(cert), Some(key)) = (tls_cert, tls_key) {
-        let tls = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key)
-            .await
-            .context(TlsSnafu)?;
-        axum_server::from_tcp_rustls(listener, tls)
-            .context(ServeSnafu)?
-            .serve(app.into_make_service())
+        let acceptor = tls_acceptor(&cert, &key).context(TlsSnafu)?;
+        cyper_axum::serve(TlsListener::new(listener, acceptor), app)
             .await
             .context(ServeSnafu)?;
     } else {
-        let listener = tokio::net::TcpListener::from_std(listener).context(ListenerSnafu)?;
-        axum::serve(listener, app).await.context(ServeSnafu)?;
+        cyper_axum::serve(listener, app).await.context(ServeSnafu)?;
     }
     Ok(())
 }

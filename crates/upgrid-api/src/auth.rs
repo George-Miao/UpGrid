@@ -75,7 +75,7 @@ pub(super) async fn login(
     };
     let password = input.password;
     let verifier = identity.password.clone();
-    let valid = tokio::task::spawn_blocking(move || verifier.verify(&password))
+    let valid = compio::runtime::spawn_blocking(move || verifier.verify(&password))
         .await
         .map_err(|_| ApiError::unavailable("password verification task stopped"))?;
     if !valid {

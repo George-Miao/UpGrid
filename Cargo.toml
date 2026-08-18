@@ -10,15 +10,17 @@ edition = "2024"
 [workspace.dependencies]
 async-stream = "0.3.6"
 axum = { version = "0.8.1", features = ["json"] }
-axum-server = { version = "0.8.0", features = ["tls-rustls-no-provider"] }
 base64 = "0.22.1"
 clap = { version = "4.6.1", features = ["derive"] }
 compio = { version = "0.19.1", features = ["macros", "runtime", "io", "net", "time", "enable_log"] }
 compio-quic = "0.8.0"
+compio-tls = { version = "0.10", default-features = false, features = ["ring"] }
 criterion = "0.8"
 cyper = { version = "0.9.0", default-features = false, features = ["rustls"] }
+cyper-axum = { version = "0.9.0", features = ["http2"] }
 figment = { version = "0.10.19", features = ["env", "toml"] }
 futures-core = "0.3.31"
+futures-util = "0.3.31"
 httpdate = "1"
 http = "1"
 lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "rustls-tls"] }

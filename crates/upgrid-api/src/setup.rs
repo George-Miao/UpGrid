@@ -1,15 +1,18 @@
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use futures_util::FutureExt;
 use snafu::ResultExt;
 use tokio::sync::Notify;
 use upgrid_config::{Config, JoinLink, store_node_name};
 
 use crate::assets::{favicon, index, webui_script};
 use crate::error::{BindSnafu, ListenerSnafu, RuntimeSnafu, ServeSnafu, TlsSnafu};
+use crate::listener::{TlsListener, tls_acceptor};
 use crate::{
     ApiError, CreateClusterRequest, Error, JoinClusterRequest, JoinClusterView, Result, SetupView,
 };
@@ -20,6 +23,7 @@ struct SetupState {
     node_name: Arc<Mutex<String>>,
     result: Arc<Mutex<Option<OobeChoice>>>,
     accepted: Arc<Notify>,
+    deadline: Arc<Notify>,
 }
 
 pub enum OobeChoice {
@@ -41,11 +45,13 @@ pub fn wait_for_oobe(config: &Config, node_name: &str) -> Result<OobeChoice> {
     listener.set_nonblocking(true).context(ListenerSnafu)?;
     let result = Arc::new(Mutex::new(None));
     let accepted = Arc::new(Notify::new());
+    let deadline = Arc::new(Notify::new());
     let state = SetupState {
         data_dir: config.data_dir.clone(),
         node_name: Arc::new(Mutex::new(node_name.to_owned())),
         result: result.clone(),
         accepted: accepted.clone(),
+        deadline: deadline.clone(),
     };
     let routes = Router::new()
         .route("/", get(index))
@@ -62,36 +68,35 @@ pub fn wait_for_oobe(config: &Config, node_name: &str) -> Result<OobeChoice> {
         .route("/favicon.svg", get(favicon))
         .merge(routes)
         .with_state(state);
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .context(RuntimeSnafu)?;
+    let runtime = compio::runtime::Runtime::new().context(RuntimeSnafu)?;
     let tls_cert = config.tls_cert.clone();
     let tls_key = config.tls_key.clone();
     tracing::info!(bind = %config.bind, "WebUI ready for cluster setup");
     runtime.block_on(async move {
-        if let (Some(cert), Some(key)) = (tls_cert, tls_key) {
-            let tls = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key)
-                .await
-                .context(TlsSnafu)?;
-            let handle = axum_server::Handle::new();
-            let shutdown = handle.clone();
-            tokio::spawn(async move {
-                accepted.notified().await;
-                shutdown.graceful_shutdown(Some(std::time::Duration::from_secs(5)));
-            });
-            axum_server::from_tcp_rustls(listener, tls)
-                .context(ServeSnafu)?
-                .handle(handle)
-                .serve(app.into_make_service())
-                .await
-                .context(ServeSnafu)?;
+        let listener = compio::net::TcpListener::from_std(listener).context(ListenerSnafu)?;
+        let shutdown = async move { accepted.notified().await };
+        let server = if let (Some(cert), Some(key)) = (tls_cert, tls_key) {
+            let acceptor = tls_acceptor(&cert, &key).context(TlsSnafu)?;
+            cyper_axum::serve(TlsListener::new(listener, acceptor), app)
+                .with_graceful_shutdown(shutdown)
+                .into_future()
+                .boxed_local()
         } else {
-            let listener = tokio::net::TcpListener::from_std(listener).context(ListenerSnafu)?;
-            axum::serve(listener, app)
-                .with_graceful_shutdown(async move { accepted.notified().await })
-                .await
-                .context(ServeSnafu)?;
+            cyper_axum::serve(listener, app)
+                .with_graceful_shutdown(shutdown)
+                .into_future()
+                .boxed_local()
+        };
+        let deadline = async move {
+            deadline.notified().await;
+            compio::time::sleep(Duration::from_secs(5)).await;
+        }
+        .boxed_local();
+        match futures_util::future::select(server, deadline).await {
+            futures_util::future::Either::Left((result, _)) => result.context(ServeSnafu)?,
+            futures_util::future::Either::Right(_) => {
+                tracing::warn!("OOBE API forced remaining connections closed");
+            }
         }
         let choice = result
             .lock()
@@ -182,5 +187,6 @@ fn accept(state: &SetupState, choice: OobeChoice) -> Result<(), ApiError> {
     *result = Some(choice);
     drop(result);
     state.accepted.notify_one();
+    state.deadline.notify_one();
     Ok(())
 }
