@@ -11,6 +11,9 @@ export default defineConfig({
       description: 'Run and operate a distributed UpGrid service-monitoring cluster.',
       logo: { src: './src/assets/logo.svg', alt: 'UpGrid' },
       customCss: ['./src/styles/upgrid.css'],
+      components: {
+        Footer: './src/components/Footer.astro',
+      },
       head: [
         {
           tag: 'meta',
