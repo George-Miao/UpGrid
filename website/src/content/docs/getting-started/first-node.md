@@ -5,6 +5,33 @@ description: Start UpGrid without a public cluster transport endpoint.
 
 Use this setup when one node will run all monitoring work. You do not need to publish the `up://` UDP port or add a firewall rule for cluster transport.
 
+## Start with Docker Compose
+
+The project root includes a ready-to-run [`compose.yaml`](https://github.com/George-Miao/UpGrid/blob/main/compose.yaml) and its [`upgrid-seccomp.json`](https://github.com/George-Miao/UpGrid/blob/main/upgrid-seccomp.json) profile. Download both files instead of writing a configuration:
+
+```sh
+curl --fail --remote-name \
+  https://raw.githubusercontent.com/George-Miao/UpGrid/main/compose.yaml
+curl --fail --remote-name \
+  https://raw.githubusercontent.com/George-Miao/UpGrid/main/upgrid-seccomp.json
+```
+
+Start UpGrid from the directory that contains both files:
+
+```sh
+docker compose pull
+docker compose up -d
+```
+
+Check the process and follow its logs:
+
+```sh
+docker compose ps
+docker compose logs --follow upgrid
+```
+
+The included configuration publishes only the HTTP API and WebUI. It does not publish the `up://` UDP port.
+
 ## Start with Docker
 
 Download the custom `io_uring` seccomp profile as described in [Install UpGrid](/getting-started/installation/#allow-io_uring-in-docker) before you run the container.

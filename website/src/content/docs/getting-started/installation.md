@@ -21,53 +21,18 @@ See the [environment-variable reference](/reference/configuration/#settings) for
 
 UpGrid uses Compio with `io_uring` on Linux. Docker's default seccomp profile blocks the three required `io_uring` system calls, so an UpGrid container cannot start with the default profile.
 
-Download the [UpGrid seccomp profile](/upgrid-seccomp.json) next to your `compose.yaml` file. It is based on the [Moby v0.2.1 default profile](https://github.com/moby/profiles/blob/seccomp/v0.2.1/seccomp/default.json) and adds only `io_uring_setup`, `io_uring_enter`, and `io_uring_register`:
+The project root includes [`upgrid-seccomp.json`](https://github.com/George-Miao/UpGrid/blob/main/upgrid-seccomp.json). It is based on the [Moby v0.2.1 default profile](https://github.com/moby/profiles/blob/seccomp/v0.2.1/seccomp/default.json) and adds only `io_uring_setup`, `io_uring_enter`, and `io_uring_register`. Download it to the directory where you run Docker:
 
 ```sh
-curl --fail --output upgrid-seccomp.json https://upgrid.rs/upgrid-seccomp.json
+curl --fail --remote-name \
+  https://raw.githubusercontent.com/George-Miao/UpGrid/main/upgrid-seccomp.json
 ```
 
-The Docker Compose example uses this custom profile. With `docker run`, pass `--security-opt seccomp=./upgrid-seccomp.json` to use the same policy.
+With `docker run`, pass `--security-opt seccomp=./upgrid-seccomp.json` to use this policy.
 
 ::::Caution
 You can use `--security-opt seccomp=unconfined` when a custom profile is not practical, but it disables seccomp syscall filtering for the container. UpGrid does not require privileged mode.
 ::::
-
-### Use Docker Compose
-
-Create a `compose.yaml` file for a single-node installation:
-
-```yaml
-services:
-  upgrid:
-    image: ghcr.io/george-miao/upgrid:latest
-    restart: unless-stopped
-    security_opt:
-      - seccomp=./upgrid-seccomp.json
-    ports:
-      - "8080:8080"
-    volumes:
-      - upgrid-data:/var/lib/upgrid
-
-volumes:
-  upgrid-data:
-```
-
-Pull the image and start UpGrid:
-
-```sh
-docker compose pull
-docker compose up -d
-```
-
-Check the process and follow its logs:
-
-```sh
-docker compose ps
-docker compose logs --follow upgrid
-```
-
-Open `http://127.0.0.1:8080/setup` to continue the browser setup. This configuration publishes only the HTTP API and WebUI. For a multi-node cluster, follow the [multi-node setup](/getting-started/multi-node/) to add the advertised `up://` endpoint and UDP port before you start the container.
 
 ## Install a precompiled binary
 

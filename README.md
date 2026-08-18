@@ -34,6 +34,13 @@ docker run --name upgrid \
 
 UpGrid uses `io_uring` on Linux. This quick-start command disables seccomp syscall filtering because Docker's default profile blocks the required calls. See [Install UpGrid](https://upgrid.rs/getting-started/installation/#allow-io_uring-in-docker) for the custom profile that keeps Docker's default syscall filter.
 
+The project root also includes a single-node [`compose.yaml`](compose.yaml) and the custom [`upgrid-seccomp.json`](upgrid-seccomp.json) profile. Run the configuration from the project root:
+
+```sh
+docker compose pull
+docker compose up -d
+```
+
 Open [http://127.0.0.1:8080/setup](http://127.0.0.1:8080/setup), review the generated node name, and choose **Create new cluster**. Setup creates the first replicated operator identity before it can add a notification channel or service target.
 
 Set `UPGRID_RAFT_URL` to a hostname reachable by every node before expanding this container into a multi-node cluster.
