@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "UpGrid Cluster API",
+    "title": "UpGrid cluster API",
     "version": "0.1.0"
   },
   "paths": {
@@ -340,7 +340,7 @@
           {
             "name": "id",
             "in": "path",
-            "description": "API Token ID",
+            "description": "API token ID",
             "required": true,
             "schema": {
               "type": "string",
@@ -1095,7 +1095,7 @@
           {
             "name": "id",
             "in": "path",
-            "description": "Operator Identity ID",
+            "description": "Operator identity ID",
             "required": true,
             "schema": {
               "type": "string",
@@ -1182,7 +1182,7 @@
           {
             "name": "id",
             "in": "path",
-            "description": "Operator Identity ID",
+            "description": "Operator identity ID",
             "required": true,
             "schema": {
               "type": "string",
@@ -1494,7 +1494,7 @@
           {
             "name": "force",
             "in": "query",
-            "description": "Release assignments and remove a failed Node without waiting for drain completion",
+            "description": "Release assignments and remove a failed node without waiting for drain completion",
             "required": true,
             "schema": {
               "type": "boolean"
@@ -1836,6 +1836,88 @@
         }
       }
     },
+    "/api/v1/settings": {
+      "get": {
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManageSettingsView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "update_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateManageSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManageSettingsView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/setup": {
       "get": {
         "operationId": "get_setup",
@@ -1955,6 +2037,44 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/status": {
+      "get": {
+        "operationId": "get_status",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": []
       }
     },
     "/api/v1/targets": {
@@ -3506,6 +3626,17 @@
           }
         }
       },
+      "ManageSettingsView": {
+        "type": "object",
+        "required": [
+          "public_status_enabled"
+        ],
+        "properties": {
+          "public_status_enabled": {
+            "type": "boolean"
+          }
+        }
+      },
       "NodeLifecycleView": {
         "type": "object",
         "required": [
@@ -3969,6 +4100,37 @@
           "tls"
         ]
       },
+      "StatusEvaluationView": {
+        "type": "object",
+        "required": [
+          "scheduled_at_ms",
+          "succeeded",
+          "latency_ms"
+        ],
+        "properties": {
+          "latency_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "scheduled_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "status_code": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "succeeded": {
+            "type": "boolean"
+          }
+        }
+      },
       "StatusRangeInput": {
         "type": "object",
         "required": [
@@ -3985,6 +4147,59 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "StatusTargetView": {
+        "type": "object",
+        "required": [
+          "kind",
+          "name",
+          "availability",
+          "consecutive_failures",
+          "paused"
+        ],
+        "properties": {
+          "availability": {
+            "type": "string"
+          },
+          "consecutive_failures": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TargetKindView"
+          },
+          "latest_evaluation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StatusEvaluationView"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "paused": {
+            "type": "boolean"
+          }
+        }
+      },
+      "StatusView": {
+        "type": "object",
+        "required": [
+          "targets"
+        ],
+        "properties": {
+          "targets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatusTargetView"
+            }
           }
         }
       },
@@ -4632,6 +4847,17 @@
           },
           "username": {
             "type": "string"
+          }
+        }
+      },
+      "UpdateManageSettingsRequest": {
+        "type": "object",
+        "required": [
+          "public_status_enabled"
+        ],
+        "properties": {
+          "public_status_enabled": {
+            "type": "boolean"
           }
         }
       }

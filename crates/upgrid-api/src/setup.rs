@@ -68,7 +68,7 @@ pub fn wait_for_oobe(config: &Config, node_name: &str) -> Result<OobeChoice> {
         .context(RuntimeSnafu)?;
     let tls_cert = config.tls_cert.clone();
     let tls_key = config.tls_key.clone();
-    tracing::info!(bind = %config.bind, "WebUI ready for Cluster setup");
+    tracing::info!(bind = %config.bind, "WebUI ready for cluster setup");
     runtime.block_on(async move {
         if let (Some(cert), Some(key)) = (tls_cert, tls_key) {
             let tls = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key)
@@ -146,7 +146,7 @@ async fn setup_status(State(state): State<SetupState>) -> Result<Json<SetupView>
     let node_name = state
         .node_name
         .lock()
-        .map_err(|_| ApiError::unavailable("OOBE Node name was poisoned"))?
+        .map_err(|_| ApiError::unavailable("OOBE node name was poisoned"))?
         .clone();
     Ok(Json(SetupView {
         setup: true,
@@ -165,7 +165,7 @@ fn persist_name(state: &SetupState, name: &str) -> Result<String, ApiError> {
     *state
         .node_name
         .lock()
-        .map_err(|_| ApiError::unavailable("OOBE Node name was poisoned"))? = name.clone();
+        .map_err(|_| ApiError::unavailable("OOBE node name was poisoned"))? = name.clone();
     Ok(name)
 }
 
@@ -176,7 +176,7 @@ fn accept(state: &SetupState, choice: OobeChoice) -> Result<(), ApiError> {
         .map_err(|_| ApiError::unavailable("OOBE state was poisoned"))?;
     if result.is_some() {
         return Err(ApiError::bad_request(
-            "a Cluster choice was already accepted",
+            "A cluster choice was already accepted",
         ));
     }
     *result = Some(choice);

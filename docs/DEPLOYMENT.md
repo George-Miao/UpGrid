@@ -1,6 +1,6 @@
-# Deployment Notes
+# Deployment notes
 
-Build a release binary with `cargo build --release` and run each Node with a dedicated durable data directory. Keep `deployment-key`, `node-id`, `raft-log.redb`, and `raft-state.postcard` on persistent storage; never copy a Node data directory to create another Node. Existing `raft-log.postcard` files migrate automatically on first startup with the new format and remain as rollback backups.
+Build a release binary with `cargo build --release` and run each node with a dedicated durable data directory. Keep `deployment-key`, `node-id`, `raft-log.redb`, and `raft-state.postcard` on persistent storage; never copy a node data directory to create another node. Existing `raft-log.postcard` files migrate automatically on first startup with the new format and remain as rollback backups.
 
 ## Configuration
 
@@ -18,7 +18,7 @@ history_retention_hours = 24
 
 Keep configuration files containing credentials readable only by the UpGrid service account.
 
-## API TLS and Reverse Proxies
+## API TLS and reverse proxies
 
 The API serves plaintext HTTP by default so a reverse proxy can terminate TLS. Preserve streaming and disable buffering for `/api/v1/events`.
 
@@ -52,18 +52,18 @@ tls_cert = "/etc/upgrid/api-chain.pem"
 tls_key = "/etc/upgrid/api-key.pem"
 ```
 
-Do not expose Basic authentication over an untrusted plaintext connection. Restrict inter-Node UDP ports to Cluster members and supply the same API credentials to every Node. Set `UPGRID_HISTORY_RETENTION_HOURS` consistently when changing the replicated raw-history window.
+Do not expose basic authentication over an untrusted plaintext connection. Restrict inter-node UDP ports to cluster members and supply the same API credentials to every node. Set `UPGRID_HISTORY_RETENTION_HOURS` consistently when changing the replicated raw-history window.
 
-## Node Admission
+## Node admission
 
-An authenticated operator creates an expiring invitation from the Cluster page's **Create token** action or `POST /api/v1/join-tokens`. The WebUI defaults to one day and one use. The API defaults to one day when `expires_in_seconds` is omitted; omit `max_uses` for unlimited use or set it to a positive integer to bound admissions. The response is an opaque bearer URL used directly as `upgrid --join 'up://…'`. Revoke it from the Cluster page or with `DELETE /api/v1/join-tokens/{id}`.
+An authenticated operator creates an expiring invitation from the cluster page's **Create token** action or `POST /api/v1/join-tokens`. The WebUI defaults to one day and one use. The API defaults to one day when `expires_in_seconds` is omitted; omit `max_uses` for unlimited use or set it to a positive integer to bound admissions. The response is an opaque bearer URL used directly as `upgrid --join 'up://…'`. Revoke it from the cluster page or with `DELETE /api/v1/join-tokens/{id}`.
 
-With a fresh data directory and no lifecycle option, UpGrid opens an authenticated browser OOBE at `/setup`. Review the generated friendly Node name, then create a new Cluster or paste a Join Token. Notification Channel and Target steps follow after membership and may be skipped. The pre-membership listener exposes no replicated resource endpoints.
+With a fresh data directory and no lifecycle option, UpGrid opens an authenticated browser OOBE at `/setup`. Review the generated friendly node name, then create a new cluster or paste a join token. Notification channel and target steps follow after membership and may be skipped. The pre-membership listener exposes no replicated resource endpoints.
 
-For unattended provisioning, use `--new-cluster` or `UPGRID_NEW_CLUSTER=true` for the first Node, and `--join 'up://…'` or `UPGRID_JOIN` for subsequent Nodes. These choices are mutually exclusive. Existing durable membership always wins on restart: `--new-cluster` and matching Join Tokens are harmlessly ignored; a Join Token pointing outside the stored membership is ignored and reported as a dismissible WebUI warning.
+For unattended provisioning, use `--new-cluster` or `UPGRID_NEW_CLUSTER=true` for the first node, and `--join 'up://…'` or `UPGRID_JOIN` for subsequent nodes. These choices are mutually exclusive. Existing durable membership always wins on restart: `--new-cluster` and matching join tokens are harmlessly ignored; a join token pointing outside the stored membership is ignored and reported as a dismissible WebUI warning.
 
-Join Tokens transport long-lived deployment material. Keep them confidential, never place them in logs or tickets, and revoke reusable tokens as soon as provisioning is complete. Normal restarts use the persisted data directory and need no invitation.
+Join tokens transport long-lived deployment material. Keep them confidential, never place them in logs or tickets, and revoke reusable tokens as soon as provisioning is complete. Normal restarts use the persisted data directory and need no invitation.
 
-## Operational Checks
+## Operational checks
 
-Run `scripts/verify-local-cluster.sh` before release changes involving Raft, scheduling, or transport. It verifies follower writes, distributed execution, and continued operation after the initial leader exits. Against a disposable running deployment, `scripts/verify-reference-workload.sh` creates the 1,000-Target reference workload and requires at least 99% to finish within one interval.
+Run `scripts/verify-local-cluster.sh` before release changes involving Raft, scheduling, or transport. It verifies follower writes, distributed execution, and continued operation after the initial leader exits. Against a disposable running deployment, `scripts/verify-reference-workload.sh` creates the 1,000-target reference workload and requires at least 99% to finish within one interval.

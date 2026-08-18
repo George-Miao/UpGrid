@@ -39,11 +39,11 @@ mod nodes;
 mod resources;
 mod server;
 mod setup;
+mod status;
 mod targets;
 
 #[cfg(test)]
-#[path = "tests.rs"]
-mod api_tests;
+mod tests;
 
 pub use error::{Error, Result};
 use model::*;

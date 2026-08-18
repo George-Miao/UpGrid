@@ -1,6 +1,6 @@
 # Use a transactional Raft log and batched state checkpoints
 
-The original persistence path serialized and fsynced the complete Raft log and application state after nearly every committed entry. Its cost grew with the 1,000-Target reference workload and prevented evaluations from completing within one interval.
+The original persistence path serialized and fsynced the complete Raft log and application state after nearly every committed entry. Its cost grew with the 1,000-target reference workload and prevented evaluations from completing within one interval.
 
 Store Raft log entries and safety metadata in redb transactions so appends update only the affected records. Keep the in-memory mirror for OpenRaft reads and migrate an existing `raft-log.postcard` into `raft-log.redb` once without deleting the legacy backup.
 

@@ -19,6 +19,7 @@ use upgrid_transport::{RpcTransport, secure_endpoint};
 
 use crate::UpgridNode;
 use crate::cluster::{ClusterError, DomainSnafu};
+use crate::database::RaftDatabase;
 use crate::error::*;
 use crate::raft::{Identity, Raft, Req, Res};
 use crate::rpc::{JoinError, Rpc, UpgridNetwork};
@@ -37,9 +38,15 @@ pub struct Node {
 
 impl Node {
     pub fn data_membership_urls(data_dir: &Path) -> Result<BTreeSet<String>> {
-        let state_path = data_dir.join("raft-state.postcard");
-        let state_machine =
-            StateMachine::open(&state_path).context(StateMachineOpenSnafu { path: state_path })?;
+        let path = data_dir.join("raft.sqlite3");
+        let database = Rc::new(
+            RaftDatabase::open(data_dir)
+                .map_err(std::io::Error::from)
+                .context(DatabaseOpenSnafu { path })?,
+        );
+        let state_machine = StateMachine::open(database).context(DatabaseOpenSnafu {
+            path: data_dir.join("raft.sqlite3"),
+        })?;
         Ok(state_machine
             .state_machine
             .borrow()
@@ -73,14 +80,18 @@ impl Node {
     }
 
     pub async fn open(id: Identity, data_dir: &Path, cipher: &Cipher) -> Result<Self> {
-        let log_path = data_dir.join("raft-log.redb");
-        let legacy_log_path = data_dir.join("raft-log.postcard");
-        let storage = InMemStore::open(&log_path, &legacy_log_path)
-            .context(RaftLogOpenSnafu { path: log_path })?;
-        let state_path = data_dir.join("raft-state.postcard");
-        let state_machine = Rc::new(
-            StateMachine::open(&state_path).context(StateMachineOpenSnafu { path: state_path })?,
+        let path = data_dir.join("raft.sqlite3");
+        let database = Rc::new(
+            RaftDatabase::open(data_dir)
+                .map_err(std::io::Error::from)
+                .context(DatabaseOpenSnafu { path })?,
         );
+        let storage = InMemStore::open(database.clone()).context(DatabaseOpenSnafu {
+            path: data_dir.join("raft.sqlite3"),
+        })?;
+        let state_machine = Rc::new(StateMachine::open(database).context(DatabaseOpenSnafu {
+            path: data_dir.join("raft.sqlite3"),
+        })?);
         Self::build(id, storage, state_machine, cipher).await
     }
 

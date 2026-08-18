@@ -159,7 +159,7 @@ pub(super) async fn join_cluster(
 ) -> Result<(StatusCode, Json<JoinClusterView>), ApiError> {
     Err(ApiError {
         status: StatusCode::CONFLICT,
-        message: "this Node already belongs to a Cluster".to_owned(),
+        message: "This node already belongs to a cluster".to_owned(),
     })
 }
 
@@ -179,7 +179,7 @@ pub(super) async fn create_cluster(
 ) -> Result<(StatusCode, Json<JoinClusterView>), ApiError> {
     Err(ApiError {
         status: StatusCode::CONFLICT,
-        message: "this Node already belongs to a Cluster".to_owned(),
+        message: "This node already belongs to a cluster".to_owned(),
     })
 }
 
@@ -204,9 +204,9 @@ fn encode_join_token_id(hash: &upgrid_raft::domain::JoinTokenHash) -> String {
 fn decode_join_token_id(id: &str) -> Result<upgrid_raft::domain::JoinTokenHash, ApiError> {
     let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
         .decode(id)
-        .map_err(|_| ApiError::bad_request("invalid Join Token ID"))?;
+        .map_err(|_| ApiError::bad_request("Invalid join token ID"))?;
     let bytes: [u8; 32] = bytes
         .try_into()
-        .map_err(|_| ApiError::bad_request("invalid Join Token ID"))?;
+        .map_err(|_| ApiError::bad_request("Invalid join token ID"))?;
     Ok(upgrid_raft::domain::JoinTokenHash(bytes))
 }

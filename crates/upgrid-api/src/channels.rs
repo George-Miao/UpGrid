@@ -13,7 +13,7 @@ enum ChannelInputError {
     #[snafu(display("{source}"))]
     SealSecret { source: upgrid_config::CipherError },
 
-    #[snafu(display("Notification Channel type cannot be changed"))]
+    #[snafu(display("Notification channel type cannot be changed"))]
     KindChanged,
     #[snafu(display("SMTP username and password must be configured together"))]
     InvalidSmtpAuth,

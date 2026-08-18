@@ -424,7 +424,7 @@ impl From<&upgrid_raft::domain::Evaluation> for EvaluationView {
     }
 }
 
-fn availability_name(value: AvailabilityState) -> &'static str {
+pub(super) fn availability_name(value: AvailabilityState) -> &'static str {
     match value {
         AvailabilityState::Unknown => "unknown",
         AvailabilityState::Up => "up",

@@ -3,7 +3,7 @@
 mod core;
 
 pub use core::InMemStore;
+pub(crate) use core::InMemStoreInner;
 
 #[cfg(test)]
-#[path = "tests.rs"]
-mod storage_tests;
+mod tests;

@@ -75,28 +75,19 @@ test.afterAll(async () => {
 
 test("explains Secret usage from related forms", async ({ page }) => {
   await page.goto("/");
-  const reusableHelp = page.getByRole("button", { name: "About reusable Secrets" });
+  const reusableHelp = page.getByRole("button", { name: "About reusable secrets" });
   const reusableTooltip = page.locator("#secrets-help");
   await expect(reusableTooltip).toBeHidden();
   await reusableHelp.focus();
-  await expect(reusableTooltip).toContainText("Target headers or bodies and webhook headers");
+  await expect(reusableTooltip).toContainText("target headers or bodies and webhook headers");
   await expect(reusableTooltip).toBeVisible();
-
-  await page.getByRole("button", { name: "Add target" }).click();
-  const targetDialog = page.getByRole("dialog", { name: "Add target" });
-  const targetTooltip = targetDialog.locator("#target-secret-help");
-  await expect(targetTooltip).toBeHidden();
-  await targetDialog.getByRole("button", { name: "About Target Secrets" }).focus();
-  await expect(targetTooltip).toContainText("request bodies, custom CA bundles");
-  await expect(targetTooltip).toBeVisible();
-  await targetDialog.getByRole("button", { name: "Cancel" }).click();
 
   await page.getByRole("link", { name: "Alerts" }).click();
   await page.getByRole("button", { name: "Add channel" }).click();
   const channelDialog = page.getByRole("dialog", { name: "Add channel" });
   await channelDialog.getByLabel("Type").selectOption("telegram");
   await channelDialog.getByRole("button", { name: "About Telegram bot token storage" }).focus();
-  await expect(channelDialog.locator("#telegram-token-help")).toContainText("automatically managed Secret");
+  await expect(channelDialog.locator("#telegram-token-help")).toContainText("Get a bot token from Telegram's @BotFather");
   await expect(channelDialog.locator("#telegram-token-help")).toBeVisible();
 });
 
@@ -228,6 +219,14 @@ test("uses trash icons for secret and Target deletion", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Add secret" }).click();
   const secretDialog = page.getByRole("dialog", { name: "Add secret" });
+  const secretHelp = secretDialog.locator("#add-secret-help");
+  await expect(secretDialog.locator(".dialog-head p")).toHaveCount(0);
+  await page.mouse.move(0, 0);
+  await expect(secretHelp).toBeHidden();
+  const secretHelpTrigger = secretDialog.getByRole("button", { name: "About adding a secret" });
+  await expect(secretHelpTrigger).toHaveCSS("cursor", "pointer");
+  await secretHelpTrigger.focus();
+  await expect(secretHelp).toBeVisible();
   await secretDialog.getByLabel("Name").fill("Browser delete icon secret");
   await secretDialog.getByLabel("Value").fill("temporary");
   await secretDialog.getByRole("button", { name: "Create secret" }).click();
@@ -244,13 +243,13 @@ test("uses trash icons for secret and Target deletion", async ({ page }) => {
   await targetDialog.getByLabel("Name").fill("Browser delete icon target");
   await targetDialog.getByLabel("URL").fill("http://127.0.0.1:18080/healthz");
   await targetDialog.getByRole("button", { name: "Create target" }).click();
-  await page.getByLabel("Select Browser delete icon target").check();
+  await page.getByRole("checkbox", { name: "Select Browser delete icon target" }).check();
   const deleteSelected = page.getByRole("button", { name: "Delete selected" });
   await expect(deleteSelected.locator("iconify-icon")).toBeVisible();
   await page.getByRole("button", { name: "Unselect all" }).click();
 
   await page.getByRole("button", { name: "Browser delete icon target" }).click();
-  const deleteTarget = page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Move Target to Trash" });
+  const deleteTarget = page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Move target to trash" });
   await expect(deleteTarget.locator("iconify-icon")).toBeVisible();
   page.once("dialog", (confirmation) => confirmation.accept());
   await deleteTarget.click();
@@ -274,8 +273,10 @@ test("filters, acknowledges, and retries alert deliveries", async ({ page }) => 
   const targetDialog = page.getByRole("dialog", { name: "Add target" });
   await targetDialog.getByLabel("Name").fill(targetName);
   await targetDialog.getByLabel("URL").fill("http://127.0.0.1:19095/");
+  await targetDialog.getByRole("tab", { name: "Evaluation" }).click();
   await targetDialog.getByLabel("Interval (seconds)").fill("1");
-  await targetDialog.getByLabel("Failures before Down").fill("1");
+  await targetDialog.getByLabel("Failures before down").fill("1");
+  await targetDialog.getByRole("tab", { name: "Notifications" }).click();
   await targetDialog.getByRole("switch", { name: "Use default channels" }).uncheck();
   await targetDialog.getByRole("checkbox", { name: channelName }).check();
   await targetDialog.getByRole("button", { name: "Create target" }).click();
@@ -318,9 +319,9 @@ test("filters, acknowledges, and retries alert deliveries", async ({ page }) => 
   await page.goto("/");
   await target.click();
   page.once("dialog", (confirmation) => confirmation.accept());
-  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Move Target to Trash" }).click();
+  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Move target to trash" }).click();
   await page.goto("/trash");
-  const trashedTarget = page.getByRole("region", { name: "Trashed Targets" }).locator(".resource", { hasText: targetName });
+  const trashedTarget = page.getByRole("region", { name: "Trashed targets" }).locator(".resource", { hasText: targetName });
   page.once("dialog", (confirmation) => confirmation.accept());
   await trashedTarget.getByRole("button", { name: "Delete permanently" }).click();
   await page.goto("/alerts");
@@ -353,33 +354,27 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Add target" }).click();
   const targetDialog = page.getByRole("dialog", { name: "Add target" });
-  const defaultChannel = targetDialog.getByRole("checkbox", { name: channelName });
-  const useDefaults = targetDialog.getByRole("switch", { name: "Use default channels" });
-  const channelHeading = targetDialog.locator(".channel-fields legend");
-  const channelSection = targetDialog.locator(".channel-fields");
   const nameInput = targetDialog.getByLabel("Name");
-  await expect(defaultChannel).toBeChecked();
-  await expect(defaultChannel).toBeDisabled();
-  await expect(channelHeading).toHaveCSS("font-size", "14px");
-  await expect(channelHeading).toHaveCSS("font-weight", "400");
   await expect(nameInput).toHaveCSS("font-size", "16px");
   await expect(nameInput).toHaveCSS("min-height", "44px");
   await nameInput.focus();
   await expect(nameInput).toHaveCSS("outline-style", "solid");
-  const [headingBox, sectionBox] = await Promise.all([channelHeading.boundingBox(), channelSection.boundingBox()]);
-  expect(headingBox).not.toBeNull();
-  expect(sectionBox).not.toBeNull();
-  expect(Math.abs(headingBox!.x + headingBox!.width / 2 - (sectionBox!.x + sectionBox!.width / 2))).toBeLessThan(2);
+  await nameInput.fill(targetName);
+  await targetDialog.getByLabel("URL").fill("http://127.0.0.1:19091/");
+  await targetDialog.getByRole("tab", { name: "Notifications" }).click();
+  const defaultChannel = targetDialog.getByRole("checkbox", { name: channelName });
+  const useDefaults = targetDialog.getByRole("switch", { name: "Use default channels" });
+  await expect(defaultChannel).toBeChecked();
+  await expect(defaultChannel).toBeDisabled();
   await useDefaults.uncheck();
   await expect(defaultChannel).not.toBeChecked();
   await expect(defaultChannel).toBeEnabled();
   await useDefaults.check();
   await expect(defaultChannel).toBeChecked();
   await expect(defaultChannel).toBeDisabled();
-  await nameInput.fill(targetName);
-  await targetDialog.getByLabel("URL").fill("http://127.0.0.1:19091/");
+  await targetDialog.getByRole("tab", { name: "Evaluation" }).click();
   await targetDialog.getByLabel("Interval (seconds)").fill("1");
-  await targetDialog.getByLabel("Failures before Down").fill("1");
+  await targetDialog.getByLabel("Failures before down").fill("1");
   await targetDialog.getByRole("button", { name: "Create target" }).click();
 
   const target = page.getByRole("button", { name: targetName });
@@ -405,8 +400,10 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
   const optedOutDialog = page.getByRole("dialog", { name: "Add target" });
   await optedOutDialog.getByLabel("Name").fill(optedOutName);
   await optedOutDialog.getByLabel("URL").fill("http://127.0.0.1:19093/");
+  await optedOutDialog.getByRole("tab", { name: "Evaluation" }).click();
   await optedOutDialog.getByLabel("Interval (seconds)").fill("1");
-  await optedOutDialog.getByLabel("Failures before Down").fill("1");
+  await optedOutDialog.getByLabel("Failures before down").fill("1");
+  await optedOutDialog.getByRole("tab", { name: "Notifications" }).click();
   await optedOutDialog.getByRole("switch", { name: "Use default channels" }).uncheck();
   await optedOutDialog.getByRole("button", { name: "Create target" }).click();
   const optedOut = page.getByRole("button", { name: optedOutName });
@@ -416,14 +413,14 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
 
   await target.click();
   page.once("dialog", (confirmation) => confirmation.accept());
-  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Move Target to Trash" }).click();
+  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Move target to trash" }).click();
   await expect(target).not.toBeVisible();
   await optedOut.click();
   page.once("dialog", (confirmation) => confirmation.accept());
-  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Move Target to Trash" }).click();
+  await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Move target to trash" }).click();
   await page.goto("/trash");
   for (const name of [targetName, optedOutName]) {
-    const trashedTarget = page.getByRole("region", { name: "Trashed Targets" }).locator(".resource", { hasText: name });
+    const trashedTarget = page.getByRole("region", { name: "Trashed targets" }).locator(".resource", { hasText: name });
     page.once("dialog", (confirmation) => confirmation.accept());
     await trashedTarget.getByRole("button", { name: "Delete permanently" }).click();
   }

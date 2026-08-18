@@ -134,7 +134,7 @@ pub(super) async fn create_identity(
 #[utoipa::path(
     put,
     path = "/api/v1/identities/{id}",
-    params(("id" = Uuid, Path, description = "Operator Identity ID")),
+    params(("id" = Uuid, Path, description = "Operator identity ID")),
     request_body = UpdateIdentityRequest,
     responses(
         (status = 200, body = IdentityView),
@@ -171,7 +171,7 @@ pub(super) async fn update_identity(
 #[utoipa::path(
     delete,
     path = "/api/v1/identities/{id}",
-    params(("id" = Uuid, Path, description = "Operator Identity ID")),
+    params(("id" = Uuid, Path, description = "Operator identity ID")),
     responses(
         (status = 204),
         (status = 401, body = ErrorBody),
@@ -272,7 +272,7 @@ pub(super) async fn create_api_token(
 #[utoipa::path(
     delete,
     path = "/api/v1/api-tokens/{id}",
-    params(("id" = Uuid, Path, description = "API Token ID")),
+    params(("id" = Uuid, Path, description = "API token ID")),
     responses(
         (status = 204),
         (status = 401, body = ErrorBody),

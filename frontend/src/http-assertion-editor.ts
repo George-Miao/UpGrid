@@ -18,9 +18,8 @@ export class HttpAssertionEditor extends LitElement {
   static formAssociated = true;
 
   static styles = css`
-    :host { display: grid; gap: 10px; margin: 10px 0; }
-    fieldset { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
-    legend { color: var(--muted); font-size: 13px; padding: 0 4px; }
+    :host { display: grid; gap: 10px; }
+    .assertions { display: grid; gap: 10px; }
     .assertion { display: grid; grid-template-columns: minmax(140px, 0.7fr) minmax(180px, 1.3fr) auto; gap: 8px; align-items: end; }
     .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .fields.single { grid-template-columns: 1fr; }
@@ -28,9 +27,11 @@ export class HttpAssertionEditor extends LitElement {
     input, select, textarea { box-sizing: border-box; width: 100%; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); padding: 8px 9px; font: inherit; }
     textarea { min-height: 72px; resize: vertical; font-family: ui-monospace, monospace; }
     .actions { display: flex; gap: 4px; }
-    button { border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); padding: 8px 10px; cursor: pointer; }
-    button:disabled { cursor: default; opacity: 0.45; }
-    .add { justify-self: start; }
+    button { border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); padding: 8px 10px; cursor: pointer; user-select: none; }
+    button:disabled { cursor: not-allowed; opacity: 0.45; }
+    .add { min-height: 44px; justify-self: start; border-color: var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 120ms ease; }
+    .add:hover { border-color: var(--button-hover-border); }
+    .add:active { transform: translateY(1px); }
     .empty { margin: 0; color: var(--muted); font-size: 13px; }
     @media (max-width: 720px) { .assertion { grid-template-columns: 1fr; } .fields { grid-template-columns: 1fr; } }
   `;
@@ -109,11 +110,10 @@ export class HttpAssertionEditor extends LitElement {
 
   protected render() {
     return html`
-      <fieldset>
-        <legend>Ordered response assertions</legend>
-        ${this.draft.length ? this.draft.map((assertion, index) => this.renderAssertion(assertion, index)) : html`<p class="empty">No response assertions. HTTP status ranges still apply.</p>`}
+      <div class="assertions">
         <button class="add" type="button" @click=${this.add}>Add assertion</button>
-      </fieldset>
+        ${this.draft.length ? this.draft.map((assertion, index) => this.renderAssertion(assertion, index)) : html`<p class="empty">No assertions.</p>`}
+      </div>
     `;
   }
 

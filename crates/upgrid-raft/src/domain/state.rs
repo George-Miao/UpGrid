@@ -31,6 +31,8 @@ pub struct ApplicationState {
     pub identities: BTreeMap<IdentityId, OperatorIdentity>,
     #[serde(default)]
     pub api_tokens: BTreeMap<ApiTokenId, ApiToken>,
+    #[serde(default)]
+    pub public_status_enabled: bool,
 }
 
 impl ApplicationState {
@@ -57,9 +59,6 @@ impl ApplicationState {
             .map(|batch| &batch.results)
     }
 }
-
-mod version;
-pub(crate) use version::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct ProcessedOperation {
@@ -92,6 +91,7 @@ impl Default for ApplicationState {
             draining_nodes: BTreeSet::new(),
             identities: BTreeMap::new(),
             api_tokens: BTreeMap::new(),
+            public_status_enabled: false,
             history_retention_ms: DEFAULT_HISTORY_RETENTION_MS,
             processed_operations: BTreeMap::new(),
             latest_operation_at_ms: 0,

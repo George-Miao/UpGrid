@@ -59,6 +59,30 @@ export interface Target {
   paused: boolean;
 }
 
+export interface PublicEvaluation {
+  scheduled_at_ms: number;
+  succeeded: boolean;
+  status_code: number | null;
+  latency_ms: number;
+}
+
+export interface PublicStatusTarget {
+  kind: TargetKind | "node";
+  name: string;
+  availability: "unknown" | "up" | "down";
+  consecutive_failures: number;
+  latest_evaluation: PublicEvaluation | null;
+  paused: boolean;
+}
+
+export interface PublicStatus {
+  targets: PublicStatusTarget[];
+}
+
+export interface ManageSettings {
+  public_status_enabled: boolean;
+}
+
 export interface TrashedTarget extends Target {
   deleted_at_ms: number;
   purge_at_ms: number;

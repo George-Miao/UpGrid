@@ -1,4 +1,4 @@
-import { type Alert, type ApiToken, type Channel, type ClusterMember, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type Secret, type SecretCleanup, type Session, type Setup, type Target, type TargetInput, type TrashedTarget, request } from "./api.ts";
+import { type Alert, type ApiToken, type Channel, type ClusterMember, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type ManageSettings, type Secret, type SecretCleanup, type Session, type Setup, type Target, type TargetInput, type TrashedTarget, request } from "./api.ts";
 import { AppState } from "./app-state.ts";
 import { channelInput, targetInput } from "./resource-input.ts";
 import type { HttpAssertionEditor } from "./http-assertion-editor.ts";
@@ -78,7 +78,7 @@ export class AppController extends AppState {
   }
 
   protected async deleteTarget(): Promise<void> {
-    if (!this.selected || !window.confirm("Move this Target and its history to Trash? You can restore it before its retention period expires.")) return;
+    if (!this.selected || !window.confirm("Move this target and its history to trash? You can restore it before its retention period expires.")) return;
     this.saving = true;
     try {
       await request<void>(`/api/v1/targets/${this.selected.id}`, { method: "DELETE" });
@@ -226,10 +226,18 @@ export class AppController extends AppState {
       this.saving = false;
     }
   }
+  private passwordsMatch(form: HTMLFormElement): boolean {
+    const password = form.elements.namedItem("password") as HTMLInputElement | null;
+    const confirmation = form.elements.namedItem("password_confirmation") as HTMLInputElement | null;
+    if (!password || !confirmation) return true;
+    confirmation.setCustomValidity(password.value === confirmation.value ? "" : "Passwords do not match.");
+    return form.reportValidity();
+  }
 
   protected async createIdentity(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
+    if (!this.passwordsMatch(form)) return;
     const fields = new FormData(form);
     await this.saveResource(async () => {
       await request<Identity>("/api/v1/identities", {
@@ -240,12 +248,15 @@ export class AppController extends AppState {
         }),
       });
       form.reset();
+      this.closeDialog("add-user-dialog");
     });
   }
 
   protected async updateIdentity(identity: Identity, event: SubmitEvent): Promise<void> {
     event.preventDefault();
-    const fields = new FormData(event.currentTarget as HTMLFormElement);
+    const form = event.currentTarget as HTMLFormElement;
+    if (!this.passwordsMatch(form)) return;
+    const fields = new FormData(form);
     const password = String(fields.get("password") ?? "");
     await this.saveResource(async () => {
       await request<Identity>(`/api/v1/identities/${identity.id}`, {
@@ -257,6 +268,9 @@ export class AppController extends AppState {
       });
       if (identity.id === this.session?.identity_id && password) {
         await this.logout();
+      } else {
+        this.closeDialog("edit-user-dialog");
+        this.editingIdentity = undefined;
       }
     });
   }
@@ -281,11 +295,12 @@ export class AppController extends AppState {
       });
       this.newApiToken = created.value;
       form.reset();
+      this.closeDialog("api-token-dialog");
     });
   }
 
   protected async revokeApiToken(token: ApiToken): Promise<void> {
-    if (!window.confirm(`Revoke API Token ${token.name}?`)) return;
+    if (!window.confirm(`Revoke API token ${token.name}?`)) return;
     await this.saveResource(() => request(`/api/v1/api-tokens/${token.id}`, { method: "DELETE" }));
   }
 
@@ -299,7 +314,7 @@ export class AppController extends AppState {
   }
 
   protected async removeNode(member: ClusterMember, force: boolean): Promise<void> {
-    const action = force ? `Replace failed Node ${member.name}? Confirm that it is permanently stopped. Its assignments will be released immediately.` : `Remove drained Node ${member.name} from the Cluster?`;
+    const action = force ? `Replace failed node ${member.name}? Confirm that it is permanently stopped. Its assignments will be released immediately.` : `Remove drained node ${member.name} from the cluster?`;
     if (!window.confirm(action)) return;
     await this.saveResource(() => request(`/api/v1/nodes/${member.id}?force=${force}`, { method: "DELETE" }));
     if (force && !this.error) this.openTokenDialog();
@@ -322,6 +337,19 @@ export class AppController extends AppState {
           channel_id: alert.channel_id,
           scheduled_at_ms: alert.scheduled_at_ms,
           kind: alert.kind,
+        }),
+      }),
+    );
+  }
+
+  protected async updateSettings(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const fields = new FormData(event.currentTarget as HTMLFormElement);
+    await this.saveResource(() =>
+      request<ManageSettings>("/api/v1/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          public_status_enabled: fields.get("public_status_enabled") === "on",
         }),
       }),
     );
@@ -359,7 +387,7 @@ export class AppController extends AppState {
   }
 
   protected async revokeJoinToken(token: JoinToken): Promise<void> {
-    if (!window.confirm("Revoke this Join Token? Nodes using it will no longer be admitted.")) return;
+    if (!window.confirm("Revoke this join token? Nodes using it will no longer be admitted.")) return;
     this.saving = true;
     try {
       await request<void>(`/api/v1/join-tokens/${token.id}`, { method: "DELETE" });
@@ -385,7 +413,7 @@ export class AppController extends AppState {
       field.remove();
     }
     if (!copied) {
-      this.error = "Could not copy the Join command";
+      this.error = "Could not copy the join command";
       return;
     }
     this.copied = true;

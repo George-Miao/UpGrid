@@ -24,7 +24,7 @@ export class UpgridSetup extends LitElement {
     .choice h2 { margin: 0; font-size: 17px; }
     .choice p { margin: -8px 0 0; color: var(--muted); }
     .cluster-panel { border: 1px solid var(--line); border-radius: 16px; background: var(--panel-surface); box-shadow: 0 16px 48px var(--panel-shadow); overflow: hidden; }
-    .cluster-identity, .cluster-create, .cluster-join { padding: 15px 18px; }
+    .cluster-identity, .cluster-create, .cluster-join { padding: 18px; }
     .cluster-identity { border-bottom: 1px solid var(--line); }
     .cluster-create { display: grid; gap: 14px; }
     .cluster-create-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
@@ -39,14 +39,17 @@ export class UpgridSetup extends LitElement {
     .cluster-join-fields button { height: 44px; white-space: nowrap; }
     form { display: grid; gap: 13px; }
     label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
-    input, select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font: inherit; font-size: 16px; transition: border-color 160ms ease, opacity 160ms ease; }
-    input:focus, select:focus { border-color: var(--focus); }
+    .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .switch-label { display: flex; min-width: 0; align-items: center; gap: 8px; }
+    .switch-control { width: 42px; min-height: 24px; height: 24px; flex: none; appearance: none; border: 1px solid var(--line); border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
+    .switch-control::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
+    .switch-control:checked { border-color: var(--button-border); background: var(--button-bg); }
+    .switch-control:checked::after { background: var(--button-text); transform: translateX(18px); }
+    .checkbox-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .checkbox-control { width: 18px; min-height: 18px; height: 18px; flex: none; accent-color: var(--button-bg); cursor: pointer; }
+    input:not([type="checkbox"]), select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font: inherit; font-size: 16px; transition: border-color 160ms ease, opacity 160ms ease; }
+    input:not([type="checkbox"]):focus, select:focus { border-color: var(--focus); }
     button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
-    .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; }
-    .switch input { width: 42px; min-height: 24px; height: 24px; flex: none; appearance: none; border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
-    .switch input::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
-    .switch input:checked { border-color: var(--button-border); background: var(--button-bg); }
-    .switch input:checked::after { background: var(--button-text); transform: translateX(18px); }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
     .actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 5px; }
     button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; font: inherit; transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease, transform 120ms ease; }
@@ -66,7 +69,7 @@ export class UpgridSetup extends LitElement {
       .cluster-create button { align-self: end; }
       .cluster-copy p { display: none; }
       .cluster-join { grid-template-columns: auto minmax(0, 1fr); align-items: end; }
-      input, button { min-height: 38px; }
+      input:not([type="checkbox"]), button { min-height: 38px; }
       .cluster-join-fields button { height: 44px; }
     }
   `;
@@ -95,7 +98,7 @@ export class UpgridSetup extends LitElement {
 
   private async createCluster(event: SubmitEvent): Promise<void> {
     event.preventDefault();
-    if (!window.confirm("Create a new single-Node Cluster?")) return;
+    if (!window.confirm("Create a new single-node cluster?")) return;
     const fields = new FormData(event.currentTarget as HTMLFormElement);
     const adminUsername = String(fields.get("admin_username") ?? "").trim();
     const adminPassword = String(fields.get("admin_password") ?? "");
@@ -213,26 +216,26 @@ export class UpgridSetup extends LitElement {
 
   private renderCluster() {
     return html`
-      <span class="eyebrow">First-run setup</span><h1>Choose your Cluster</h1>
-      <p class="lead">Review this Node’s name, then create a new Cluster or use an invitation to join one.</p>
+      <span class="eyebrow">First-run setup</span><h1>Choose your cluster</h1>
+      <p class="lead">Review this node’s name, then create a new cluster or use an invitation to join one.</p>
       <div class="cluster-panel">
         <div class="cluster-identity">
           <label for="setup-node-name">Node name<input id="setup-node-name" .value=${this.setup.node_name} required /></label>
         </div>
         <form class="cluster-create" @submit=${this.createCluster}>
-          <div class="cluster-copy"><h2>Start a new Cluster</h2><p>Create its first replicated administrator identity.</p></div>
+          <div class="cluster-copy"><h2>Start a new cluster</h2><p>Create its first replicated administrator identity.</p></div>
           <div class="cluster-create-fields">
             <label>Administrator username<input name="admin_username" autocomplete="username" value="admin" required /></label>
             <label>Administrator password<input name="admin_password" type="password" minlength="12" autocomplete="new-password" required /></label>
           </div>
-          <button type="submit" ?disabled=${this.saving}>${this.saving ? "Setting up…" : "Create new Cluster"}</button>
+          <button type="submit" ?disabled=${this.saving}>${this.saving ? "Setting up…" : "Create new cluster"}</button>
         </form>
         <div class="cluster-divider"><span>Or</span></div>
         <form class="cluster-join" @submit=${this.joinCluster}>
-          <div class="cluster-copy"><h2>Join an existing Cluster</h2><p>Paste an <code>up://</code> Join Token from a current member.</p></div>
+          <div class="cluster-copy"><h2>Join an existing cluster</h2><p>Paste an <code>up://</code> join token from a current member.</p></div>
           <div class="cluster-join-fields">
-            <label>Join Token<input name="join_link" type="url" pattern="up://.*" placeholder="up://node.example/token" autocomplete="off" required /></label>
-            <button class="secondary" type="submit" ?disabled=${this.saving}>Join Cluster</button>
+            <label>Join token<input name="join_link" type="url" pattern="up://.*" placeholder="up://node.example/token" autocomplete="off" required /></label>
+            <button class="secondary" type="submit" ?disabled=${this.saving}>Join cluster</button>
           </div>
         </form>
       </div>`;
@@ -240,7 +243,7 @@ export class UpgridSetup extends LitElement {
 
   private renderChannel() {
     return html`
-      <span class="eyebrow">Optional · Step 2 of 3</span><h1>Add a notification channel</h1>
+      <span class="eyebrow">Optional · step 2 of 3</span><h1>Add a notification channel</h1>
       <p class="lead">Send availability transitions to Telegram or a webhook. <span class="count">${this.setup.channel_count} already configured</span></p>
       <div class="panel"><form class="choice" @submit=${this.createChannel}>
         <label>Type<select name="type" @change=${(event: Event) => (this.channelKind = (event.target as HTMLSelectElement).value as "webhook" | "telegram")}><option value="webhook">Webhook</option><option value="telegram">Telegram</option></select></label>
@@ -248,21 +251,25 @@ export class UpgridSetup extends LitElement {
         ${
           this.channelKind === "webhook" ? html`<label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/upgrid" required /></label>` : html`<label>Bot token<input name="bot_token" type="password" autocomplete="off" required /></label><label>Chat ID<input name="chat_id" required /></label>`
         }
-        <label class="switch"><span>Default channel</span><input name="default" type="checkbox" role="switch" checked /></label>
+        <label class="switch"><span>Use as default channel</span><input class="switch-control" name="default" type="checkbox" role="switch" checked /></label>
         <div class="actions"><button class="secondary" type="button" @click=${this.next} ?disabled=${this.saving}>Skip</button><button type="submit" ?disabled=${this.saving}>Create and continue</button></div>
       </form></div>`;
   }
 
   private renderTarget() {
     return html`
-      <span class="eyebrow">Optional · Step 3 of 3</span><h1>Monitor your first Target</h1>
+      <span class="eyebrow">Optional · step 3 of 3</span><h1>Monitor your first target</h1>
       <p class="lead">Configure an HTTP endpoint now or continue to the dashboard. <span class="count">${this.setup.target_count} already configured</span></p>
       <div class="panel"><form class="choice" @submit=${this.createTarget}>
         <label>Name<input name="name" placeholder="Production API" required /></label>
         <label>URL<input name="url" type="url" placeholder="https://example.com/health" required /></label>
         <div class="row"><label>Method<input name="method" value="GET" required /></label><label>Interval (seconds)<input name="interval" type="number" min="1" value="60" required /></label></div>
-        <div class="row"><label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label><label>Failures before Down<input name="failures" type="number" min="1" value="3" required /></label></div>
-        ${this.channels.length ? html`<fieldset><legend>Notification channels</legend>${this.channels.map((channel) => html`<label><span><input name="channel_id" type="checkbox" value=${channel.id} /> ${channel.name}</span></label>`)}</fieldset>` : nothing}
+        <div class="row"><label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label><label>Failures before down<input name="failures" type="number" min="1" value="3" required /></label></div>
+        ${
+          this.channels.length
+            ? html`<fieldset><legend>Notification channels</legend>${this.channels.map((channel) => html`<label class="checkbox-option"><span>${channel.name}</span><input class="checkbox-control" name="channel_id" type="checkbox" value=${channel.id} /></label>`)}</fieldset>`
+            : html`<p class="meta">No notification channels are available.</p>`
+        }
         <div class="actions"><button class="secondary" type="button" @click=${this.next} ?disabled=${this.saving}>Skip</button><button type="submit" ?disabled=${this.saving}>Create and finish</button></div>
       </form></div>`;
   }

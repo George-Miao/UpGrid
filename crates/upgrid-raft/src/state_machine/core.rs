@@ -1,53 +1,22 @@
 use std::cell::{Cell, RefCell};
 use std::fmt::Debug;
-use std::io::Cursor;
-use std::path::{Path, PathBuf};
+use std::io::{self, Cursor};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::{fs, io};
 
 use openraft::alias::{EntryOf, LogIdOf, SnapshotMetaOf, SnapshotOf, StoredMembershipOf};
 use openraft::storage::{RaftStateMachine, Snapshot};
 use openraft::{EntryPayload, OptionalSend, RaftSnapshotBuilder};
 use openraft_rt_compio::futures::{Stream, StreamExt};
-use serde::{Deserialize, Serialize};
-use upgrid_config::durable;
 
-use super::decode::{decode_application, decode_persisted};
+use super::codec::{decode_snapshot, encode_snapshot};
+use crate::database::{RaftDatabase, StateRepository};
 use crate::domain::ApplicationState;
 use crate::raft::{Res, TC};
 
-pub(super) const STATE_MAGIC: &[u8] = b"UPGS14";
-pub(super) const PRE_TRASH_STATE_MAGIC: &[u8] = b"UPGS13";
-pub(super) const PRE_ROLLUP_STATE_MAGIC: &[u8] = b"UPGS12";
-pub(super) const PRE_LOCATION_STATE_MAGIC: &[u8] = b"UPGS11";
-pub(super) const PRE_TLS_STATE_MAGIC: &[u8] = b"UPGS10";
-pub(super) const PRE_ASSERTION_STATE_MAGIC: &[u8] = b"UPGS9";
-pub(super) const PRE_ACKNOWLEDGEMENT_STATE_MAGIC: &[u8] = b"UPGS8";
-pub(super) const PRE_DRAIN_STATE_MAGIC: &[u8] = b"UPGS7";
-pub(super) const PRE_AUTH_STATE_MAGIC: &[u8] = b"UPGS6";
-pub(super) const DEFAULT_CHANNEL_STATE_MAGIC: &[u8] = b"UPGS5";
-pub(super) const TRANSITION_STATE_MAGIC: &[u8] = b"UPGS4";
-pub(super) const NAMED_STATE_MAGIC: &[u8] = b"UPGS3";
-pub(super) const TOKEN_STATE_MAGIC: &[u8] = b"UPGS2";
-pub(super) const PREVIOUS_STATE_MAGIC: &[u8] = b"UPGS1";
-pub(super) const SNAPSHOT_MAGIC: &[u8] = b"UPGA14";
-pub(super) const PRE_TRASH_SNAPSHOT_MAGIC: &[u8] = b"UPGA13";
-pub(super) const PRE_ROLLUP_SNAPSHOT_MAGIC: &[u8] = b"UPGA12";
-pub(super) const PRE_LOCATION_SNAPSHOT_MAGIC: &[u8] = b"UPGA11";
-pub(super) const PRE_TLS_SNAPSHOT_MAGIC: &[u8] = b"UPGA10";
-pub(super) const PRE_ASSERTION_SNAPSHOT_MAGIC: &[u8] = b"UPGA9";
-pub(super) const PRE_ACKNOWLEDGEMENT_SNAPSHOT_MAGIC: &[u8] = b"UPGA8";
-pub(super) const PRE_DRAIN_SNAPSHOT_MAGIC: &[u8] = b"UPGA7";
-pub(super) const PRE_AUTH_SNAPSHOT_MAGIC: &[u8] = b"UPGA6";
-pub(super) const DEFAULT_CHANNEL_SNAPSHOT_MAGIC: &[u8] = b"UPGA5";
-pub(super) const TRANSITION_SNAPSHOT_MAGIC: &[u8] = b"UPGA4";
-pub(super) const NAMED_SNAPSHOT_MAGIC: &[u8] = b"UPGA3";
-pub(super) const TOKEN_SNAPSHOT_MAGIC: &[u8] = b"UPGA2";
-pub(super) const PREVIOUS_SNAPSHOT_MAGIC: &[u8] = b"UPGA1";
 pub(super) const CHECKPOINT_INTERVAL: u64 = 256;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct StoredSnapshot {
     pub meta: SnapshotMetaOf<TC>,
 
@@ -56,7 +25,7 @@ pub struct StoredSnapshot {
 }
 
 /// Data contained in the Raft state machine.
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct StateMachineData {
     pub last_applied_log: Option<LogIdOf<TC>>,
 
@@ -84,7 +53,7 @@ pub struct StateMachine {
     /// The last received snapshot.
     current_snapshot: RefCell<Option<StoredSnapshot>>,
 
-    path: Option<PathBuf>,
+    repository: Option<StateRepository>,
 
     /// Applied entries since the last durable state-machine checkpoint.
     ///
@@ -93,30 +62,15 @@ pub struct StateMachine {
     uncheckpointed: Cell<u64>,
 }
 
-#[derive(Serialize, Deserialize)]
-pub(super) struct PersistedStateMachine {
-    pub(super) state_machine: StateMachineData,
-    pub(super) current_snapshot: Option<StoredSnapshot>,
-    pub(super) snapshot_idx: u64,
-}
-
 impl StateMachine {
-    pub fn open(path: impl AsRef<Path>) -> io::Result<Self> {
-        let path = path.as_ref().to_path_buf();
-        let persisted = match fs::read(&path) {
-            Ok(bytes) => decode_persisted(&bytes)?,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => PersistedStateMachine {
-                state_machine: StateMachineData::default(),
-                current_snapshot: None,
-                snapshot_idx: 0,
-            },
-            Err(error) => return Err(error),
-        };
+    pub(crate) fn open(database: Rc<RaftDatabase>) -> io::Result<Self> {
+        let repository = StateRepository::new(database);
+        let (state_machine, current_snapshot, snapshot_idx) = repository.load()?;
         Ok(Self {
-            state_machine: RefCell::new(persisted.state_machine),
-            snapshot_idx: AtomicU64::new(persisted.snapshot_idx),
-            current_snapshot: RefCell::new(persisted.current_snapshot),
-            path: Some(path),
+            state_machine: RefCell::new(state_machine),
+            snapshot_idx: AtomicU64::new(snapshot_idx),
+            current_snapshot: RefCell::new(current_snapshot),
+            repository: Some(repository),
             uncheckpointed: Cell::new(0),
         })
     }
@@ -137,20 +91,18 @@ impl StateMachine {
     }
 
     pub(super) fn persist(&self) -> io::Result<()> {
-        let Some(path) = &self.path else {
+        let Some(repository) = &self.repository else {
             return Ok(());
         };
-        let persisted = PersistedStateMachine {
-            state_machine: self.state_machine.borrow().clone(),
-            current_snapshot: self.current_snapshot.borrow().clone(),
-            snapshot_idx: self.snapshot_idx.load(Ordering::Relaxed),
-        };
-        let bytes =
-            postcard::to_stdvec(&persisted).map_err(|error| io::Error::other(error.to_string()))?;
-        let mut encoded = Vec::with_capacity(STATE_MAGIC.len() + bytes.len());
-        encoded.extend_from_slice(STATE_MAGIC);
-        encoded.extend_from_slice(&bytes);
-        durable::replace(path, &encoded)
+        let state = self.state_machine.borrow().clone();
+        let snapshot = self.current_snapshot.borrow().clone();
+        repository
+            .replace(
+                &state,
+                snapshot.as_ref(),
+                self.snapshot_idx.load(Ordering::Relaxed),
+            )
+            .map_err(io::Error::from)
     }
 }
 
@@ -158,32 +110,27 @@ impl RaftSnapshotBuilder<TC> for Rc<StateMachine> {
     type SnapshotData = Cursor<Vec<u8>>;
 
     async fn build_snapshot(&mut self) -> io::Result<SnapshotOf<TC, Self::SnapshotData>> {
-        let state_machine = self.state_machine.borrow();
-        let encoded = postcard::to_stdvec(&state_machine.application)
-            .map_err(|error| io::Error::other(error.to_string()))?;
-        let mut data = Vec::with_capacity(SNAPSHOT_MAGIC.len() + encoded.len());
-        data.extend_from_slice(SNAPSHOT_MAGIC);
-        data.extend_from_slice(&encoded);
-
-        let last_applied_log = state_machine.last_applied_log;
-        let last_membership = state_machine.last_membership.clone();
-
-        drop(state_machine);
-
-        self.snapshot_idx.fetch_add(1, Ordering::Relaxed);
-
+        let state_machine = self.state_machine.borrow().clone();
+        let data = encode_snapshot(&state_machine.application)?;
         let meta = SnapshotMetaOf::<TC> {
-            last_log_id: last_applied_log,
-            last_membership,
+            last_log_id: state_machine.last_applied_log,
+            last_membership: state_machine.last_membership.clone(),
         };
-
         let snapshot = StoredSnapshot {
             meta: meta.clone(),
             data: data.clone(),
         };
+        let snapshot_idx = self
+            .snapshot_idx
+            .load(Ordering::Relaxed)
+            .checked_add(1)
+            .ok_or_else(|| io::Error::other("snapshot index overflow"))?;
+        if let Some(repository) = &self.repository {
+            repository.replace(&state_machine, Some(&snapshot), snapshot_idx)?;
+        }
 
+        self.snapshot_idx.store(snapshot_idx, Ordering::Relaxed);
         self.current_snapshot.replace(Some(snapshot));
-        self.persist()?;
         self.uncheckpointed.set(0);
 
         Ok(Snapshot {
@@ -230,10 +177,9 @@ impl RaftStateMachine<TC> for Rc<StateMachine> {
                     );
                     Res { result }
                 }
-                EntryPayload::Membership(ref mem) => {
+                EntryPayload::Membership(mem) => {
                     membership_changed = true;
-                    sm.last_membership =
-                        StoredMembershipOf::<TC>::new(Some(entry.log_id), mem.clone());
+                    sm.last_membership = StoredMembershipOf::<TC>::new(Some(entry.log_id), mem);
                     Res::default()
                 }
             };
@@ -257,31 +203,30 @@ impl RaftStateMachine<TC> for Rc<StateMachine> {
         meta: &SnapshotMetaOf<TC>,
         snapshot: Self::SnapshotData,
     ) -> io::Result<()> {
+        let mut data = snapshot.into_inner();
+        let decoded = decode_snapshot(&data)?;
+        if decoded.migrated {
+            data = encode_snapshot(&decoded.value)?;
+        }
         let new_snapshot = StoredSnapshot {
             meta: meta.clone(),
-            data: snapshot.into_inner(),
+            data,
         };
-
-        // Update the state machine.
-        let application = decode_application(&new_snapshot.data)
-            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))?;
         let updated_state_machine = StateMachineData {
             last_applied_log: meta.last_log_id,
             last_membership: meta.last_membership.clone(),
-            application,
+            application: decoded.value,
         };
-        let mut state_machine = self.state_machine.borrow_mut();
-        *state_machine = updated_state_machine;
+        if let Some(repository) = &self.repository {
+            repository.replace(
+                &updated_state_machine,
+                Some(&new_snapshot),
+                self.snapshot_idx.load(Ordering::Relaxed),
+            )?;
+        }
 
-        // Lock the current snapshot before releasing the lock on the state machine, to
-        // avoid a race condition on the written snapshot
-        let mut current_snapshot = self.current_snapshot.borrow_mut();
-        drop(state_machine);
-
-        // Update current snapshot.
-        *current_snapshot = Some(new_snapshot);
-        drop(current_snapshot);
-        self.persist()?;
+        self.state_machine.replace(updated_state_machine);
+        self.current_snapshot.replace(Some(new_snapshot));
         self.uncheckpointed.set(0);
         Ok(())
     }
@@ -289,14 +234,11 @@ impl RaftStateMachine<TC> for Rc<StateMachine> {
     async fn get_current_snapshot(
         &mut self,
     ) -> io::Result<Option<SnapshotOf<TC, Self::SnapshotData>>> {
-        match &*self.current_snapshot.borrow_mut() {
-            Some(snapshot) => {
-                let data = snapshot.data.clone();
-                Ok(Some(Snapshot {
-                    meta: snapshot.meta.clone(),
-                    snapshot: Cursor::new(data),
-                }))
-            }
+        match &*self.current_snapshot.borrow() {
+            Some(snapshot) => Ok(Some(Snapshot {
+                meta: snapshot.meta.clone(),
+                snapshot: Cursor::new(snapshot.data.clone()),
+            })),
             None => Ok(None),
         }
     }

@@ -290,5 +290,4 @@ impl UpgridService for UpgridServer {
 }
 
 #[cfg(test)]
-#[path = "service/test.rs"]
 mod test;

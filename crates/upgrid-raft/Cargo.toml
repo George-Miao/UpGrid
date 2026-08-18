@@ -11,10 +11,15 @@ openraft.workspace = true
 openraft-rt-compio.workspace = true
 postcard.workspace = true
 redb.workspace = true
+refinery.workspace = true
 regex.workspace = true
 ring.workspace = true
 rhai.workspace = true
+rusqlite.workspace = true
+sea-query.workspace = true
+sea-query-rusqlite.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 serde_json_path.workspace = true
 snafu.workspace = true
 tap.workspace = true
@@ -27,5 +32,10 @@ url.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+criterion.workspace = true
 tracing-subscriber.workspace = true
 upgrid-transport = { workspace = true, features = ["test-util"] }
+
+[[bench]]
+name = "persistence"
+harness = false
