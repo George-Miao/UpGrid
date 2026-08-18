@@ -90,6 +90,27 @@ test("explains Secret usage from related forms", async ({ page }) => {
   await expect(channelDialog.locator("#telegram-token-help")).toContainText("Get a bot token from Telegram's @BotFather");
   await expect(channelDialog.locator("#telegram-token-help")).toBeVisible();
 });
+test("keeps channel test errors above dialog actions", async ({ page }) => {
+  await page.goto("/alerts");
+  await page.getByRole("button", { name: "Add channel" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add channel" });
+  await dialog.getByLabel("Type").selectOption("smtp");
+  await dialog.getByRole("button", { name: "Send test" }).click();
+  const message = dialog.getByRole("status");
+  await expect(message).toContainText("Test failed:");
+  await expect(message).toHaveClass(/error/);
+  const [messageBox, actionsBox, dialogBox] = await Promise.all([message.boundingBox(), dialog.locator(".dialog-actions").boundingBox(), dialog.boundingBox()]);
+  expect(messageBox).not.toBeNull();
+  expect(actionsBox).not.toBeNull();
+  expect(dialogBox).not.toBeNull();
+  expect(messageBox!.y + messageBox!.height).toBeLessThanOrEqual(actionsBox!.y);
+  expect(messageBox!.x).toBeGreaterThanOrEqual(dialogBox!.x);
+  expect(messageBox!.x + messageBox!.width).toBeLessThanOrEqual(dialogBox!.x + dialogBox!.width);
+  const viewport = page.viewportSize();
+  expect(viewport).not.toBeNull();
+  expect(dialogBox!.y).toBeGreaterThanOrEqual(0);
+  expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(viewport!.height);
+});
 
 test("tests a channel and places its type beside the name", async ({ page }) => {
   await page.goto("/alerts");

@@ -184,7 +184,7 @@ export class UpgridApp extends AppController {
     .bulk-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
     .bulk, .bulk-actions .button { animation: reveal 160ms ease-out; }
     @keyframes reveal { from { opacity: 0; transform: translateY(-3px); } }
-    dialog { width: min(580px, calc(100% - 28px)); border: 1px solid var(--line); border-radius: 17px; background: var(--panel); color: var(--text); padding: 0; scrollbar-gutter: stable both-edges; box-shadow: 0 28px 90px var(--dialog-shadow); opacity: 0; transform: translateY(8px) scale(.985); transition: opacity 170ms ease, transform 170ms ease, overlay 170ms allow-discrete, display 170ms allow-discrete; }
+    dialog { width: min(580px, calc(100% - 28px)); max-height: calc(100dvh - 28px); overflow-y: auto; border: 1px solid var(--line); border-radius: 17px; background: var(--panel); color: var(--text); padding: 0; scrollbar-gutter: stable both-edges; box-shadow: 0 28px 90px var(--dialog-shadow); opacity: 0; transform: translateY(8px) scale(.985); transition: opacity 170ms ease, transform 170ms ease, overlay 170ms allow-discrete, display 170ms allow-discrete; }
     #target-dialog { width: min(720px, calc(100% - 28px)); }
     dialog[open] { opacity: 1; transform: translateY(0) scale(1); }
     dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(5px); opacity: 0; transition: opacity 170ms ease, overlay 170ms allow-discrete, display 170ms allow-discrete; }
@@ -214,6 +214,8 @@ export class UpgridApp extends AppController {
     button:disabled, input:disabled, select:disabled { cursor: not-allowed; }
     input:disabled { cursor: not-allowed; opacity: .5; }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
+    .channel-test-message { margin: 5px 0 0; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2); color: var(--green); padding: 10px 12px; overflow-wrap: anywhere; white-space: normal; }
+    .channel-test-message.error { border-color: var(--notice-border); background: var(--notice-bg); color: var(--notice-text); }
     .danger-actions { display: flex; gap: 8px; margin-right: auto; }
     .secondary { background: transparent; color: var(--muted); border-color: var(--line); }
     .danger { background: transparent; color: var(--danger-text); border-color: var(--danger-border); }
@@ -503,7 +505,8 @@ export class UpgridApp extends AppController {
           <label>Name<input name="name" placeholder="On-call" .value=${this.editingChannel?.name ?? ""} required /></label>
           ${renderChannelFields(this.channelKind, this.editingChannel)}
           <label class="switch"><span>Default channel</span><input class="switch-control" name="default" type="checkbox" role="switch" .checked=${this.editingChannel?.default ?? false} /></label>
-          <div class="dialog-actions">${this.channelTestMessage ? html`<span class="meta" role="status" style="margin-right:auto">${this.channelTestMessage}</span>` : nothing}<button class="button secondary" type="button" @click=${() => {
+          ${this.channelTestMessage ? html`<p class=${`channel-test-message${this.channelTestMessage.startsWith("Test failed:") ? " error" : ""}`} role="status">${this.channelTestMessage}</p>` : nothing}
+          <div class="dialog-actions"><button class="button secondary" type="button" @click=${() => {
             this.editingChannel = undefined;
             this.closeDialog("channel-dialog");
           }}>Cancel</button>${this.editingChannel ? nothing : html`<button class="button secondary" type="button" aria-busy=${this.testingChannel} ?disabled=${this.testingChannel || this.saving} @click=${this.testChannel}>${this.testingChannel ? "Sending…" : "Send test"}</button>`}<button class="button" type="submit" ?disabled=${this.saving || this.testingChannel}>${this.editingChannel ? "Save changes" : "Create channel"}</button></div>
