@@ -33,6 +33,8 @@
           src = source;
           cargoBuildFlags = ["-p" "upgrid"];
           buildAndTestSubdir = ".";
+          nativeBuildInputs = [pkgs.pkg-config];
+          buildInputs = [pkgs.sqlite];
           cargoLock = {
             lockFile = ./Cargo.lock;
             outputHashes = {
@@ -88,6 +90,7 @@
             pkgs.pkg-config
             pkgs.pnpm
             pkgs.ripgrep
+            pkgs.sqlite
             pkgs.lldb_21
             (pkgs.rust-bin.selectLatestNightlyWith (toolchain:
               toolchain.default.override {

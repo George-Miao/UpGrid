@@ -45,7 +45,19 @@ jobs:
       - name: Enable Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@v14
 
-      - name: Build binary
+      - name: Install Rust for release
+        if: github.ref_type == 'tag'
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install SQLite build dependencies for release
+        if: github.ref_type == 'tag'
+        run: sudo apt-get update && sudo apt-get install --yes libsqlite3-dev pkg-config
+
+      - name: Build release binary
+        if: github.ref_type == 'tag'
+        run: cargo build --locked --release -p upgrid
+
+      - name: Build container binary
         run: nix build .#upgrid --out-link result-upgrid
 
       - name: Package release binary
@@ -53,7 +65,7 @@ jobs:
         shell: bash
         run: |
           archive="upgrid-${GITHUB_REF_NAME}-${{ matrix.artifact }}.tar.gz"
-          tar --create --gzip --file "$archive" --directory result-upgrid/bin upgrid
+          tar --create --gzip --file "$archive" --directory target/release upgrid
 
       - name: Upload release binary
         if: github.ref_type == 'tag'
@@ -192,6 +204,13 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Install SQLite for Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          vcpkg install sqlite3:x64-windows
+          "VCPKGRS_DYNAMIC=1" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
         with:
@@ -216,7 +235,8 @@ jobs:
           $archive = "upgrid-$env:GITHUB_REF_NAME-${{ matrix.artifact }}.zip"
           New-Item -ItemType Directory -Path output
           Copy-Item "target/${{ matrix.target }}/release/upgrid.exe" output/upgrid.exe
-          Compress-Archive -Path output/upgrid.exe -DestinationPath $archive
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/sqlite3.dll" output/sqlite3.dll
+          Compress-Archive -Path output/* -DestinationPath $archive
 
       - name: Upload binary
         uses: actions/upload-artifact@v4

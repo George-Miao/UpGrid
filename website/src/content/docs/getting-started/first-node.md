@@ -66,7 +66,7 @@ docker run --name upgrid \
 <details class="run-option" id="precompiled-linux-binary">
 <summary>Precompiled Linux binary</summary>
 
-Precompiled Linux binaries and checksum files are available on the [GitHub releases page](https://github.com/George-Miao/UpGrid/releases). Download the archive for your host architecture and follow the instructions for that release.
+Precompiled Linux binaries and checksum files are available on the [GitHub releases page](https://github.com/George-Miao/UpGrid/releases). Linux binaries require a system SQLite 3.34.1 or newer runtime library; macOS provides SQLite, and Windows archives include the required DLL. Download the archive for your host architecture and follow the instructions for that release.
 
 Run the extracted binary with a durable data directory:
 
@@ -87,8 +87,10 @@ Source builds require:
 - Git
 - A nightly Rust toolchain with `rustc` and Cargo
 - A native C build toolchain with a C compiler, linker, and archiver, such as `build-essential` on Debian and Ubuntu or the Xcode Command Line Tools on macOS
+- SQLite 3.34.1 or newer development files, such as `libsqlite3-dev` on Debian and Ubuntu or `sqlite` from Homebrew; for Homebrew, add `$(brew --prefix sqlite)/lib/pkgconfig` to `PKG_CONFIG_PATH`
+- `pkg-config` on Unix-like systems so the build can locate SQLite
 
-The Rust build uses bundled SQLite and `rustls`, so it does not require system SQLite or OpenSSL development packages. To rebuild the checked-in WebUI assets, also install Node.js 22 and pnpm. These JavaScript tools are optional for a normal binary build.
+The Rust build links to the installed SQLite library and uses `rustls`, so it does not require OpenSSL development packages. To rebuild the checked-in WebUI assets, also install Node.js 22 and pnpm. These JavaScript tools are optional for a normal binary build.
 
 Nix with flakes is a convenient, optional way to prepare this environment:
 

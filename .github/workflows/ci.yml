@@ -23,6 +23,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install SQLite build dependencies
+        run: sudo apt-get update && sudo apt-get install --yes libsqlite3-dev pkg-config
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
         with:

@@ -59,7 +59,9 @@ Download the archive for the host architecture, verify it against `SHA256SUMS`, 
 
 ### Build from source
 
-Source builds are intended for contributors and unsupported targets. The repository provides a reproducible Nix development shell with the required Rust, Node.js, and native tooling.
+Source builds are intended for contributors and unsupported targets and link to SQLite installed on the build host. Install a nightly Rust toolchain, a native C build toolchain, `pkg-config`, and SQLite 3.34.1 or newer development files. On Debian and Ubuntu, install `libsqlite3-dev`. With Homebrew, install `sqlite` and add `$(brew --prefix sqlite)/lib/pkgconfig` to `PKG_CONFIG_PATH`.
+
+Nix with flakes provides these dependencies in a reproducible development shell, but it is optional:
 
 ```sh
 git clone https://github.com/George-Miao/UpGrid.git
@@ -67,6 +69,8 @@ cd UpGrid
 nix develop
 cargo run -p upgrid
 ```
+
+Without Nix, install the dependencies directly and run the same `cargo` command from the repository root.
 
 State is stored in `upgrid-data/` by default. Use a durable, unique data directory for each node.
 
