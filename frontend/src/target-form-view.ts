@@ -144,7 +144,7 @@ function resetTargetKind(event: Event) {
   });
 }
 
-export function renderTargetForm(channels: Channel[], saving: boolean, actions: Actions) {
+export function renderTargetForm(channels: Channel[], secrets: Secret[], saving: boolean, actions: Actions) {
   return html`
     <dialog id="target-dialog" aria-labelledby="add-target-title" @click=${actions.backdrop}>
       <div class="dialog-head target-dialog-head">
@@ -164,6 +164,7 @@ export function renderTargetForm(channels: Channel[], saving: boolean, actions: 
             <label>URL / endpoint<input name="url" type="url" placeholder=${endpointPlaceholders.http} required /></label>
           </div>
           <label data-http-only>Method<input name="method" value="GET" required /></label>
+          <div data-http-only>${renderTlsSecretFields(secrets)}</div>
         </section>
         <section id="target-assertions-panel" class="target-tab-panel" role="tabpanel" data-panel="assertions" data-http-only aria-labelledby="target-assertions-tab" hidden>
           <http-assertion-editor name="assertions" target-id="new"></http-assertion-editor>

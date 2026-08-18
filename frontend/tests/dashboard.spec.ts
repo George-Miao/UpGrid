@@ -184,14 +184,8 @@ test("creates and edits ordered HTTP assertions", async ({ page }) => {
   expect(updated[4]).toMatchObject({ source: "status == 200 && latency_ms < 30000" });
 });
 
-test("omits advanced TLS controls during creation and edits existing TLS Secrets", async ({ page }) => {
+test("creates and edits a target with custom CA and mutual TLS secrets", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Add target" }).click();
-  const create = page.getByRole("dialog", { name: "Add target" });
-  await expect(create.getByLabel("Custom CA bundle secret")).toHaveCount(0);
-  await expect(create.getByLabel("Client certificate secret")).toHaveCount(0);
-  await expect(create.getByLabel("Client private key secret")).toHaveCount(0);
-  await create.getByRole("button", { name: "Cancel" }).click();
 
   const createSecret = async (name: string, value: string) => {
     await page.getByRole("button", { name: "Add secret" }).click();
@@ -212,35 +206,25 @@ test("omits advanced TLS controls during creation and edits existing TLS Secrets
   expect(certificateSecretId).toBeDefined();
   expect(privateKeySecretId).toBeDefined();
 
-  const response = await page.request.post("/api/v1/targets", {
-    data: {
-      name: "Mutual TLS target",
-      kind: "http",
-      url: "https://example.com/health",
-      method: "GET",
-      accepted_statuses: [{ start: 200, end: 299 }],
-      follow_redirects: true,
-      max_redirects: 5,
-      interval_seconds: 60,
-      timeout_seconds: 10,
-      failure_threshold: 3,
-      locations: 1,
-      headers: {},
-      body: null,
-      assertions: [],
-      skip_tls_verification: false,
-      tls_ca_secret_id: caSecretId,
-      tls_client_certificate_secret_id: certificateSecretId,
-      tls_client_private_key_secret_id: privateKeySecretId,
-      notification_channel_ids: [],
-      use_default_channels: true,
-    },
-  });
-  expect(response.ok()).toBeTruthy();
-  const created = await response.json();
-  await page.goto("/");
+  await page.getByRole("button", { name: "Add target" }).click();
+  const create = page.getByRole("dialog", { name: "Add target" });
+  await create.getByLabel("Name").fill("Mutual TLS target");
+  await create.getByLabel("URL / endpoint").fill("https://example.com/health");
+  await create.getByLabel("Custom CA bundle secret").selectOption(caSecretId!);
+  await create.getByLabel("Client certificate secret").selectOption(certificateSecretId!);
+  await create.getByLabel("Client private key secret").selectOption(privateKeySecretId!);
+  await create.getByRole("button", { name: "Create target" }).click();
+  await expect(create).toBeHidden();
 
+  const targets = await (await page.request.get("/api/v1/targets")).json();
+  const created = targets.find((target: { name: string }) => target.name === "Mutual TLS target");
+  expect(created).toMatchObject({
+    tls_ca_secret_id: caSecretId,
+    tls_client_certificate_secret_id: certificateSecretId,
+    tls_client_private_key_secret_id: privateKeySecretId,
+  });
   await expect(page.getByText("private-ca-pem")).toHaveCount(0);
+
   await page.getByRole("button", { name: "Mutual TLS target" }).click();
   const edit = page.getByRole("dialog", { name: "Target details" });
   await edit.getByRole("tab", { name: "General" }).click();

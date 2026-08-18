@@ -473,7 +473,7 @@ export class UpgridApp extends AppController {
                         : renderApiTokensPage(this.apiTokens, this.newApiToken, this.saving, authActions)
         }
       </main>${renderFooter()}
-      ${renderTargetForm(this.channels, this.saving, {
+      ${renderTargetForm(this.channels, this.secrets, this.saving, {
         backdrop: (event) => this.dismissOnBackdrop(event),
         close: () => this.closeTargetDialog(),
         create: (event) => void this.createTarget(event),
