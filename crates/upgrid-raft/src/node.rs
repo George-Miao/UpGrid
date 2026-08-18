@@ -15,7 +15,7 @@ use snafu::ResultExt;
 use tarpc::context::Context;
 use tracing::{debug, info};
 use upgrid_config::Cipher;
-use upgrid_transport::{RpcTransport, secure_endpoint};
+use upgrid_transport::RpcTransport;
 
 use crate::UpgridNode;
 use crate::cluster::{ClusterError, DomainSnafu};
@@ -101,10 +101,9 @@ impl Node {
         state_machine: Rc<StateMachine>,
         cipher: &Cipher,
     ) -> Result<Self> {
-        let endpoint = secure_endpoint(id.node.host().to_owned(), id.node.port(), cipher).await?;
-
+        let transport = RpcTransport::bind(id.node.host(), id.node.port(), cipher).await?;
         let deployment_key_fingerprint = cipher.fingerprint();
-        let rpc = Rpc::new(RpcTransport::new(endpoint), deployment_key_fingerprint);
+        let rpc = Rpc::new(transport, deployment_key_fingerprint);
         let network = UpgridNetwork::new(id.clone(), rpc.clone());
         let config = raft_config();
 

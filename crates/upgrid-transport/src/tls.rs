@@ -142,26 +142,45 @@ pub async fn secure_endpoint(host: String, port: u16, cipher: &Cipher) -> Result
         .context(EndpointCreationSnafu)
 }
 
-#[cfg(any(test, feature = "test-util"))]
-pub async fn insecure_endpoint(host: String, port: u16) -> Result<Endpoint> {
-    let rcgen::CertifiedKey { cert, signing_key } =
-        rcgen::generate_simple_self_signed(vec![host]).unwrap();
-    let cert = cert.der().clone();
-    let key_der = signing_key.serialize_der().try_into().unwrap();
-    let config = EndpointConfig::default();
-    let socket = UdpSocket::bind(("0.0.0.0", port))
-        .await
-        .context(EndpointCreationSnafu)?;
-    let server_config = ServerConfig::with_single_cert(vec![cert], key_der).context(TlsSnafu)?;
-    let rustls_client_config =
-        rustls::ClientConfig::builder_with_protocol_versions(&[&rustls::version::TLS13])
-            .dangerous()
-            .with_custom_certificate_verifier(SkipServerVerification::new())
-            .with_no_client_auth();
-    let quic_client_config = QuicClientConfig::try_from(rustls_client_config)
-        .expect("ring should provide TLS13_AES_128_GCM_SHA256 suite");
-    let client_config = compio_quic::ClientConfig::new(Arc::new(quic_client_config));
+#[cfg(test)]
+mod tests {
+    use compio::runtime::spawn;
 
-    Endpoint::new(socket, config, Some(server_config), Some(client_config))
-        .context(EndpointCreationSnafu)
+    use super::*;
+    use crate::RpcTransport;
+
+    async fn untrusted_server_endpoint(host: &str) -> Endpoint {
+        let mut params = CertificateParams::new(vec![host.to_owned()]).unwrap();
+        params.distinguished_name = rcgen::DistinguishedName::new();
+        params
+            .distinguished_name
+            .push(rcgen::DnType::CommonName, "untrusted");
+        let key = KeyPair::generate_for(&PKCS_ED25519).unwrap();
+        let cert = params.self_signed(&key).unwrap();
+        let server_config = ServerConfig::with_single_cert(
+            vec![cert.der().clone()],
+            key.serialize_der().try_into().unwrap(),
+        )
+        .unwrap();
+        let socket = UdpSocket::bind(("0.0.0.0", 0)).await.unwrap();
+
+        Endpoint::new(socket, EndpointConfig::default(), Some(server_config), None).unwrap()
+    }
+
+    #[compio::test]
+    async fn rejects_untrusted_server_certificate() {
+        let cipher = Cipher::parse("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap();
+        let server_endpoint = untrusted_server_endpoint("127.0.0.1").await;
+        let server_port = server_endpoint.local_addr().unwrap().port();
+        let server = RpcTransport::new(server_endpoint);
+        let client = RpcTransport::bind("127.0.0.1", 0, &cipher).await.unwrap();
+        let _accept = spawn(async move { server.accept().await });
+
+        let error = match client.connect::<u8, u8>("127.0.0.1", server_port).await {
+            Ok(_) => panic!("untrusted server certificate was accepted"),
+            Err(error) => error,
+        };
+        let message = format!("{error:#?}");
+        assert!(message.contains("UnknownIssuer"), "{message}");
+    }
 }

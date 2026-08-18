@@ -4,9 +4,6 @@ publish = false
 version.workspace = true
 edition.workspace = true
 
-[features]
-test-util = []
-
 [dependencies]
 async-stream.workspace = true
 compio.workspace = true
