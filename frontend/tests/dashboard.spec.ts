@@ -111,6 +111,10 @@ test("creates a target from the embedded dashboard", async ({ page }) => {
   expect(formTabs).not.toBeNull();
   expect(formTabs!.y).toBeGreaterThanOrEqual(dialogHead!.y);
   expect(formTabs!.y + formTabs!.height).toBeLessThanOrEqual(dialogHead!.y + dialogHead!.height);
+  const [typeField, endpointField] = await Promise.all([addTarget.getByLabel("Type").boundingBox(), addTarget.getByLabel("URL / endpoint").boundingBox()]);
+  expect(typeField).not.toBeNull();
+  expect(endpointField).not.toBeNull();
+  expect(endpointField!.width).toBeGreaterThan(typeField!.width * 1.5);
   await addTarget.getByRole("tab", { name: "Notifications" }).click();
   await expect(addTarget.getByText("No notification channels are available.")).toBeVisible();
   await addTarget.getByRole("tab", { name: "General" }).click();

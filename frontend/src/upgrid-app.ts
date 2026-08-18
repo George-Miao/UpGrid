@@ -206,6 +206,7 @@ export class UpgridApp extends AppController {
     .form-tabs button:disabled { cursor: not-allowed; opacity: .45; }
     .target-tab-panel { display: grid; gap: 13px; min-height: 190px; align-content: start; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+    .endpoint-row { grid-template-columns: minmax(140px, 1fr) minmax(0, 2fr); }
     label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
     [hidden] { display: none !important; }
     input, select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font-size: 16px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease; }

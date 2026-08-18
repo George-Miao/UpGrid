@@ -108,7 +108,7 @@ export function renderTargetDetail(target: Target, longTermHistory: HistoryPage 
             isNode
               ? html`<label>RPC URL<input .value=${target.url} disabled /></label>`
               : html`
-                <div class="row"><label>Type<input .value=${target.kind.toUpperCase()} disabled /></label><label>URL / endpoint<input name="url" .value=${target.url} required /></label></div>
+                <div class="row endpoint-row"><label>Type<input .value=${target.kind.toUpperCase()} disabled /></label><label>URL / endpoint<input name="url" .value=${target.url} required /></label></div>
                 ${
                   isHttp
                     ? html`

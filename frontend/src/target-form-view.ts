@@ -159,7 +159,7 @@ export function renderTargetForm(channels: Channel[], saving: boolean, actions: 
       <form id="target-form" @submit=${actions.create} @reset=${resetTargetKind}>
         <section id="target-general-panel" class="target-tab-panel" role="tabpanel" data-panel="general" aria-labelledby="target-general-tab">
           <label>Name<input name="name" placeholder="Production API" required autofocus /></label>
-          <div class="row">
+          <div class="row endpoint-row">
             <label>Type<select name="kind" @change=${selectTargetKind}><option value="http">HTTP</option><option value="tcp">TCP connect</option><option value="dns">DNS resolution</option><option value="icmp">ICMP echo</option><option value="tls">TLS certificate</option></select></label>
             <label>URL / endpoint<input name="url" type="url" placeholder=${endpointPlaceholders.http} required /></label>
           </div>
