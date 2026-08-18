@@ -3,11 +3,22 @@ title: UpGrid documentation
 description: Deploy and operate a self-contained, distributed service monitor.
 template: splash
 hero:
-  tagline: Self-contained service monitoring, replicated across your own nodes.
+  title: '<span class="hero-heading"><span>Stay up.</span> <span>Stay informed.</span></span>'
+  tagline: Distributed service monitoring that runs with your infrastructure.
   image:
-    file: ../../assets/logo.svg
+    html: |
+      <div class="hero-ripple" aria-hidden="true">
+        <i></i>
+        <i></i>
+        <i></i>
+        <i></i>
+        <i></i>
+        <i></i>
+        <i></i>
+        <i></i>
+      </div>
   actions:
-    - text: Start a cluster
+    - text: Get started
       link: /getting-started/first-node/
       icon: right-arrow
     - text: View on GitHub
@@ -19,6 +30,15 @@ hero:
 import { Card, CardGrid } from '@astrojs/starlight/components';
 import { Image } from 'astro:assets';
 import webuiShowcase from '../../assets/webui-showcase.png';
+
+<Image
+	class="webui-showcase"
+	src={webuiShowcase}
+	alt="UpGrid overview dashboard in bright and dark themes, showing service status cards and monitored Targets"
+	format="png"
+	loading="eager"
+	quality={100}
+/>
 
 ## Monitoring without a control-plane dependency
 
@@ -38,18 +58,3 @@ Every UpGrid node runs the API, WebUI, scheduler, probe worker, notification wor
 		Configure targets, inspect history, manage alerts, and operate the cluster from a responsive dashboard.
 	</Card>
 </CardGrid>
-
-<Image
-	class="webui-showcase"
-	src={webuiShowcase}
-	alt="UpGrid overview dashboard in bright and dark themes, showing service status cards and monitored Targets"
-	format="png"
-	loading="eager"
-	quality={100}
-/>
-
-## Choose the number of nodes
-
-Start with one node for the simplest deployment. Start with multiple nodes when you need checks from more than one host or replicated state across hosts. Only the multi-node setup needs reachable `up://` endpoints and cluster transport firewall rules.
-
-<a class="sl-link-button primary" href="/getting-started/first-node/">Set up UpGrid →</a>
