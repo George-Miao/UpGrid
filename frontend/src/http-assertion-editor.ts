@@ -29,8 +29,8 @@ export class HttpAssertionEditor extends LitElement {
     .assertion { display: grid; grid-template-columns: minmax(140px, 0.7fr) minmax(180px, 1.3fr) auto; gap: 8px; align-items: end; }
     .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .fields.single { grid-template-columns: 1fr; }
-    label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
-    input, select, textarea { box-sizing: border-box; width: 100%; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); padding: 8px 9px; font: inherit; }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
+    input, select, textarea { box-sizing: border-box; width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; background: var(--input-bg); color: var(--text); padding: 9px 10px; font-family: inherit; font-size: 16px; }
     textarea { min-height: 72px; resize: vertical; font-family: ui-monospace, monospace; }
     .actions { display: flex; gap: 4px; }
     button { border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); padding: 8px 10px; cursor: pointer; user-select: none; }
