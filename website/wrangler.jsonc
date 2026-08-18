@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "upgrid-website",
+  "workers_dev": false,
+  "preview_urls": true,
+  "assets": {
+    "directory": "./dist"
+  }
+}

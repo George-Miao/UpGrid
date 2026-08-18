@@ -28,4 +28,4 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          command: deploy --assets ./website/dist --name upgrid-website --latest --domain upgrid.rs
+          command: deploy --config ./website/wrangler.jsonc --latest --domain upgrid.rs
