@@ -1,56 +1,102 @@
 ---
 title: Install UpGrid
-description: Install the published container or a precompiled Linux binary.
+description: Choose the published container or a precompiled Linux binary.
 ---
 
 Docker is the preferred way to install UpGrid. Tagged releases also provide precompiled Linux binaries for hosts where a container runtime is not appropriate. Build from source only for development or an unsupported target. Use `latest` for the current release or `latest-unstable` for the newest image from `main`.
 
-## Run with Docker
+## Install with Docker
+
+Pull the image before you start the setup that fits your deployment:
 
 ```sh
-docker run --name upgrid \
-  --publish 8080:8080 \
-  --publish 11451:11451/udp \
-  --volume upgrid-data:/var/lib/upgrid \
-  ghcr.io/george-miao/upgrid:latest
+docker pull ghcr.io/george-miao/upgrid:latest
 ```
 
-The image listens for HTTP on port `8080`, exposes QUIC/Raft on UDP port `11451`, and stores durable state in `/var/lib/upgrid`. Open `/setup` to create the cluster's first operator identity. Set `UPGRID_RAFT_URL` to an advertised hostname reachable by every node before building a multi-node cluster.
+The image listens for HTTP on port `8080` and stores durable state in `/var/lib/upgrid`. It also includes the `up://` transport, but a single-node setup does not need to publish its UDP port. The multi-node setup explains when to publish it.
 
 See the [environment-variable reference](/reference/configuration/#settings) for every supported `UPGRID_` setting and its default.
 
-## Install a precompiled binary
+### Allow `io_uring` in Docker
 
-The [v0.1.0 GitHub release](https://github.com/George-Miao/UpGrid/releases/tag/v0.1.0) provides dynamically linked Linux binaries for both common server architectures:
+UpGrid uses Compio with `io_uring` on Linux. Docker's default seccomp profile blocks the three required `io_uring` system calls, so an UpGrid container cannot start with the default profile.
 
-- [Linux AMD64](https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/upgrid-v0.1.0-linux-amd64.tar.gz)
-- [Linux ARM64](https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/upgrid-v0.1.0-linux-arm64.tar.gz)
-- [SHA-256 checksums](https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/SHA256SUMS)
-
-Download the archive matching the host, then verify and extract it. This AMD64 example keeps the binary in the current directory:
+Download the [UpGrid seccomp profile](/upgrid-seccomp.json) next to your `compose.yaml` file. It is based on the [Moby v0.2.1 default profile](https://github.com/moby/profiles/blob/seccomp/v0.2.1/seccomp/default.json) and adds only `io_uring_setup`, `io_uring_enter`, and `io_uring_register`:
 
 ```sh
-curl --remote-name https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/upgrid-v0.1.0-linux-amd64.tar.gz
-curl --remote-name https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/SHA256SUMS
-sha256sum --check --ignore-missing SHA256SUMS
-tar --extract --gzip --file upgrid-v0.1.0-linux-amd64.tar.gz
-./upgrid --help
+curl --fail --output upgrid-seccomp.json https://upgrid.rs/upgrid-seccomp.json
 ```
 
-Use a durable directory for each node and ensure its API TCP port and Raft UDP port are reachable where required.
+The Docker Compose example uses this custom profile. With `docker run`, pass `--security-opt seccomp=./upgrid-seccomp.json` to use the same policy.
+
+::::Caution
+You can use `--security-opt seccomp=unconfined` when a custom profile is not practical, but it disables seccomp syscall filtering for the container. UpGrid does not require privileged mode.
+::::
+
+### Use Docker Compose
+
+Create a `compose.yaml` file for a single-node installation:
+
+```yaml
+services:
+  upgrid:
+    image: ghcr.io/george-miao/upgrid:latest
+    restart: unless-stopped
+    security_opt:
+      - seccomp=./upgrid-seccomp.json
+    ports:
+      - "8080:8080"
+    volumes:
+      - upgrid-data:/var/lib/upgrid
+
+volumes:
+  upgrid-data:
+```
+
+Pull the image and start UpGrid:
+
+```sh
+docker compose pull
+docker compose up -d
+```
+
+Check the process and follow its logs:
+
+```sh
+docker compose ps
+docker compose logs --follow upgrid
+```
+
+Open `http://127.0.0.1:8080/setup` to continue the browser setup. This configuration publishes only the HTTP API and WebUI. For a multi-node cluster, follow the [multi-node setup](/getting-started/multi-node/) to add the advertised `up://` endpoint and UDP port before you start the container.
+
+## Install a precompiled binary
+
+Pre-built Linux binaries and checksum files are available on the [GitHub releases page](https://github.com/George-Miao/UpGrid/releases). Download the archive for your host architecture and follow the instructions for that release.
+
+Use a durable directory for each node. The setup guides list the API and cluster transport ports that each deployment needs.
 
 ## Build from source
 
 Source builds require:
 
 - Git
-- Nix with flakes enabled
+- A nightly Rust toolchain with `rustc` and Cargo
+- A native C build toolchain with a C compiler, linker, and archiver, such as `build-essential` on Debian and Ubuntu or the Xcode Command Line Tools on macOS
+
+The Rust build uses bundled SQLite and `rustls`, so it does not require system SQLite or OpenSSL development packages. To rebuild the checked-in WebUI assets, also install Node.js 22 and pnpm. These JavaScript tools are optional for a normal binary build.
+
+Nix with flakes is a convenient, optional way to prepare this environment:
+
+```sh
+nix develop
+```
+
+Whether you use Nix or install the dependencies directly, build UpGrid with:
 
 ```sh
 git clone https://github.com/George-Miao/UpGrid.git
 cd UpGrid
-nix develop
-cargo build --release
+cargo build --locked --release -p upgrid
 ```
 
 The binary is written to `target/release/upgrid`. UpGrid reads built-in defaults, an optional TOML file, environment variables, and CLI arguments in that order; see the full [configuration reference](/reference/configuration/).
@@ -59,4 +105,7 @@ The binary is written to `target/release/upgrid`. UpGrid reads built-in defaults
 Every node needs its own data directory. Never clone an existing node's directory to provision another member.
 :::
 
-Next, [start your first node](/getting-started/first-node/).
+## Choose a setup
+
+- [Set up one node](/getting-started/first-node/) when one process will run all monitoring work.
+- [Set up multiple nodes](/getting-started/multi-node/) when nodes must share monitoring work and replicated state.

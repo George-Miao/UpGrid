@@ -8,7 +8,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'UpGrid',
-      description: 'Run and operate a distributed UpGrid service-monitoring Cluster.',
+      description: 'Run and operate a distributed UpGrid service-monitoring cluster.',
       logo: { src: './src/assets/logo.svg', alt: 'UpGrid' },
       customCss: ['./src/styles/upgrid.css'],
       editLink: {
@@ -22,13 +22,19 @@ export default defineConfig({
           items: [
             { label: 'Overview', link: '/' },
             { label: 'Install UpGrid', slug: 'getting-started/installation' },
-            { label: 'Start your first Node', slug: 'getting-started/first-node' },
+            { label: 'Single-node setup', slug: 'getting-started/first-node' },
+            { label: 'Multi-node setup', slug: 'getting-started/multi-node' },
           ],
         },
         {
           label: 'Operate',
           items: [
-            { label: 'Join a Cluster', slug: 'guides/join-cluster' },
+            { label: 'Network setup', slug: 'guides/network-setup' },
+            {
+              label: 'Cluster hardening',
+              slug: 'guides/cluster-hardening',
+            },
+            { label: 'Add a node', slug: 'guides/join-cluster' },
             { label: 'Monitor services', slug: 'guides/targets' },
             { label: 'Send notifications', slug: 'guides/notifications' },
             { label: 'How UpGrid works', slug: 'guides/architecture' },
@@ -38,6 +44,7 @@ export default defineConfig({
           label: 'Reference',
           items: [
             { label: 'Configuration', slug: 'reference/configuration' },
+            { label: 'Up protocol', slug: 'reference/up-protocol' },
             { label: 'Deployment', slug: 'reference/deployment' },
             { label: 'HTTP API', slug: 'reference/api' },
           ],

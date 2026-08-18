@@ -25,11 +25,14 @@ Docker is the preferred installation method. Stable releases use their Git tag a
 
 ```sh
 docker run --name upgrid \
+  --security-opt seccomp=unconfined \
   --publish 8080:8080 \
   --publish 11451:11451/udp \
   --volume upgrid-data:/var/lib/upgrid \
   ghcr.io/george-miao/upgrid:latest
 ```
+
+UpGrid uses `io_uring` on Linux. This quick-start command disables seccomp syscall filtering because Docker's default profile blocks the required calls. See [Install UpGrid](https://upgrid.rs/getting-started/installation/#allow-io_uring-in-docker) for the custom profile that keeps Docker's default syscall filter.
 
 Open [http://127.0.0.1:8080/setup](http://127.0.0.1:8080/setup), review the generated node name, and choose **Create new cluster**. Setup creates the first replicated operator identity before it can add a notification channel or service target.
 
