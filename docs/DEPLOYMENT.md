@@ -1,6 +1,6 @@
 # Deployment notes
 
-Build a release binary with `cargo build --release` and run each node with a dedicated durable data directory. Keep `deployment-key`, `node-id`, `raft-log.redb`, and `raft-state.postcard` on persistent storage; never copy a node data directory to create another node. Existing `raft-log.postcard` files migrate automatically on first startup with the new format and remain as rollback backups.
+Build a release binary with `cargo build --release` and run each node with a dedicated durable data directory. Keep `deployment-key`, `quic-ca-key`, `node-id`, and `raft.sqlite3` on persistent storage; never copy a node data directory to create another node. Legacy Raft files migrate automatically on first startup and remain as rollback backups.
 
 ## Configuration
 
@@ -17,6 +17,8 @@ history_retention_hours = 24
 ```
 
 Keep configuration files containing credentials readable only by the UpGrid service account.
+
+For initial bootstrap or recovery, supply 32-byte Base64 keys with `deployment_key` / `UPGRID_DEPLOYMENT_KEY` / `--deployment-key` and `quic_ca_key` / `UPGRID_QUIC_CA_KEY` / `--quic-ca-key`. The QUIC certificate-authority key defaults to a value derived from the deployment key. UpGrid persists both keys in the data directory and includes them in protected join links.
 
 ## API TLS and reverse proxies
 

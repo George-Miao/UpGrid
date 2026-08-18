@@ -7,7 +7,7 @@ use futures_core::Stream;
 use quick_cache::unsync::Cache;
 use snafu::futures::TryFutureExt as _;
 use snafu::{OptionExt, ResultExt};
-use upgrid_config::Cipher;
+use upgrid_config::QuicCaKey;
 
 use crate::error::{
     QuicConnectSnafu, QuicConnectionSnafu, QuicIncomingSnafu, ResolveEmptySnafu, ResolveSnafu,
@@ -30,8 +30,8 @@ pub struct RpcTransport {
 impl RpcTransport {
     /// Binds a mutual-TLS endpoint that validates peer certificates against the
     /// deployment CA.
-    pub async fn bind(host: &str, port: u16, cipher: &Cipher) -> Result<Self> {
-        let endpoint = crate::tls::secure_endpoint(host.to_owned(), port, cipher).await?;
+    pub async fn bind(host: &str, port: u16, quic_ca_key: &QuicCaKey) -> Result<Self> {
+        let endpoint = crate::tls::secure_endpoint(host.to_owned(), port, quic_ca_key).await?;
         Ok(Self::new(endpoint))
     }
 
@@ -140,15 +140,21 @@ impl RpcSession {
 #[cfg(test)]
 mod tests {
     use compio::runtime::spawn;
+    use upgrid_config::Cipher;
 
     use super::*;
 
     #[compio::test]
     async fn reconnects_after_cached_connection_closes() {
         let cipher = Cipher::parse("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap();
-        let server = RpcTransport::bind("127.0.0.1", 0, &cipher).await.unwrap();
+        let quic_ca_key = QuicCaKey::derive(&cipher);
+        let server = RpcTransport::bind("127.0.0.1", 0, &quic_ca_key)
+            .await
+            .unwrap();
         let server_port = server.endpoint.local_addr().unwrap().port();
-        let client = RpcTransport::bind("127.0.0.1", 0, &cipher).await.unwrap();
+        let client = RpcTransport::bind("127.0.0.1", 0, &quic_ca_key)
+            .await
+            .unwrap();
 
         let first_accept = spawn({
             let server = server.clone();

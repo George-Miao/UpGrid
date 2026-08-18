@@ -13,7 +13,7 @@ use tracing_subscriber::Layer;
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use upgrid_config::Cipher;
+use upgrid_config::QuicCaKey;
 use upgrid_transport::{bi_stream_framed, secure_endpoint};
 
 use super::*;
@@ -137,10 +137,10 @@ async fn reused_client_supports_concurrent_requests() {
 
     tracing_subscriber::registry().with(fmt).init();
 
-    let cipher = Cipher::parse("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap();
+    let quic_ca_key = QuicCaKey::parse("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap();
     let (e1, e2) = try_join(
-        secure_endpoint("localhost".to_owned(), 0, &cipher),
-        secure_endpoint("localhost".to_owned(), 0, &cipher),
+        secure_endpoint("localhost".to_owned(), 0, &quic_ca_key),
+        secure_endpoint("localhost".to_owned(), 0, &quic_ca_key),
     )
     .await
     .unwrap();

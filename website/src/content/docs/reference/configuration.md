@@ -38,6 +38,8 @@ Start with `upgrid --config /etc/upgrid.toml` or set `UPGRID_CONFIG=/etc/upgrid.
 | `password` | `UPGRID_PASSWORD` | `--password` | Unset |
 | `new_cluster` | `UPGRID_NEW_CLUSTER` | `--new-cluster` | `false` |
 | `join` | `UPGRID_JOIN` | `--join` | Unset |
+| `deployment_key` | `UPGRID_DEPLOYMENT_KEY` | `--deployment-key` | Unset |
+| `quic_ca_key` | `UPGRID_QUIC_CA_KEY` | `--quic-ca-key` | Derived from the deployment key |
 | `history_retention_hours` | `UPGRID_HISTORY_RETENTION_HOURS` | `--history-retention-hours` | 24 hours for a new cluster |
 | `history_rollup_retention_days` | `UPGRID_HISTORY_ROLLUP_RETENTION_DAYS` | `--history-rollup-retention-days` | 365 days for a new cluster |
 | `target_trash_retention_days` | `UPGRID_TARGET_TRASH_RETENTION_DAYS` | `--target-trash-retention-days` | 30 days for a new cluster |
@@ -48,6 +50,8 @@ Start with `upgrid --config /etc/upgrid.toml` or set `UPGRID_CONFIG=/etc/upgrid.
 
 History and target trash retention settings are replicated cluster-wide. Supplying one on any node startup updates the shared value through the leader; otherwise an existing cluster keeps its current value.
 
-## Deployment key
+## Deployment and QUIC certificate-authority keys
 
-`secret_key` / `UPGRID_SECRET_KEY` / `--secret-key` supplies bootstrap or recovery deployment material. Normal nodes persist this material during cluster creation or admission. Do not routinely override it, expose it, or use one node's data directory to create another node.
+`deployment_key` / `UPGRID_DEPLOYMENT_KEY` / `--deployment-key` supplies the 32-byte Base64 key that encrypts cluster secrets. `quic_ca_key` / `UPGRID_QUIC_CA_KEY` / `--quic-ca-key` supplies the 32-byte Base64 Ed25519 seed for the internal QUIC certificate authority. When `quic_ca_key` is unset, UpGrid derives it from the deployment key for compatibility.
+
+Normal nodes persist both keys during cluster creation or admission. Direct values are for initial bootstrap or recovery. Do not routinely override or expose them, and do not use one node's data directory to create another node.

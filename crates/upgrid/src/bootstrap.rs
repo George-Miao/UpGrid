@@ -1,7 +1,7 @@
 use snafu::ResultExt;
 use upgrid_config::{
-    Cipher, Config, JoinIntent, Oobe, OobePhase, load_or_create_cipher, load_or_create_node_id,
-    load_or_create_node_name, now_ms,
+    Cipher, Config, JoinIntent, Oobe, OobePhase, QuicCaKey, load_or_create_cipher,
+    load_or_create_node_id, load_or_create_node_name, load_or_create_quic_ca_key, now_ms,
 };
 use upgrid_raft::domain::{Command, IdentityId, OperatorIdentity, PasswordVerifier};
 use upgrid_raft::{Identity, Node, UpgridNode};
@@ -13,6 +13,7 @@ pub struct Ready {
     pub config: Config,
     pub node: Node,
     pub cipher: Cipher,
+    pub quic_ca_key: QuicCaKey,
     pub node_name: String,
     pub oobe: Oobe,
     pub startup_warning: Option<String>,
@@ -28,16 +29,23 @@ pub async fn prepare(mut config: Config) -> Result<Ready> {
         load_or_create_node_name(&config.data_dir, config.node_name.as_deref(), node_id)?;
     let oobe = Oobe::open(&config.data_dir)?;
     let manual_cipher = config
-        .secret_key
+        .deployment_key
         .take()
         .map(|key| Cipher::parse(&key))
+        .transpose()?;
+    let manual_quic_ca_key = config
+        .quic_ca_key
+        .take()
+        .map(|key| QuicCaKey::parse(&key))
         .transpose()?;
 
     let persisted_members = Node::data_membership_urls(&config.data_dir)?;
     if !persisted_members.is_empty() {
         let cipher = load_or_create_cipher(&config.data_dir, manual_cipher.as_ref(), false)?;
+        let quic_ca_key =
+            load_or_create_quic_ca_key(&config.data_dir, manual_quic_ca_key.as_ref(), &cipher)?;
         let identity = Identity::with_id(node_id, config.raft_url.as_str())?;
-        let node = Node::open(identity, &config.data_dir, &cipher).await?;
+        let node = Node::open(identity, &config.data_dir, &cipher, &quic_ca_key).await?;
         seed_initial_identity(&node, &config.username, &config.password).await?;
         let startup_warning = config
             .join
@@ -49,6 +57,7 @@ pub async fn prepare(mut config: Config) -> Result<Ready> {
             config,
             node,
             cipher,
+            quic_ca_key,
             node_name,
             oobe,
             startup_warning,
@@ -97,10 +106,19 @@ pub async fn prepare(mut config: Config) -> Result<Ready> {
         (Some(link), _) => Some(link.cipher().clone()),
         (None, manual) => manual,
     };
+    let configured_quic_ca_key = match (join.as_ref(), manual_quic_ca_key) {
+        (Some(link), Some(manual)) if link.quic_ca_key() != &manual => {
+            return Err(Error::JoinQuicCaKeyMismatch);
+        }
+        (Some(link), _) => Some(link.quic_ca_key().clone()),
+        (None, manual) => manual,
+    };
     let cipher =
         load_or_create_cipher(&config.data_dir, configured_cipher.as_ref(), join.is_some())?;
+    let quic_ca_key =
+        load_or_create_quic_ca_key(&config.data_dir, configured_quic_ca_key.as_ref(), &cipher)?;
     let identity = Identity::with_id(node_id, config.raft_url.as_str())?;
-    let node = Node::open(identity, &config.data_dir, &cipher).await?;
+    let node = Node::open(identity, &config.data_dir, &cipher, &quic_ca_key).await?;
     if let Some(link) = join {
         node.join(link.remote().as_str(), link.token()).await?;
     } else {
@@ -119,6 +137,7 @@ pub async fn prepare(mut config: Config) -> Result<Ready> {
         config,
         node,
         cipher,
+        quic_ca_key,
         node_name,
         oobe,
         startup_warning: None,

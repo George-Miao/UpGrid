@@ -13,7 +13,7 @@ use tracing_subscriber::Layer;
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use upgrid_config::{Cipher, now_ms};
+use upgrid_config::{QuicCaKey, now_ms};
 use upgrid_transport::secure_endpoint;
 
 use crate::domain::Command;
@@ -84,8 +84,8 @@ async fn master_raw() {
 
     let id = Identity::new("up://127.0.0.1:8080").unwrap();
 
-    let cipher = Cipher::parse("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap();
-    let endpoint = secure_endpoint(id.node.host().to_owned(), id.node.port(), &cipher)
+    let quic_ca_key = QuicCaKey::parse("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap();
+    let endpoint = secure_endpoint(id.node.host().to_owned(), id.node.port(), &quic_ca_key)
         .await
         .unwrap();
 
@@ -111,8 +111,8 @@ async fn worker_raw() {
 
     let id = Identity::new("up://127.0.0.1:8081").unwrap();
 
-    let cipher = Cipher::parse("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap();
-    let endpoint = secure_endpoint(id.node.host().to_owned(), id.node.port(), &cipher)
+    let quic_ca_key = QuicCaKey::parse("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap();
+    let endpoint = secure_endpoint(id.node.host().to_owned(), id.node.port(), &quic_ca_key)
         .await
         .unwrap();
 

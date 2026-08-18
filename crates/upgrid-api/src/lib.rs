@@ -11,7 +11,9 @@ use axum::response::{IntoResponse, Response, Sse};
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
-use upgrid_config::{Cipher, Config, JoinLink, Oobe, OobePhase, generate_join_token, now_ms};
+use upgrid_config::{
+    Cipher, Config, JoinLink, Oobe, OobePhase, QuicCaKey, generate_join_token, now_ms,
+};
 use upgrid_raft::domain::{
     AlertDelivery, AlertKind, ApplicationState, AvailabilityState, Command, CommandResult,
     ConfigValue, DomainError, EvaluationPolicy, HttpAssertion, HttpTarget, NodeTargetState,
@@ -54,6 +56,7 @@ pub use setup::{OobeChoice, wait_for_oobe};
 struct WebState {
     cluster: Handle,
     cipher: Cipher,
+    quic_ca_key: QuicCaKey,
     notifications: upgrid_notification::Tester,
     raft_url: String,
     node_name: String,

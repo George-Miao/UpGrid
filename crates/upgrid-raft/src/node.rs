@@ -14,7 +14,7 @@ use openraft::{Config, ReadPolicy};
 use snafu::ResultExt;
 use tarpc::context::Context;
 use tracing::{debug, info};
-use upgrid_config::Cipher;
+use upgrid_config::{Cipher, QuicCaKey};
 use upgrid_transport::RpcTransport;
 
 use crate::UpgridNode;
@@ -70,16 +70,23 @@ impl Node {
     pub async fn with_identity(id: Identity) -> Result<Self> {
         let cipher = Cipher::parse("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
             .expect("test deployment key should be valid");
+        let quic_ca_key = QuicCaKey::derive(&cipher);
         Self::build(
             id,
             InMemStore::new(),
             Rc::new(StateMachine::default()),
             &cipher,
+            &quic_ca_key,
         )
         .await
     }
 
-    pub async fn open(id: Identity, data_dir: &Path, cipher: &Cipher) -> Result<Self> {
+    pub async fn open(
+        id: Identity,
+        data_dir: &Path,
+        cipher: &Cipher,
+        quic_ca_key: &QuicCaKey,
+    ) -> Result<Self> {
         let path = data_dir.join("raft.sqlite3");
         let database = Rc::new(
             RaftDatabase::open(data_dir)
@@ -92,7 +99,7 @@ impl Node {
         let state_machine = Rc::new(StateMachine::open(database).context(DatabaseOpenSnafu {
             path: data_dir.join("raft.sqlite3"),
         })?);
-        Self::build(id, storage, state_machine, cipher).await
+        Self::build(id, storage, state_machine, cipher, quic_ca_key).await
     }
 
     async fn build(
@@ -100,8 +107,9 @@ impl Node {
         storage: InMemStore<crate::raft::TC>,
         state_machine: Rc<StateMachine>,
         cipher: &Cipher,
+        quic_ca_key: &QuicCaKey,
     ) -> Result<Self> {
-        let transport = RpcTransport::bind(id.node.host(), id.node.port(), cipher).await?;
+        let transport = RpcTransport::bind(id.node.host(), id.node.port(), quic_ca_key).await?;
         let deployment_key_fingerprint = cipher.fingerprint();
         let rpc = Rpc::new(transport, deployment_key_fingerprint);
         let network = UpgridNetwork::new(id.clone(), rpc.clone());

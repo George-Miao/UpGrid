@@ -10,9 +10,12 @@ mod oobe;
 mod secret;
 
 pub use admission::{Error as JoinLinkError, JoinLink};
-pub use app::{Config, JoinIntent, load_or_create_cipher, load_or_create_node_id, now_ms};
+pub use app::{
+    Config, JoinIntent, load_or_create_cipher, load_or_create_node_id, load_or_create_quic_ca_key,
+    now_ms,
+};
 pub use cli::ConfigArgs;
 pub use error::{Error, Result};
 pub use node_name::{friendly_node_name, load_or_create_node_name, store_node_name};
 pub use oobe::{Oobe, OobePhase};
-pub use secret::{Cipher, Error as CipherError, generate_join_token};
+pub use secret::{Cipher, Error as CipherError, QuicCaKey, generate_join_token};

@@ -35,6 +35,11 @@ pub enum Error {
     #[snafu(display("configured deployment key does not match the data directory"))]
     DeploymentKeyMismatch,
 
+    #[snafu(display(
+        "configured QUIC certificate-authority key does not match the data directory"
+    ))]
+    QuicCaKeyMismatch,
+
     #[snafu(display("joining a Cluster requires a valid up:// invitation"))]
     JoinLinkRequired,
 

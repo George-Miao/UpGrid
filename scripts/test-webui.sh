@@ -45,7 +45,8 @@ target_directory=$(cargo metadata --manifest-path "$workspace/Cargo.toml" \
   --data-dir "$test_data/data" \
   --username admin \
   --password test-password \
-  --secret-key AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+  --deployment-key AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+  --quic-ca-key AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE= \
   >"$server_log" 2>&1 &
 server_pid=$!
 

@@ -48,19 +48,19 @@ Production `up://` endpoints always use mutual TLS. A node cannot disable certif
 
 UpGrid creates and loads the internal certificate material as follows:
 
-1. The deployment key is 32 bytes. Its text form is standard Base64.
-2. A node normally loads the key from `deployment-key` in its data directory. A new cluster creates and stores a random key when no key is configured. A joining node gets the key from its join link.
-3. Each node derives the same internal Ed25519 certificate authority from the deployment key.
+1. The deployment and QUIC certificate-authority keys are each 32 bytes. Their text form is standard Base64.
+2. A node normally loads the keys from `deployment-key` and `quic-ca-key` in its data directory. A new cluster creates a random deployment key when none is configured and derives the default QUIC certificate-authority key from it. A joining node gets both keys from its join link.
+3. Operators can supply a separate Ed25519 certificate-authority key seed before initial cluster creation.
 4. On each start, a node creates a new leaf private key and certificate for the host in its advertised `up://` endpoint. The certificate permits client and server authentication.
 5. QUIC uses TLS 1.3.
 
-For an outbound connection, the client verifies that the deployment certificate authority signed the server certificate. It also verifies the server host against the certificate. For an inbound connection, the server requires a client certificate that the same certificate authority signed. A certificate does not contain or verify the Raft node ID. The admission token check is separate.
+For an outbound connection, the client verifies that the QUIC certificate authority signed the server certificate. It also verifies the server host against the certificate. For an inbound connection, the server requires a client certificate that the same certificate authority signed. A certificate does not contain or verify the Raft node ID. The admission token check is separate.
 
-The `secret_key`, `UPGRID_SECRET_KEY`, and `--secret-key` inputs are the direct configuration inputs for the deployment key. UpGrid also accepts the key in a join link or loads it from the data directory. It does not accept a custom certificate, private key, or certificate authority for `up://`.
+The `deployment_key`, `UPGRID_DEPLOYMENT_KEY`, and `--deployment-key` inputs supply the deployment key. The `quic_ca_key`, `UPGRID_QUIC_CA_KEY`, and `--quic-ca-key` inputs supply a separate QUIC certificate-authority key. UpGrid also accepts both keys in a join link or loads them from the data directory.
 
-UpGrid stops startup if deployment key material is invalid, if a configured key differs from the stored key, or if a fresh node gets different keys from direct configuration and its join link. It also stops startup if certificate generation, TLS configuration, or QUIC endpoint creation fails. It does not fall back to an insecure transport.
+UpGrid stops startup if either key is invalid, if a configured key differs from the stored key, or if a fresh node gets different keys from direct configuration and its join link. It also stops startup if certificate generation, TLS configuration, or QUIC endpoint creation fails. It does not fall back to an insecure transport.
 
-The derived certificate-authority key and the leaf private key are not stored as separate files. A restart creates a new leaf key and certificate. UpGrid does not support in-place deployment-key or transport certificate-authority rotation. Every member has the deployment key. Protect node data directories, join links, and backups. For the required controls, see [Cluster hardening](/guides/cluster-hardening/).
+The QUIC certificate-authority key is stored separately; the leaf private key is not. A restart creates a new leaf key and certificate. UpGrid does not support in-place deployment-key or certificate-authority rotation. Every member has both keys. Protect node data directories, join links, and backups. For the required controls, see [Cluster hardening](/guides/cluster-hardening/).
 
 ### HTTP API certificates
 
@@ -74,12 +74,12 @@ A join link is not a node endpoint, even though it also uses the `up` scheme. It
 up://node-1.internal:11451/<opaque-invitation>
 ```
 
-The authority identifies the existing node that the new node contacts. The versioned, URL-safe payload contains the deployment key and an admission token. Encoding does not make this payload public or safe to disclose. Treat the complete link as a bearer secret.
+The authority identifies the existing node that the new node contacts. The versioned, URL-safe payload contains the deployment key, the QUIC certificate-authority key, and an admission token. Encoding does not make this payload public or safe to disclose. Treat the complete link as a bearer secret.
 A join link does not contain user information, a query, or a fragment.
 
 Pass the complete link through `join`, `UPGRID_JOIN`, or `--join`. Configure the new node's own endpoint separately with `raft_url`, `UPGRID_RAFT_URL`, or `--raft-url`. The new endpoint is not part of the join link.
 
-The cluster stores the admission token hash, expiry, and optional remaining-use count in replicated state. Expiry, use exhaustion, or revocation blocks later admission. These controls do not remove a deployment key from a link that was already disclosed.
+The cluster stores the admission token hash, expiry, and optional remaining-use count in replicated state. Expiry, use exhaustion, or revocation blocks later admission. These controls do not remove key material from a link that was already disclosed.
 
 ## Configuration
 
@@ -87,8 +87,9 @@ The cluster stores the admission token hash, expiry, and optional remaining-use 
 | --- | --- | --- | --- | --- |
 | Advertise the node and select the UDP listen port | `raft_url` | `UPGRID_RAFT_URL` | `--raft-url` | `up://127.0.0.1:11451` |
 | Admit a fresh node with a join link | `join` | `UPGRID_JOIN` | `--join` | Unset; mutually exclusive with `new_cluster` |
-| Supply the 32-byte, Base64 deployment key for bootstrap or recovery | `secret_key` | `UPGRID_SECRET_KEY` | `--secret-key` | Unset; normal creation and admission persist the key automatically |
-| Store the deployment key and node identity | `data_dir` | `UPGRID_DATA_DIR` | `--data-dir` | `upgrid-data` |
+| Supply the 32-byte, Base64 deployment key for bootstrap or recovery | `deployment_key` | `UPGRID_DEPLOYMENT_KEY` | `--deployment-key` | Unset; normal creation and admission persist the key automatically |
+| Supply the 32-byte, Base64 QUIC certificate-authority key for bootstrap or recovery | `quic_ca_key` | `UPGRID_QUIC_CA_KEY` | `--quic-ca-key` | Derived from the deployment key; normal creation and admission persist it |
+| Store deployment, QUIC certificate-authority, and node identity keys | `data_dir` | `UPGRID_DATA_DIR` | `--data-dir` | `upgrid-data` |
 
 Do not set `join` to a plain node endpoint. Do not set `raft_url` to a join link. Keep a dedicated durable data directory for each node. See [Configuration](/reference/configuration/) for configuration precedence and all settings.
 

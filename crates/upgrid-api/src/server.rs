@@ -20,6 +20,7 @@ pub fn start(
     config: Config,
     cluster: Handle,
     cipher: Cipher,
+    quic_ca_key: QuicCaKey,
     notifications: upgrid_notification::Tester,
     oobe: Oobe,
     startup_warning: Option<String>,
@@ -29,6 +30,19 @@ pub fn start(
     })?;
     listener.set_nonblocking(true).context(ListenerSnafu)?;
     let bind = config.bind.clone();
+    let state = WebState {
+        cluster,
+        cipher,
+        quic_ca_key,
+        notifications,
+        raft_url: config.raft_url.clone(),
+        node_name: config
+            .node_name
+            .clone()
+            .expect("Orchestration resolves the node name before starting the API"),
+        oobe,
+        startup_warning,
+    };
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .thread_name("upgrid-web-worker")
@@ -37,15 +51,7 @@ pub fn start(
     std::thread::Builder::new()
         .name("upgrid-web".to_owned())
         .spawn(move || {
-            if let Err(error) = runtime.block_on(serve(
-                listener,
-                config,
-                cluster,
-                cipher,
-                notifications,
-                oobe,
-                startup_warning,
-            )) {
+            if let Err(error) = runtime.block_on(serve(listener, config, state)) {
                 tracing::error!(%error, "web API stopped");
             }
         })
@@ -54,28 +60,10 @@ pub fn start(
     Ok(())
 }
 
-async fn serve(
-    listener: std::net::TcpListener,
-    config: Config,
-    cluster: Handle,
-    cipher: Cipher,
-    notifications: upgrid_notification::Tester,
-    oobe: Oobe,
-    startup_warning: Option<String>,
-) -> Result<()> {
+async fn serve(listener: std::net::TcpListener, config: Config, state: WebState) -> Result<()> {
     let tls_cert = config.tls_cert.clone();
     let tls_key = config.tls_key.clone();
-    let state = WebState {
-        cluster,
-        cipher,
-        notifications,
-        raft_url: config.raft_url,
-        node_name: config
-            .node_name
-            .expect("Orchestration resolves the node name before starting the API"),
-        oobe,
-        startup_warning,
-    };
+
     let (api, mut openapi) = api_routes().with_state(state.clone()).split_for_parts();
     let (status, status_openapi) = status_routes()
         .with_state::<()>(state.clone())

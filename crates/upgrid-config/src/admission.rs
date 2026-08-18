@@ -7,9 +7,9 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::Cipher;
+use crate::{Cipher, QuicCaKey};
 
-const VERSION: u8 = 1;
+const VERSION: u8 = 2;
 
 /// A bearer invitation containing everything a new Node needs to join.
 #[derive(Clone)]
@@ -17,6 +17,7 @@ pub struct JoinLink {
     url: Url,
     remote: Url,
     cipher: Cipher,
+    quic_ca_key: QuicCaKey,
     token: String,
 }
 
@@ -24,15 +25,22 @@ pub struct JoinLink {
 struct Payload {
     version: u8,
     deployment_key: String,
+    quic_ca_key: String,
     token: String,
 }
 
 impl JoinLink {
-    pub fn issue(raft_url: &str, cipher: &Cipher, token: String) -> Result<Self, Error> {
+    pub fn issue(
+        raft_url: &str,
+        cipher: &Cipher,
+        quic_ca_key: &QuicCaKey,
+        token: String,
+    ) -> Result<Self, Error> {
         let remote = parse_remote(raft_url)?;
         let payload = postcard::to_stdvec(&Payload {
             version: VERSION,
             deployment_key: cipher.encoded(),
+            quic_ca_key: quic_ca_key.encoded(),
             token: token.clone(),
         })
         .map_err(|_| Error::InvalidPayload)?;
@@ -44,6 +52,7 @@ impl JoinLink {
             url,
             remote,
             cipher: cipher.clone(),
+            quic_ca_key: quic_ca_key.clone(),
             token,
         })
     }
@@ -76,6 +85,8 @@ impl JoinLink {
             return Err(Error::InvalidPayload);
         }
         let cipher = Cipher::parse(&payload.deployment_key).map_err(|_| Error::InvalidPayload)?;
+        let quic_ca_key =
+            QuicCaKey::parse(&payload.quic_ca_key).map_err(|_| Error::InvalidPayload)?;
         let mut remote = url.clone();
         remote.set_path("");
         parse_remote(remote.as_str())?;
@@ -84,6 +95,7 @@ impl JoinLink {
             url,
             remote,
             cipher,
+            quic_ca_key,
             token: payload.token,
         })
     }
@@ -94,6 +106,10 @@ impl JoinLink {
 
     pub fn cipher(&self) -> &Cipher {
         &self.cipher
+    }
+
+    pub fn quic_ca_key(&self) -> &QuicCaKey {
+        &self.quic_ca_key
     }
 
     pub fn token(&self) -> &str {
@@ -169,11 +185,16 @@ mod tests {
         Cipher::parse("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap()
     }
 
+    fn quic_ca_key() -> QuicCaKey {
+        QuicCaKey::parse("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap()
+    }
+
     #[test]
     fn join_link_round_trips_without_exposing_secret_in_debug() {
         let link = JoinLink::issue(
             "up://127.0.0.1:11451",
             &cipher(),
+            &quic_ca_key(),
             "reusable-token".to_owned(),
         )
         .unwrap();
@@ -184,6 +205,7 @@ mod tests {
         assert_eq!(parsed.remote().as_str(), "up://127.0.0.1:11451");
         assert_eq!(parsed.token(), "reusable-token");
         assert_eq!(parsed.cipher().encoded(), cipher().encoded());
+        assert_eq!(parsed.quic_ca_key(), &quic_ca_key());
         assert_eq!(format!("{parsed:?}"), "JoinLink { url: \"[REDACTED]\" }");
     }
 

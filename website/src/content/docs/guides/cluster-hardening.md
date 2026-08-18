@@ -7,17 +7,17 @@ This guide covers the controls around the cluster transport, API, and hosts. See
 
 ## Protect deployment material
 
-Every cluster member holds the deployment key, so a compromise of one member can compromise cluster transport trust and encrypted cluster secrets.
+Every cluster member holds the deployment and QUIC certificate-authority keys. A compromise of one member can expose encrypted cluster secrets and cluster transport trust.
 
 - Restrict each data directory to the operating-system account that runs UpGrid.
 - Encrypt host storage and backups that contain a node data directory.
 - Keep recovery copies in the same protected storage as other production credentials.
 - Do not copy one node's data directory to create another node.
-- Do not place `UPGRID_SECRET_KEY` or `--secret-key` in permanent configuration. Use it only for bootstrap or recovery when required.
+- Do not place `UPGRID_DEPLOYMENT_KEY`, `--deployment-key`, `UPGRID_QUIC_CA_KEY`, or `--quic-ca-key` in permanent configuration. Use them only for bootstrap or recovery when required.
 
-A join link contains both admission authority and the deployment key. Use a short-lived, one-use token. Deliver it through a secret manager or another protected channel, and remove it from process-manager configuration after the node joins. Do not put join links in chat, tickets, logs, or shell history. Revoke every unused reusable token.
+A join link contains admission authority and both long-lived keys. Use a short-lived, one-use token. Deliver it through a secret manager or another protected channel, and remove it from process-manager configuration after the node joins. Do not put join links in chat, tickets, logs, or shell history. Revoke every unused reusable token.
 
-Revoking an admission token cannot protect a deployment key that was already disclosed. UpGrid does not support in-place deployment-key or QUIC certificate-authority rotation. If the deployment key is exposed, isolate the cluster and create a new cluster with new data directories and deployment material.
+Revoking an admission token cannot protect key material that was already disclosed. UpGrid does not support in-place deployment-key or QUIC certificate-authority rotation. If either key is exposed, isolate the cluster and create a new cluster with new data directories and deployment material.
 
 ## Restrict cluster access
 

@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::cli::ConfigArgs;
 use crate::error::{LoadSnafu, NodeIdSnafu, ReadSnafu, WriteSnafu};
-use crate::{Cipher, Error, JoinLink, Result, durable};
+use crate::{Cipher, Error, JoinLink, QuicCaKey, Result, durable};
 
 #[derive(Clone)]
 pub enum JoinIntent {
@@ -30,7 +30,8 @@ pub struct Config {
     pub node_name: Option<String>,
     pub username: String,
     pub password: String,
-    pub secret_key: Option<String>,
+    pub deployment_key: Option<String>,
+    pub quic_ca_key: Option<String>,
     pub history_retention_ms: Option<u64>,
     pub history_rollup_retention_ms: Option<u64>,
     pub target_trash_retention_ms: Option<u64>,
@@ -54,7 +55,8 @@ struct RawConfig {
     node_name: Option<String>,
     username: String,
     password: String,
-    secret_key: Option<String>,
+    deployment_key: Option<String>,
+    quic_ca_key: Option<String>,
     history_retention_hours: Option<u64>,
     history_rollup_retention_days: Option<u64>,
     target_trash_retention_days: Option<u64>,
@@ -73,7 +75,8 @@ impl Default for RawConfig {
             node_name: None,
             username: "admin".to_owned(),
             password: String::new(),
-            secret_key: None,
+            deployment_key: None,
+            quic_ca_key: None,
             history_retention_hours: None,
             history_rollup_retention_days: None,
             target_trash_retention_days: None,
@@ -110,7 +113,8 @@ fn load_with(args: ConfigArgs, load_env: bool) -> Result<Config> {
     override_value!(node_name);
     override_value!(username);
     override_value!(password);
-    override_value!(secret_key);
+    override_value!(deployment_key);
+    override_value!(quic_ca_key);
     override_value!(history_retention_hours);
     override_value!(history_rollup_retention_days);
     override_value!(target_trash_retention_days);
@@ -160,7 +164,8 @@ impl TryFrom<RawConfig> for Config {
             node_name: raw.node_name,
             username: raw.username,
             password: raw.password,
-            secret_key: raw.secret_key,
+            deployment_key: raw.deployment_key,
+            quic_ca_key: raw.quic_ca_key,
             history_retention_ms,
             history_rollup_retention_ms,
             target_trash_retention_ms,
@@ -226,6 +231,31 @@ pub fn load_or_create_cipher(
     }
 }
 
+pub fn load_or_create_quic_ca_key(
+    data_dir: &Path,
+    configured: Option<&QuicCaKey>,
+    cipher: &Cipher,
+) -> Result<QuicCaKey> {
+    let path = data_dir.join("quic-ca-key");
+    let stored = match fs::read_to_string(&path) {
+        Ok(value) => Some(QuicCaKey::parse(&value)?),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => return Err(source).context(ReadSnafu { path }),
+    };
+    match (stored, configured) {
+        (Some(stored), Some(configured)) if stored != *configured => Err(Error::QuicCaKeyMismatch),
+        (Some(stored), _) => Ok(stored),
+        (None, configured) => {
+            let key = configured
+                .cloned()
+                .unwrap_or_else(|| QuicCaKey::derive(cipher));
+            durable::replace_private(&path, key.encoded().as_bytes())
+                .context(WriteSnafu { path })?;
+            Ok(key)
+        }
+    }
+}
+
 pub fn load_or_create_node_id(data_dir: &Path) -> Result<Uuid> {
     let path = data_dir.join("node-id");
     match fs::read_to_string(&path) {
@@ -282,6 +312,26 @@ mod tests {
         let joining = directory.join("joining");
         fs::create_dir_all(&joining).unwrap();
         assert!(load_or_create_cipher(&joining, None, true).is_err());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn configured_deployment_and_quic_ca_keys_survive_reopen() {
+        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
+        fs::create_dir_all(&directory).unwrap();
+        let cipher = Cipher::parse("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap();
+        let quic_ca = QuicCaKey::parse("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap();
+
+        let stored_cipher = load_or_create_cipher(&directory, Some(&cipher), false).unwrap();
+        let stored_quic_ca =
+            load_or_create_quic_ca_key(&directory, Some(&quic_ca), &stored_cipher).unwrap();
+
+        assert_eq!(stored_cipher.encoded(), cipher.encoded());
+        assert_eq!(stored_quic_ca, quic_ca);
+        assert!(
+            load_or_create_quic_ca_key(&directory, Some(&QuicCaKey::derive(&cipher)), &cipher,)
+                .is_err()
+        );
         fs::remove_dir_all(directory).unwrap();
     }
 

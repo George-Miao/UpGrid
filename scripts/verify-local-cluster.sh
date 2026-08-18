@@ -12,7 +12,8 @@ rust_log="${UPGRID_TEST_RUST_LOG:-info}"
 test_root="$(mktemp -d "${TMPDIR:-/tmp}/upgrid-cluster.XXXXXX")"
 username="cluster-test"
 password="cluster-test-password"
-secret_key="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+deployment_key="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+quic_ca_key="AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
 pids=()
 
 cleanup() {
@@ -59,7 +60,7 @@ wait_for_api() {
   done
 }
 
-start_node 1 --new-cluster --secret-key "$secret_key" --username "$username" --password "$password"
+start_node 1 --new-cluster --deployment-key "$deployment_key" --quic-ca-key "$quic_ca_key" --username "$username" --password "$password"
 wait_for_api "$api_base_port" "${pids[0]}"
 curl --fail --silent \
   --cookie-jar "${test_root}/session.cookies" \

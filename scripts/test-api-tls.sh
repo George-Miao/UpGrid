@@ -30,7 +30,8 @@ target_directory=$(cargo metadata --manifest-path "$workspace/Cargo.toml" \
   --data-dir "$test_data/data" \
   --username admin \
   --password test-password \
-  --secret-key AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+  --deployment-key AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+  --quic-ca-key AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE= \
   --tls-cert "$test_data/cert.pem" \
   --tls-key "$test_data/key.pem" \
   >"$test_data/server.log" 2>&1 &

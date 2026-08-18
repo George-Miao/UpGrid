@@ -123,9 +123,45 @@ impl Cipher {
     }
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub struct QuicCaKey {
+    key: [u8; KEY_LEN],
+}
+
+impl Debug for QuicCaKey {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("QuicCaKey([REDACTED])")
+    }
+}
+
+impl QuicCaKey {
+    pub fn derive(cipher: &Cipher) -> Self {
+        Self {
+            key: cipher.derive(b"upgrid deployment ca"),
+        }
+    }
+
+    pub fn parse(encoded: &str) -> Result<Self, Error> {
+        let decoded = STANDARD
+            .decode(encoded.trim())
+            .map_err(|_| Error::InvalidQuicCaKey)?;
+        let key = decoded.try_into().map_err(|_| Error::InvalidQuicCaKey)?;
+        Ok(Self { key })
+    }
+
+    pub fn encoded(&self) -> String {
+        STANDARD.encode(self.key)
+    }
+
+    pub fn as_bytes(&self) -> &[u8; KEY_LEN] {
+        &self.key
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
     InvalidKey,
+    InvalidQuicCaKey,
     Random,
     Seal,
     InvalidCiphertext,
@@ -135,6 +171,9 @@ impl Display for Error {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(match self {
             Self::InvalidKey => "deployment key must be 32 bytes encoded as base64",
+            Self::InvalidQuicCaKey => {
+                "QUIC certificate-authority key must be 32 bytes encoded as base64"
+            }
             Self::Random => "secure random generation failed",
             Self::Seal => "secret encryption failed",
             Self::InvalidCiphertext => {
@@ -148,7 +187,7 @@ impl std::error::Error for Error {}
 
 #[cfg(test)]
 mod tests {
-    use super::{Cipher, generate_join_token};
+    use super::{Cipher, QuicCaKey, generate_join_token};
 
     #[test]
     fn ciphertext_is_authenticated_and_randomized() {
@@ -178,5 +217,14 @@ mod tests {
         assert_ne!(first, second);
         assert!(!first.is_empty());
         assert!(!second.is_empty());
+    }
+
+    #[test]
+    fn quic_ca_key_round_trips_without_debug_disclosure() {
+        let key = QuicCaKey::derive(&Cipher::from_bytes([9; 32]));
+        let parsed = QuicCaKey::parse(&key.encoded()).unwrap();
+
+        assert_eq!(parsed, key);
+        assert_eq!(format!("{parsed:?}"), "QuicCaKey([REDACTED])");
     }
 }

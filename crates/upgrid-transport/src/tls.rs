@@ -15,7 +15,7 @@ use rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer, ServerName, UnixTime
 use rustls::server::WebPkiClientVerifier;
 use rustls::{DigitallySignedStruct, RootCertStore, SignatureScheme};
 use snafu::ResultExt;
-use upgrid_config::Cipher;
+use upgrid_config::QuicCaKey;
 
 use crate::Result;
 use crate::error::{
@@ -77,14 +77,14 @@ impl danger::ServerCertVerifier for SkipServerVerification {
     }
 }
 
-pub async fn secure_endpoint(host: String, port: u16, cipher: &Cipher) -> Result<Endpoint> {
+pub async fn secure_endpoint(host: String, port: u16, quic_ca_key: &QuicCaKey) -> Result<Endpoint> {
     let mut ca_params = CertificateParams::new(Vec::<String>::new()).context(CertificateSnafu)?;
     ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
     let mut ca_key_der = vec![
         0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04,
         0x20,
     ];
-    ca_key_der.extend_from_slice(&cipher.derive(b"upgrid deployment ca"));
+    ca_key_der.extend_from_slice(quic_ca_key.as_bytes());
     let ca_key_der = PrivatePkcs8KeyDer::from(ca_key_der);
     let ca_key = KeyPair::from_pkcs8_der_and_sign_algo(&ca_key_der, &PKCS_ED25519)
         .context(CertificateSnafu)?;
@@ -169,11 +169,13 @@ mod tests {
 
     #[compio::test]
     async fn rejects_untrusted_server_certificate() {
-        let cipher = Cipher::parse("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap();
+        let quic_ca_key = QuicCaKey::parse("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap();
         let server_endpoint = untrusted_server_endpoint("127.0.0.1").await;
         let server_port = server_endpoint.local_addr().unwrap().port();
         let server = RpcTransport::new(server_endpoint);
-        let client = RpcTransport::bind("127.0.0.1", 0, &cipher).await.unwrap();
+        let client = RpcTransport::bind("127.0.0.1", 0, &quic_ca_key)
+            .await
+            .unwrap();
         let _accept = spawn(async move { server.accept().await });
 
         let error = match client.connect::<u8, u8>("127.0.0.1", server_port).await {

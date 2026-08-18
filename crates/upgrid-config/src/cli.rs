@@ -45,7 +45,11 @@ pub struct ConfigArgs {
 
     /// Bootstrap or recovery deployment key.
     #[arg(long, value_name = "BASE64")]
-    pub(super) secret_key: Option<String>,
+    pub(super) deployment_key: Option<String>,
+
+    /// QUIC certificate-authority Ed25519 key seed.
+    #[arg(long, value_name = "BASE64")]
+    pub(super) quic_ca_key: Option<String>,
 
     /// Raw Evaluation retention period.
     #[arg(long, value_name = "HOURS")]
@@ -92,6 +96,21 @@ mod tests {
     #[test]
     fn new_cluster_flag_is_accepted() {
         assert!(TestCli::try_parse_from(["upgrid", "--new-cluster"]).is_ok());
+    }
+
+    #[test]
+    fn deployment_and_quic_ca_keys_are_explicit() {
+        assert!(
+            TestCli::try_parse_from([
+                "upgrid",
+                "--deployment-key",
+                "deployment",
+                "--quic-ca-key",
+                "quic-ca",
+            ])
+            .is_ok()
+        );
+        assert!(TestCli::try_parse_from(["upgrid", "--secret-key", "legacy"]).is_err());
     }
 
     #[test]

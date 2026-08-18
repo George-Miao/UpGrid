@@ -55,8 +55,8 @@ pub(super) async fn create_join_token(
     }
     let token = generate_join_token().map_err(ApiError::unavailable)?;
     let hash = hash_join_token(&token);
-    let link =
-        JoinLink::issue(&state.raft_url, &state.cipher, token).map_err(ApiError::bad_request)?;
+    let link = JoinLink::issue(&state.raft_url, &state.cipher, &state.quic_ca_key, token)
+        .map_err(ApiError::bad_request)?;
     let expires_at_ms = input
         .expires_in_seconds
         .checked_mul(1_000)

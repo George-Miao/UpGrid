@@ -17,6 +17,9 @@ pub enum Error {
     #[snafu(display("configured deployment key does not match the Join Token"))]
     JoinDeploymentKeyMismatch,
 
+    #[snafu(display("configured QUIC certificate-authority key does not match the Join Token"))]
+    JoinQuicCaKeyMismatch,
+
     #[snafu(display("Cluster request channel stopped"))]
     ClusterStopped,
 
