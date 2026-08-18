@@ -1,13 +1,13 @@
 ---
 title: Join a cluster
-description: Admit another node with an expiring, revocable up:// token.
+description: Add a node with an expiring, revocable up:// token.
 ---
 
-A fresh node joins with an opaque `up://` join token created by an existing cluster member. The token carries admission authority and deployment material, so handle it like a password.
+A fresh node joins with an opaque `up://` token created by an existing cluster member. The token carries admission authority and deployment material, so handle it like a password.
 
 ## Create a token
 
-Open **Cluster** in the WebUI and select **Create token**. Choose:
+Open **cluster** in the WebUI and select **Create token**. Choose:
 
 - An expiration in days;
 - One or more allowed uses; or
@@ -15,9 +15,11 @@ Open **Cluster** in the WebUI and select **Create token**. Choose:
 
 The WebUI defaults to one day and one use. Create a separate one-use token for each node unless reusable provisioning is intentional.
 
-## Join the new node
+## Add the new node
 
-Run the generated command on a host with an empty data directory:
+Before you start the process, give the new node an `up://` endpoint that every cluster member can reach. Allow inbound UDP traffic on that endpoint's port from every cluster member. The default is UDP port `11451`. Update the existing members' firewall rules to accept the new node as a source.
+
+Run the generated command on the new host with an empty data directory:
 
 ```sh
 upgrid \
@@ -28,7 +30,7 @@ upgrid \
   --node-name edge-two
 ```
 
-`UPGRID_JOIN` is the environment-variable equivalent. The joining node contacts the address embedded in the token and receives the cluster's operator identities and API tokens through Raft. After admission, every advertised Raft hostname must be reachable by every cluster member.
+`UPGRID_JOIN` is the environment-variable equivalent. The joining node contacts the address embedded in the token and receives the cluster's operator identities and API tokens through Raft. After admission, every cluster member must be able to reach every advertised `up://` hostname and UDP port.
 
 ## Restart an existing member
 
@@ -36,7 +38,7 @@ Restart with the same data directory and normal configuration. Durable membershi
 
 ## Drain or replace a node
 
-For planned maintenance, open **Cluster**, choose **Drain**, and wait for the active-assignment count to reach zero. Remove the node, then stop its process. You can cancel the drain before removal.
+For planned maintenance, open **cluster**, choose **Drain**, and wait for the active-assignment count to reach zero. Remove the node, then stop its process. You can cancel the drain before removal.
 
 For an unreachable node, first confirm its old process is permanently stopped, then choose **Replace failed** from a different healthy member. UpGrid releases its assignments and removes it from Raft membership. Create a one-use join token and start the replacement with a new node identity and an empty data directory.
 

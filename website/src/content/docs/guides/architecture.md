@@ -45,4 +45,4 @@ Committed availability transitions create notification work. Telegram, SMTP emai
 
 ## Transport and security boundaries
 
-Inter-node traffic uses the `up://` transport with mutual identity established during admission. Operator identities and API tokens are part of replicated cluster state, so every node accepts the same WebUI sessions and bearer credentials. The API can run as plaintext behind a trusted TLS reverse proxy or serve HTTPS directly.
+Inter-node traffic uses the [Up protocol](/reference/up-protocol/) with enforced mutual certificate validation. Certificate trust protects transport connections, while admission tokens separately authorize membership. Operator identities and API tokens are part of replicated cluster state, so every node accepts the same WebUI sessions and bearer credentials. The API can run as plaintext behind a trusted TLS reverse proxy or serve HTTPS directly.

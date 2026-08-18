@@ -1,6 +1,6 @@
 ---
-title: Deployment
-description: Persist node state and expose the API safely with native or proxy TLS.
+title: Recipes
+description: Apply practical recipes for durable state, API TLS, network controls, and health checks.
 ---
 
 Run each node with a dedicated durable directory. Preserve `deployment-key`, `node-id`, `raft-log.redb`, and `raft-state.postcard` across restarts.
@@ -38,15 +38,6 @@ tls_key = "/etc/upgrid/api-key.pem"
 ```
 
 The same options are available as `UPGRID_TLS_CERT` and `UPGRID_TLS_KEY`, or `--tls-cert` and `--tls-key`. UpGrid refuses a partial pair.
-
-## Network policy
-
-- Expose the API only through HTTPS or a trusted private network.
-- Allow each cluster node to reach every advertised `up://` address.
-- Restrict inter-node transport ports to cluster members.
-- Manage operator identities and API tokens in the cluster page; Raft replicates them to every node.
-- Back up durable state, but never restore one node's directory as a new identity.
-- Drain healthy nodes before planned removal. Force-remove a failed node only after fencing its old process, then replace it with a fresh data directory and node identity.
 
 ## Operational checks
 

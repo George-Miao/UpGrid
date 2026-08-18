@@ -8,9 +8,54 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'UpGrid',
-      description: 'Run and operate a distributed UpGrid service-monitoring Cluster.',
+      description: 'Run and operate a distributed UpGrid service-monitoring cluster.',
       logo: { src: './src/assets/logo.svg', alt: 'UpGrid' },
       customCss: ['./src/styles/upgrid.css'],
+      components: {
+        Footer: './src/components/Footer.astro',
+      },
+      head: [
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:image',
+            content: 'https://upgrid.rs/opengraph.png',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image:type', content: 'image/png' },
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image:width', content: '1200' },
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image:height', content: '630' },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:image:alt',
+            content: 'UpGrid distributed service monitoring dashboard',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:image',
+            content: 'https://upgrid.rs/opengraph.png',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:image:alt',
+            content: 'UpGrid distributed service monitoring dashboard',
+          },
+        },
+      ],
       editLink: {
         baseUrl: 'https://github.com/George-Miao/UpGrid/edit/main/website/',
       },
@@ -21,24 +66,31 @@ export default defineConfig({
           label: 'Start here',
           items: [
             { label: 'Overview', link: '/' },
-            { label: 'Install UpGrid', slug: 'getting-started/installation' },
-            { label: 'Start your first Node', slug: 'getting-started/first-node' },
+            { label: 'Single-node setup', slug: 'getting-started/first-node' },
+            { label: 'Multi-node setup', slug: 'getting-started/multi-node' },
           ],
         },
         {
           label: 'Operate',
           items: [
-            { label: 'Join a Cluster', slug: 'guides/join-cluster' },
+            { label: 'Network setup', slug: 'guides/network-setup' },
+            {
+              label: 'Cluster hardening',
+              slug: 'guides/cluster-hardening',
+            },
+            { label: 'Add a node', slug: 'guides/join-cluster' },
             { label: 'Monitor services', slug: 'guides/targets' },
             { label: 'Send notifications', slug: 'guides/notifications' },
             { label: 'How UpGrid works', slug: 'guides/architecture' },
+            { label: 'Recipes', slug: 'guides/recipes' },
           ],
         },
         {
           label: 'Reference',
           items: [
             { label: 'Configuration', slug: 'reference/configuration' },
-            { label: 'Deployment', slug: 'reference/deployment' },
+            { label: 'Docker', slug: 'reference/docker' },
+            { label: 'Up protocol', slug: 'reference/up-protocol' },
             { label: 'HTTP API', slug: 'reference/api' },
           ],
         },

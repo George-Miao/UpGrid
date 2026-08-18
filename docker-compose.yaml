@@ -1,0 +1,13 @@
+services:
+  upgrid:
+    image: ghcr.io/george-miao/upgrid:latest
+    restart: unless-stopped
+    security_opt:
+      - seccomp=./upgrid-seccomp.json
+    ports:
+      - "8080:8080"
+    volumes:
+      - upgrid-data:/var/lib/upgrid
+
+volumes:
+  upgrid-data:

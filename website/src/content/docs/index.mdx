@@ -3,12 +3,23 @@ title: UpGrid documentation
 description: Deploy and operate a self-contained, distributed service monitor.
 template: splash
 hero:
-  tagline: Self-contained service monitoring, replicated across your own Nodes.
+  title: '<span class="hero-heading"><span>Stay up.</span> <span>Stay informed.</span></span>'
+  tagline: Distributed service monitoring that runs with your infrastructure.
   image:
-    file: ../../assets/logo.svg
+    html: |
+      <div class="hero-ripple" aria-hidden="true">
+        <i></i>
+        <i></i>
+        <i></i>
+        <i></i>
+        <i></i>
+        <i></i>
+        <i></i>
+        <i></i>
+      </div>
   actions:
-    - text: Start a Cluster
-      link: /getting-started/installation/
+    - text: Get started
+      link: /getting-started/first-node/
       icon: right-arrow
     - text: View on GitHub
       link: https://github.com/George-Miao/UpGrid
@@ -20,25 +31,6 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 import { Image } from 'astro:assets';
 import webuiShowcase from '../../assets/webui-showcase.png';
 
-## Monitoring without a control-plane dependency
-
-Every UpGrid Node runs the API, WebUI, scheduler, probe worker, notification worker, and a copy of the Raft state. Add a service once and the Cluster coordinates who checks it.
-
-<CardGrid stagger>
-	<Card title="One interface on every Node" icon="document">
-		Use the same authenticated API and WebUI on any healthy member. Followers forward mutations to the leader.
-	</Card>
-	<Card title="Distributed evaluations" icon="rocket">
-		The leader assigns HTTP and HTTPS polls across voting Nodes and commits one result for each interval.
-	</Card>
-	<Card title="Useful alerts" icon="open-book">
-		Notify Telegram chats, email recipients, or webhooks when a service or Cluster Node changes availability.
-	</Card>
-	<Card title="Elegant WebUI" icon="setting">
-		Configure Targets, inspect history, manage alerts, and operate the Cluster from a responsive dashboard.
-	</Card>
-</CardGrid>
-
 <Image
 	class="webui-showcase"
 	src={webuiShowcase}
@@ -48,8 +40,21 @@ Every UpGrid Node runs the API, WebUI, scheduler, probe worker, notification wor
 	quality={100}
 />
 
-## Begin with one Node
+## Monitoring without a control-plane dependency
 
-Build UpGrid, start a Node, and open its first-run setup page. You can create a single-Node Cluster immediately and invite more Nodes later.
+Every UpGrid node runs the API, WebUI, scheduler, probe worker, notification worker, and a copy of the Raft state. Add a service once and the cluster coordinates who checks it.
 
-<a class="sl-link-button primary" href="/getting-started/installation/">Install UpGrid →</a>
+<CardGrid stagger>
+	<Card title="One interface on every node" icon="document">
+		Use the same authenticated API and WebUI on any healthy member. Followers forward mutations to the leader.
+	</Card>
+	<Card title="Distributed evaluations" icon="rocket">
+		The leader assigns HTTP and HTTPS polls across voting nodes and commits one result for each interval.
+	</Card>
+	<Card title="Useful alerts" icon="open-book">
+		Notify Telegram chats, email recipients, or webhooks when a service or cluster node changes availability.
+	</Card>
+	<Card title="One WebUI" icon="setting">
+		Configure targets, inspect history, manage alerts, and operate the cluster from a responsive dashboard.
+	</Card>
+</CardGrid>

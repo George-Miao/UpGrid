@@ -24,6 +24,8 @@ Panel and card headers contain only the title, controls, and compact status meta
 All clickable UI items use `cursor: pointer`, and their text is not selectable. Disabled controls use `cursor: not-allowed`.
 Use sentence case in all documentation and user-facing UI text. Capitalize only the first word of a sentence or label. Never capitalize an inline word because it is a domain term, page name, feature name, or other special term; use `cluster` and `target`, not `Cluster` or `Target`. This rule does not apply to case-sensitive code identifiers.
 
+The UpGrid slogan is **Stay up. Stay informed.** Its supporting line is **Distributed service monitoring that runs with your infrastructure.** Use this exact wording in brand and marketing material.
+
 ## Testing guidelines
 
 Use `#[compio::test]` for async Rust tests and local `#[cfg(test)]` modules for units. Name tests by behavior, for example `rejects_invalid_scheme`. Browser workflows use Playwright against the real embedded app; avoid tests coupled to Lit internals. Fixed-port `master`/`worker` fixtures are manual, so never run the unfiltered Rust suite in automation. Avoid port collisions and terminate spawned tasks.
