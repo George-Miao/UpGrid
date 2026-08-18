@@ -196,7 +196,7 @@ export class UpgridApp extends AppController {
     .dialog-head { position: relative; padding: 20px 58px 15px 22px; border-bottom: 1px solid var(--line); }
     .dialog-head h2 { margin: 0; font-size: 18px; }
     .dialog-head p { margin: 4px 0 0; color: var(--muted); }
-    .target-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0 12px 22px; }
+    .target-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 12px 12px 22px; }
     .target-dialog-head h2 { flex: none; }
     form { display: grid; gap: 13px; padding: 20px 22px 22px; }
     .form-tabs { display: flex; width: fit-content; min-width: 0; max-width: 100%; gap: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--nav-bg); padding: 4px; overflow-x: auto; }
