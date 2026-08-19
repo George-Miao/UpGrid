@@ -24,6 +24,9 @@ importers:
       '@astrojs/check':
         specifier: 0.9.10
         version: 0.9.10(prettier@3.9.6)(typescript@5.9.2)
+      '@astrojs/markdown-remark':
+        specifier: 7.2.2
+        version: 7.2.2
       '@biomejs/biome':
         specifier: 2.5.7
         version: 2.5.7

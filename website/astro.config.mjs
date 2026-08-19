@@ -1,16 +1,53 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import { unified } from '@astrojs/markdown-remark';
 import starlight from '@astrojs/starlight';
+
+/** @typedef {{ type: string, tagName?: string, properties?: Record<string, unknown>, children?: MarkdownNode[] }} MarkdownNode */
+/** @typedef {{ children: MarkdownNode[] }} MarkdownParent */
+
+/** @param {MarkdownParent} parent */
+function wrapTables(parent) {
+  for (let index = 0; index < parent.children.length; index += 1) {
+    const child = parent.children[index];
+    if (child.type !== 'element') continue;
+
+    if (child.tagName === 'table') {
+      parent.children[index] = {
+        type: 'element',
+        tagName: 'div',
+        properties: { className: ['table-frame'] },
+        children: [child],
+      };
+      continue;
+    }
+
+    if (child.children) wrapTables({ children: child.children });
+  }
+}
+
+function rehypeTableFrames() {
+  return wrapTables;
+}
 
 export default defineConfig({
   site: 'https://upgrid.rs',
   devToolbar: { enabled: false },
+  markdown: { processor: unified({ rehypePlugins: [rehypeTableFrames] }) },
   integrations: [
     starlight({
       title: 'UpGrid',
       description: 'Run and operate a distributed UpGrid service-monitoring cluster.',
       logo: { src: './src/assets/logo.svg', alt: 'UpGrid' },
       customCss: ['./src/styles/upgrid.css'],
+      expressiveCode: {
+        defaultProps: {
+          wrap: true,
+          overridesByLang: {
+            'bash,sh,shell,zsh': { wrap: false },
+          },
+        },
+      },
       components: {
         Footer: './src/components/Footer.astro',
       },

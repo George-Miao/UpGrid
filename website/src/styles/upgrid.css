@@ -640,13 +640,21 @@ main h1 {
   border-bottom-color: var(--ug-line);
 }
 
-.sl-markdown-content table {
+.sl-markdown-content .table-frame {
   width: 100%;
+  overflow-x: auto;
   border: 1px solid var(--ug-line);
-  border-spacing: 0;
   border-radius: 12px;
   background: var(--ug-panel-surface);
-  overflow-x: auto;
+}
+
+.sl-markdown-content .table-frame table {
+  display: table;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
 }
 
 .sl-markdown-content th {
@@ -662,6 +670,14 @@ main h1 {
 .sl-markdown-content th,
 .sl-markdown-content td {
   border-color: var(--ug-line);
+}
+
+.sl-markdown-content .table-frame :is(th:first-child, td:first-child) {
+  padding-inline-start: 1rem;
+}
+
+.sl-markdown-content .table-frame :is(th:last-child, td:last-child) {
+  padding-inline-end: 1rem;
 }
 
 .sl-markdown-content table code:not(:where(.not-content *)) {
@@ -732,5 +748,19 @@ dialog {
 
   .card.card {
     border-radius: 14px;
+  }
+}
+
+@media (max-width: 30rem) {
+  .sl-markdown-content .table-frame :is(th, td) {
+    padding-inline: 0.5rem;
+  }
+
+  .sl-markdown-content .table-frame :is(th:first-child, td:first-child) {
+    padding-inline-start: 0.5rem;
+  }
+
+  .sl-markdown-content .table-frame :is(th:last-child, td:last-child) {
+    padding-inline-end: 0.5rem;
   }
 }
