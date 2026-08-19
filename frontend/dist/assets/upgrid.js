@@ -1096,7 +1096,8 @@
       .alert-resource { grid-template-columns: 1fr; }
       .alert-actions { margin-top: 8px; }
       .channel-actions { justify-content: space-between; margin-top: 10px; }
-      .target-dialog-head { gap: 8px; }
+      .target-dialog-head { gap: 6px; padding-left: 14px; }
+      .target-dialog-head h2 { font-size: 16px; }
       .form-tabs { gap: 0; padding: 2px; }
       .form-tabs button { min-height: 30px; padding: 5px 2px; font-size: 12px; }
     }
