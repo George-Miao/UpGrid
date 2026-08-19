@@ -29,7 +29,7 @@
         source = pkgs.nix-gitignore.gitignoreSourcePure [./.gitignore] ./.;
         upgrid = rustPlatform.buildRustPackage {
           pname = "upgrid";
-          version = "0.1.0";
+          version = "0.2.0";
           src = source;
           cargoBuildFlags = ["-p" "upgrid"];
           buildAndTestSubdir = ".";

@@ -49,11 +49,11 @@ See the [environment-variable reference](https://upgrid.rs/reference/configurati
 
 ### Precompiled Linux binaries
 
-When a container runtime is not appropriate, use a published Linux binary from the [v0.1.0 release](https://github.com/George-Miao/UpGrid/releases/tag/v0.1.0):
+When a container runtime is not appropriate, use a published Linux binary from the [v0.2.0 release](https://github.com/George-Miao/UpGrid/releases/tag/v0.2.0):
 
-- [Linux AMD64](https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/upgrid-v0.1.0-linux-amd64.tar.gz)
-- [Linux ARM64](https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/upgrid-v0.1.0-linux-arm64.tar.gz)
-- [SHA-256 checksums](https://github.com/George-Miao/UpGrid/releases/download/v0.1.0/SHA256SUMS)
+- [Linux AMD64](https://github.com/George-Miao/UpGrid/releases/download/v0.2.0/upgrid-v0.2.0-linux-amd64.tar.gz)
+- [Linux ARM64](https://github.com/George-Miao/UpGrid/releases/download/v0.2.0/upgrid-v0.2.0-linux-arm64.tar.gz)
+- [SHA-256 checksums](https://github.com/George-Miao/UpGrid/releases/download/v0.2.0/SHA256SUMS)
 
 Download the archive for the host architecture, verify it against `SHA256SUMS`, then extract and run `upgrid`.
 
