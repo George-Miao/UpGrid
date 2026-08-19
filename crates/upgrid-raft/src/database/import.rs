@@ -3,7 +3,7 @@ use std::path::Path;
 use rusqlite::Connection;
 use sea_query::{OnConflict, Query};
 
-use super::codec::{encode_field, integer};
+use super::codec::{encode_application, encode_field, integer};
 use super::schema::{RaftLog, RaftMeta, Snapshot, StateMachine};
 use super::{count_rows, execute_insert, legacy, transaction_error};
 use crate::error::DatabaseError;
@@ -57,7 +57,7 @@ pub(super) fn initialize(
         .map(|value| encode_field("state_machine", "last_applied_log", value))
         .transpose()?;
     let last_membership = encode_field("state_machine", "last_membership", &state.last_membership)?;
-    let application = encode_field("state_machine", "application", &state.application)?;
+    let application = encode_application(&state.application)?;
     let snapshot_idx = integer("state_machine", "snapshot_idx", snapshot_idx)?;
     let snapshot = snapshot
         .map(|snapshot| {

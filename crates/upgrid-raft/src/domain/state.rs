@@ -35,6 +35,49 @@ pub struct ApplicationState {
     pub public_status_enabled: bool,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "ApplicationState")]
+struct ApplicationStateJson {
+    targets: BTreeMap<TargetId, TargetState>,
+    node_targets: BTreeMap<TargetId, NodeTargetState>,
+    secrets: BTreeMap<SecretId, Secret>,
+    notification_channels: BTreeMap<NotificationChannelId, NotificationChannel>,
+    default_notification_channels: BTreeSet<NotificationChannelId>,
+    default_notifications_disabled: BTreeSet<TargetId>,
+    #[serde(with = "map_as_entries")]
+    alerts: BTreeMap<AlertId, Alert>,
+    #[serde(with = "map_as_entries")]
+    alert_acknowledgements: BTreeMap<AlertId, u64>,
+    #[serde(with = "map_as_entries")]
+    transitions: BTreeMap<EvaluationId, AvailabilityTransition>,
+    history_retention_ms: u64,
+    history_rollup_retention_ms: u64,
+    history_rollups: BTreeMap<TargetId, BTreeMap<u64, EvaluationRollup>>,
+    target_trash_retention_ms: u64,
+    trashed_targets: BTreeMap<TargetId, TrashedTarget>,
+    processed_operations: BTreeMap<Uuid, ProcessedOperation>,
+    latest_operation_at_ms: u64,
+    #[serde(with = "map_as_entries")]
+    assignments: BTreeMap<EvaluationAssignmentKey, EvaluationAssignment>,
+    #[serde(with = "map_as_entries")]
+    evaluation_batches: BTreeMap<EvaluationId, EvaluationBatch>,
+    target_locations: BTreeMap<TargetId, u16>,
+    #[serde(default, with = "map_as_entries")]
+    join_tokens: BTreeMap<JoinTokenHash, u64>,
+    #[serde(default, with = "map_as_entries")]
+    join_token_uses: BTreeMap<JoinTokenHash, u64>,
+    #[serde(default)]
+    node_names: BTreeMap<Uuid, String>,
+    #[serde(default)]
+    draining_nodes: BTreeSet<Uuid>,
+    #[serde(default)]
+    identities: BTreeMap<IdentityId, OperatorIdentity>,
+    #[serde(default)]
+    api_tokens: BTreeMap<ApiTokenId, ApiToken>,
+    #[serde(default)]
+    public_status_enabled: bool,
+}
+
 impl ApplicationState {
     pub fn target_location_count(&self, target_id: TargetId) -> u16 {
         self.target_locations.get(&target_id).copied().unwrap_or(1)
@@ -57,6 +100,20 @@ impl ApplicationState {
         self.evaluation_batches
             .get(&evaluation_id)
             .map(|batch| &batch.results)
+    }
+
+    pub(crate) fn serialize_database_json<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        ApplicationStateJson::serialize(self, serializer)
+    }
+
+    pub(crate) fn deserialize_database_json<'de, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        ApplicationStateJson::deserialize(deserializer)
     }
 }
 
@@ -111,3 +168,55 @@ use super::{
     JoinTokenHash, NodeTargetState, NotificationChannel, NotificationChannelId, OperatorIdentity,
     Secret, SecretId, TargetId, TargetState, TrashedTarget,
 };
+
+mod map_as_entries {
+    use std::collections::BTreeMap;
+    use std::fmt;
+    use std::marker::PhantomData;
+
+    use serde::de::{SeqAccess, Visitor};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub(super) fn serialize<K, V, S>(map: &BTreeMap<K, V>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        K: Serialize,
+        V: Serialize,
+        S: Serializer,
+    {
+        serializer.collect_seq(map)
+    }
+
+    pub(super) fn deserialize<'de, K, V, D>(deserializer: D) -> Result<BTreeMap<K, V>, D::Error>
+    where
+        K: Deserialize<'de> + Ord,
+        V: Deserialize<'de>,
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_seq(MapVisitor(PhantomData))
+    }
+
+    struct MapVisitor<K, V>(PhantomData<(K, V)>);
+
+    impl<'de, K, V> Visitor<'de> for MapVisitor<K, V>
+    where
+        K: Deserialize<'de> + Ord,
+        V: Deserialize<'de>,
+    {
+        type Value = BTreeMap<K, V>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("a sequence of key-value entries")
+        }
+
+        fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+        where
+            A: SeqAccess<'de>,
+        {
+            let mut map = BTreeMap::new();
+            while let Some((key, value)) = sequence.next_element()? {
+                map.insert(key, value);
+            }
+            Ok(map)
+        }
+    }
+}

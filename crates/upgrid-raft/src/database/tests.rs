@@ -12,7 +12,10 @@ use sea_query_rusqlite::RusqliteBinder;
 use uuid::Uuid;
 
 use super::{LogRepository, RaftDatabase, StateRepository};
-use crate::domain::ApplicationState;
+use crate::domain::{
+    ApplicationState, EvaluationAssignment, EvaluationAssignmentKey, EvaluationId, JoinTokenHash,
+    TargetId,
+};
 use crate::raft::TC;
 use crate::state_machine::{StateMachineData, StoredSnapshot};
 mod legacy_import;
@@ -261,6 +264,43 @@ fn checkpoint_stores_each_state_machine_field_in_its_column() {
     assert_eq!(state.application, loaded.application);
     assert_eq!(11, snapshot_idx);
     assert!(snapshot.is_none());
+    drop(database);
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn checkpoint_round_trips_composite_map_keys_as_json_entries() {
+    let directory = test_directory();
+    let database = open_database(&directory);
+    let repository = StateRepository::new(database.clone());
+    let target_id = TargetId(Uuid::now_v7());
+    let executor_node_id = Uuid::now_v7();
+    let id = EvaluationId {
+        target_id,
+        scheduled_at_ms: 1_000,
+    };
+    let assignment = EvaluationAssignment {
+        id,
+        executor_node_id,
+        assigned_at_ms: 900,
+        expires_at_ms: 2_000,
+        attempt: 1,
+    };
+    let mut application = ApplicationState::default();
+    application
+        .assignments
+        .insert(EvaluationAssignmentKey::from(&assignment), assignment);
+    application.join_tokens.insert(JoinTokenHash([7; 32]), 3);
+    let state = StateMachineData {
+        application,
+        ..StateMachineData::default()
+    };
+
+    repository.replace(&state, None, 0).unwrap();
+    let (loaded, ..) = repository.load().unwrap();
+
+    assert_eq!(state.application, loaded.application);
+    drop(repository);
     drop(database);
     fs::remove_dir_all(directory).unwrap();
 }

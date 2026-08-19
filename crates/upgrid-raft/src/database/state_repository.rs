@@ -4,7 +4,7 @@ use rusqlite::OptionalExtension;
 use sea_query::{Expr, ExprTrait, OnConflict, Query, SqliteQueryBuilder};
 use sea_query_rusqlite::RusqliteBinder;
 
-use super::codec::{decode_field, encode_field, integer};
+use super::codec::{decode_application, decode_field, encode_application, encode_field, integer};
 use super::schema::{Snapshot, StateMachine};
 use super::{RaftDatabase, sqlite_error, transaction_error};
 use crate::error::DatabaseError;
@@ -53,7 +53,7 @@ impl StateRepository {
             .map(|bytes| decode_field("state_machine", "last_applied_log", &bytes))
             .transpose()?;
         let last_membership = decode_field("state_machine", "last_membership", &state.1)?;
-        let application = decode_field("state_machine", "application", &state.2)?;
+        let application = decode_application(&state.2)?;
         let snapshot_idx =
             u64::try_from(state.3).map_err(|source| DatabaseError::IntegerRange {
                 table: "state_machine",
@@ -105,7 +105,7 @@ impl StateRepository {
             .transpose()?;
         let last_membership =
             encode_field("state_machine", "last_membership", &state.last_membership)?;
-        let application = encode_field("state_machine", "application", &state.application)?;
+        let application = encode_application(&state.application)?;
         let snapshot_idx = integer("state_machine", "snapshot_idx", snapshot_idx)?;
         let snapshot = snapshot
             .map(|snapshot| {
