@@ -84,13 +84,14 @@ jobs:
       - name: Publish architecture image
         env:
           ARTIFACT: ${{ matrix.artifact }}
+          GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           image="${IMAGE_NAME}:build-${GITHUB_SHA}-${ARTIFACT}"
           mkdir -p /tmp/digests
           skopeo copy \
-            --dest-registry-token "${GHCR_TOKEN}" \
+            --dest-creds "${GHCR_USER}:${GHCR_TOKEN}" \
             --digestfile /tmp/digest \
             "docker-archive:result" \
             "docker://${image}"
