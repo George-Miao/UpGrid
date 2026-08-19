@@ -13,6 +13,12 @@ The MVP is complete. This file records unfinished work for future agile iteratio
   - Confirm that the binary links system SQLite.
   - Build and inspect the single-node setup guide.
 
+- Keep danger buttons red on hover.
+  - Confirm the shared hover rule overrides the danger border color.
+  - Add a danger-specific hover style.
+  - Build and lint the frontend styles.
+  - Verify the danger hover color in Chromium.
+
 ## Backlog
 
 - No backlog items.

@@ -232,17 +232,58 @@ export class ApiRequestError extends Error {
   }
 }
 
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    ...init,
-    headers: {
-      ...(init?.body ? { "content-type": "application/json" } : {}),
-      ...init?.headers,
-    },
-  });
+export const sessionExpiredEvent = "upgrid-session-expired";
+
+let sessionRefresh: Promise<void> | undefined;
+
+async function responseBody<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }));
     throw new ApiRequestError(response.status, body.error || response.statusText);
   }
   return response.status === 204 ? (undefined as T) : response.json();
+}
+
+function refreshSession(): Promise<void> {
+  if (!sessionRefresh) {
+    sessionRefresh = fetch("/api/v1/auth/session")
+      .then((response) => responseBody<Session>(response))
+      .then(() => undefined)
+      .finally(() => {
+        sessionRefresh = undefined;
+      });
+  }
+  return sessionRefresh;
+}
+
+function expireSession(): ApiRequestError {
+  window.dispatchEvent(new Event(sessionExpiredEvent));
+  return new ApiRequestError(401, "");
+}
+
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const fetchRequest = () =>
+    fetch(path, {
+      ...init,
+      headers: {
+        ...(init?.body ? { "content-type": "application/json" } : {}),
+        ...init?.headers,
+      },
+    });
+  let response = await fetchRequest();
+  if (response.status === 401 && !path.startsWith("/api/v1/auth/")) {
+    await response.body?.cancel();
+    try {
+      await refreshSession();
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.status === 401) throw expireSession();
+      throw error;
+    }
+    response = await fetchRequest();
+    if (response.status === 401) {
+      await response.body?.cancel();
+      throw expireSession();
+    }
+  }
+  return responseBody<T>(response);
 }

@@ -3,8 +3,10 @@ import upIcon from "@iconify-icons/lucide/arrow-up";
 import deleteIcon from "@iconify-icons/lucide/trash-2";
 import { css, html, LitElement, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import type { HttpAssertion } from "./api.ts";
-import { helpTooltipStyles, renderHelpTooltip } from "./help-tooltip.ts";
+import type { HttpAssertion } from "@/app/api.ts";
+import "@/component/empty-state.ts";
+import { helpTooltipStyles, renderHelpTooltip } from "@/component/tooltip.ts";
+import { controlValidationMessage } from "@/util/form-validation.ts";
 
 type AssertionKind = HttpAssertion["kind"];
 
@@ -32,18 +34,17 @@ export class HttpAssertionEditor extends LitElement {
     label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
     input, select, textarea { box-sizing: border-box; width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; background: var(--input-bg); color: var(--text); padding: 9px 10px; font-family: inherit; font-size: 16px; }
     textarea { min-height: 72px; resize: vertical; font-family: ui-monospace, monospace; }
-    .actions { display: flex; gap: 4px; }
+    .actions { display: flex; align-items: flex-end; gap: 4px; }
     button { border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); padding: 8px 10px; cursor: pointer; user-select: none; }
-    button:disabled { cursor: not-allowed; opacity: 0.45; }
-    .icon-button { display: grid; width: 34px; height: 34px; min-height: 34px; place-items: center; padding: 0; }
+    button.icon-button:disabled, button.add:disabled { border-color: var(--disabled-border); background: var(--disabled-bg); color: var(--disabled-text); cursor: not-allowed; opacity: 1; }
+    .icon-button { display: grid; width: 44px; height: 44px; min-height: 44px; place-items: center; border-radius: 9px; padding: 0; }
     .icon-button iconify-icon { display: inline-block; width: 16px; height: 16px; font-size: 16px; }
     .icon-button.move { color: var(--green); }
     .icon-button.danger { color: var(--danger-text); }
-    .add { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; justify-self: end; border-color: var(--line); background: var(--panel-2); color: var(--text); padding: 6px 10px; font-size: 13px; font-weight: 600; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease; }
+    .add { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; justify-self: end; border-color: var(--line); background: var(--panel-2); color: var(--text); padding: 6px 10px; font-size: 13px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease; }
     .add::before { color: var(--green); content: "+"; font-size: 18px; font-weight: 400; line-height: 12px; }
     .add:hover { border-color: var(--green); color: var(--green); }
     .add:active { transform: translateY(1px); }
-    .empty { margin: 0; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted); padding: 22px 16px; font-size: 13px; text-align: center; }
     @media (max-width: 720px) { .assertion { grid-template-columns: 1fr; } .fields { grid-template-columns: 1fr; } }
   `;
 
@@ -63,6 +64,22 @@ export class HttpAssertionEditor extends LitElement {
     return structuredClone(this.draft);
   }
 
+  get validity(): ValidityState {
+    return this.internals.validity;
+  }
+
+  get validationMessage(): string {
+    return this.internals.validationMessage;
+  }
+
+  checkValidity(): boolean {
+    return this.internals.checkValidity();
+  }
+
+  reportValidity(): boolean {
+    return this.internals.reportValidity();
+  }
+
   protected willUpdate(changed: PropertyValues<this>) {
     if (changed.has("targetId") && this.loadedTarget !== this.targetId) {
       this.loadedTarget = this.targetId;
@@ -72,6 +89,7 @@ export class HttpAssertionEditor extends LitElement {
 
   protected updated() {
     this.internals.setFormValue(JSON.stringify(this.draft));
+    this.updateValidity();
   }
 
   formResetCallback() {
@@ -116,7 +134,19 @@ export class HttpAssertionEditor extends LitElement {
 
   private changed() {
     this.internals.setFormValue(JSON.stringify(this.draft));
-    this.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+    void this.updateComplete.then(() => {
+      this.updateValidity();
+      this.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+    });
+  }
+
+  private updateValidity(): void {
+    const invalid = this.renderRoot.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input:invalid, select:invalid, textarea:invalid");
+    if (invalid) {
+      this.internals.setValidity({ customError: true }, controlValidationMessage(invalid), invalid);
+    } else {
+      this.internals.setValidity({});
+    }
   }
 
   protected render() {
@@ -124,7 +154,7 @@ export class HttpAssertionEditor extends LitElement {
       <div class="assertions">
         <button class="add" type="button" aria-label="Add assertion" @click=${this.add}>Add assertion</button>
         <div class="assertion-list">
-          ${this.draft.length ? this.draft.map((assertion, index) => this.renderAssertion(assertion, index)) : html`<p class="empty">No assertions.</p>`}
+          ${this.draft.length ? this.draft.map((assertion, index) => this.renderAssertion(assertion, index)) : html`<upgrid-empty-state>No assertions</upgrid-empty-state>`}
         </div>
       </div>
     `;

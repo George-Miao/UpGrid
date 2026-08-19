@@ -2,6 +2,7 @@ use snafu::{ResultExt, Snafu};
 
 use super::*;
 mod model;
+pub(super) mod test;
 
 use model::*;
 
@@ -391,58 +392,6 @@ pub(super) async fn set_channel_default(
         channel,
         snapshot.default_notification_channels.contains(&id),
     )))
-}
-
-#[utoipa::path(
-    post,
-    path = "/api/v1/channels/test",
-    request_body = TestChannelRequest,
-    responses(
-        (status = 204),
-        (status = 400, body = ErrorBody),
-        (status = 401, body = ErrorBody),
-        (status = 422, body = ErrorBody),
-        (status = 503, body = ErrorBody),
-    )
-)]
-pub(super) async fn test_channel(
-    State(state): State<WebState>,
-    Json(input): Json<TestChannelRequest>,
-) -> Result<StatusCode, ApiError> {
-    let channel = match input {
-        TestChannelRequest::Telegram { bot_token, chat_id } => {
-            upgrid_notification::TestChannel::Telegram { bot_token, chat_id }
-        }
-        TestChannelRequest::Webhook { url, headers } => upgrid_notification::TestChannel::Webhook {
-            url: Url::parse(&url).context(InvalidUrlSnafu)?,
-            headers,
-        },
-        TestChannelRequest::Smtp {
-            host,
-            port,
-            security,
-            username,
-            password,
-            from,
-            to,
-        } => upgrid_notification::TestChannel::Smtp {
-            host,
-            port,
-            security: security.into(),
-            username,
-            password,
-            from,
-            to,
-        },
-    };
-    match state.notifications.send(channel).await {
-        Ok(()) => {}
-        Err(error @ upgrid_notification::TestError::Unavailable) => {
-            return Err(ApiError::unavailable(error));
-        }
-        Err(error) => return Err(ApiError::unprocessable(error)),
-    }
-    Ok(StatusCode::NO_CONTENT)
 }
 
 #[utoipa::path(

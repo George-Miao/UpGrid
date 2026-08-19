@@ -3,8 +3,10 @@ import closeIcon from "@iconify-icons/lucide/x";
 import deleteIcon from "@iconify-icons/lucide/trash-2";
 import pauseIcon from "@iconify-icons/lucide/pause";
 import playIcon from "@iconify-icons/lucide/play";
-import type { Channel, ClusterMember, HistoryPage, Secret, Target } from "./api.ts";
-import { renderChannelFields, renderTlsSecretFields } from "./target-form-view.ts";
+import type { Channel, ClusterMember, HistoryPage, Secret, Target } from "@/app/api.ts";
+import "@/component/empty-state.ts";
+import { renderFormSubmit } from "@/component/form-submit.ts";
+import { renderChannelFields, renderTlsSecretFields, submitTargetForm } from "@/view/target-form.ts";
 export type TargetDetailTab = "details" | "general" | "assertions" | "evaluation" | "notifications";
 
 interface Actions {
@@ -18,7 +20,7 @@ interface Actions {
   selectTab: (tab: TargetDetailTab) => void;
 }
 
-export function renderTargetDetail(target: Target, longTermHistory: HistoryPage | undefined, historyLoading: boolean, saving: boolean, dirty: boolean, activeTab: TargetDetailTab, members: ClusterMember[], channels: Channel[], secrets: Secret[], actions: Actions) {
+export function renderTargetDetail(target: Target, longTermHistory: HistoryPage | undefined, historyLoading: boolean, saving: boolean, dirty: boolean, activeTab: TargetDetailTab, members: ClusterMember[], channels: Channel[], secrets: Secret[], error: string, actions: Actions) {
   const isNode = target.kind === "node";
   const isHttp = target.kind === "http";
   const statuses = target.accepted_statuses.map((range) => (range.start === range.end ? range.start : `${range.start}-${range.end}`)).join(",");
@@ -56,11 +58,11 @@ export function renderTargetDetail(target: Target, longTermHistory: HistoryPage 
       <div class="dialog-head target-dialog-head detail-dialog-head">
         <h2 id="target-detail-title">${isNode ? "Node details" : "Target details"}</h2>
         <div class="form-tabs" role="tablist" aria-label=${`${isNode ? "Node" : "Target"} details`}>
-          ${tabs.map(({ id, label }) => html`<button form="detail-form" type="button" role="tab" aria-controls=${`target-${id}-panel`} aria-selected=${String(tab === id)} tabindex=${tab === id ? "0" : "-1"} @click=${() => actions.selectTab(id)}>${label}</button>`)}
+          ${tabs.map(({ id, label }) => html`<button form="detail-form" type="button" role="tab" aria-controls=${`target-${id}-panel`} aria-selected=${String(tab === id)} tabindex="-1" @click=${() => actions.selectTab(id)}>${label}</button>`)}
         </div>
         <button class="button secondary icon-button dialog-close" type="button" aria-label=${`Close ${isNode ? "Node" : "Target"} details`} title="Close" @click=${actions.close}><iconify-icon .icon=${closeIcon} aria-hidden="true"></iconify-icon></button>
       </div>
-      <form id="detail-form" class="detail-form" @submit=${actions.update} @input=${actions.changed}>
+      <form id="detail-form" class="detail-form" novalidate @submit=${(event: SubmitEvent) => submitTargetForm(event, actions.update)} @input=${actions.changed}>
         <section id="target-details-panel" class="target-tab-panel details-panel" role="tabpanel" aria-label="Details" ?hidden=${tab !== "details"}>
           <section class="history">
             <div class="history-head"><h3>Long-term summary</h3><span class="meta">Last 30 days</span></div>
@@ -75,7 +77,7 @@ export function renderTargetDetail(target: Target, longTermHistory: HistoryPage 
                       <div><span>Evaluations</span><strong>${rollupSamples.toLocaleString()}</strong></div>
                     </div>
                   `
-                  : html`<p class="meta">No long-term history recorded yet.</p>`
+                  : html`<upgrid-empty-state>No long-term history recorded yet</upgrid-empty-state>`
             }
           </section>
           <section class="history">
@@ -98,7 +100,7 @@ export function renderTargetDetail(target: Target, longTermHistory: HistoryPage 
               <div class="chart-axis"><span>${chartTime(history[0].recorded_at_ms)}</span><span>${chartTime(history[history.length - 1].recorded_at_ms)}</span></div>
               <div class="chart-legend"><span><i class="up"></i>Passed</span><span><i class="down"></i>Failed</span><span>Height = latency</span></div>
             `
-                : html`<p class="meta">No evaluations recorded yet.</p>`
+                : html`<upgrid-empty-state>No evaluations recorded yet</upgrid-empty-state>`
             }
           </section>
         </section>
@@ -142,6 +144,7 @@ export function renderTargetDetail(target: Target, longTermHistory: HistoryPage 
             `
             : nothing
         }
+        ${error ? html`<div class="notice" role="alert">${error}</div>` : nothing}
         ${
           tab === "details"
             ? isNode
@@ -150,7 +153,7 @@ export function renderTargetDetail(target: Target, longTermHistory: HistoryPage 
                   <button class="button danger icon-button" type="button" aria-label="Move target to trash" title="Move to trash" @click=${actions.delete}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
                   <button class=${`button ${target.paused ? "success" : "warning"} icon-button`} type="button" aria-label=${target.paused ? "Resume evaluations" : "Pause evaluations"} title=${target.paused ? "Resume evaluations" : "Pause evaluations"} @click=${() => actions.pause(!target.paused)}><iconify-icon .icon=${target.paused ? playIcon : pauseIcon} aria-hidden="true"></iconify-icon></button>
                 </div></div>`
-            : html`<div class="dialog-actions"><button class="button" type="submit" aria-busy=${saving ? "true" : "false"} ?disabled=${saving || !dirty}>Save changes</button></div>`
+            : html`<div class="dialog-actions">${renderFormSubmit({ label: "Save changes", busy: saving, changed: dirty, error, baselineKey: target.id })}</div>`
         }
       </form>
     </dialog>`;

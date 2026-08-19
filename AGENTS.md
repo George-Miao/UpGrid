@@ -19,10 +19,11 @@ UpGrid is a Rust 2024 workspace with a Lit/TypeScript WebUI. Crates live under `
 ## Coding style & naming conventions
 
 Use standard `rustfmt` output (four-space indentation and trailing commas). Name Rust modules and functions with `snake_case`, types with `UpperCamelCase`, and constants with `SCREAMING_SNAKE_CASE`. Start considering a module split near 200 lines; 500 lines is a hard maximum. Compose source with ordinary `mod` declarations—never `#[path = "..."]` or `include!`; rename files and modules to follow Rust's standard module layout. TypeScript uses two spaces, strict types, `camelCase` members, and `kebab-case` custom-element names. Never use `String` as an error type; define typed errors with `snafu` and propagate them with the `ResultExt` and `OptionExt` context APIs. Prefer typed boundaries and `tracing`.
-Do not use Tokio APIs or add Tokio as a direct dependency. Use Compio and runtime-neutral primitives through Synchrony. Transitive Tokio dependencies are acceptable when a required Compio-compatible library includes them.
+Do not use Tokio APIs or add Tokio as a direct dependency. Use Compio and runtime-agnostic primitives through Synchrony or other libraries. Transitive Tokio dependencies are acceptable when a required Compio-compatible library includes them.
 
 Panel and card headers contain only the title, controls, and compact status metadata. Never put explanatory descriptions in a box header; place that guidance in an accessible help tooltip beside the title.
-All clickable UI items use `cursor: pointer`, and their text is not selectable. Disabled controls use `cursor: not-allowed`.
+All clickable UI items use `cursor: pointer`, and their text is not selectable. Disabled controls use `cursor: not-allowed`. Disabled buttons use a gray border, background, icon, and label.
+Use switches for boolean controls. Use checkboxes only for multiselection.
 Use sentence case in all documentation and user-facing UI text. Capitalize only the first word of a sentence or label. Never capitalize an inline word because it is a domain term, page name, feature name, or other special term; use `cluster` and `target`, not `Cluster` or `Target`. This rule does not apply to case-sensitive code identifiers.
 
 The UpGrid slogan is **Stay up. Stay informed.** Its supporting line is **Distributed service monitoring that runs with your infrastructure.** Use this exact wording in brand and marketing material.

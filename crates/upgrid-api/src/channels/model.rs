@@ -83,16 +83,24 @@ pub(crate) enum UpdateChannelRequest {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct TestChannelRequest {
+    #[serde(default)]
+    pub(crate) channel_id: Option<Uuid>,
+
+    #[serde(flatten)]
+    pub(crate) channel: TestChannelInput,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub(crate) enum TestChannelRequest {
+pub(crate) enum TestChannelInput {
     Telegram {
-        bot_token: String,
+        bot_token: Option<String>,
         chat_id: String,
     },
     Webhook {
         url: String,
-        #[serde(default)]
-        headers: BTreeMap<String, String>,
+        headers: Option<BTreeMap<String, String>>,
     },
     Smtp {
         host: String,

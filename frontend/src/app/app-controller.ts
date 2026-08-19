@@ -1,7 +1,7 @@
-import { type Alert, type ApiToken, type Channel, type ClusterMember, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type ManageSettings, type Secret, type SecretCleanup, type Session, type Setup, type Target, type TargetInput, type TrashedTarget, request } from "./api.ts";
-import { AppState } from "./app-state.ts";
-import { channelInput, targetInput } from "./resource-input.ts";
-import type { HttpAssertionEditor } from "./http-assertion-editor.ts";
+import { type Alert, type ApiToken, type Channel, type ClusterMember, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type ManageSettings, type Secret, type SecretCleanup, type Session, type Setup, type Target, type TargetInput, type TrashedTarget, request } from "@/app/api.ts";
+import { AppState } from "@/app/app-state.ts";
+import type { HttpAssertionEditor } from "@/component/http-assertion-editor.ts";
+import { targetInput } from "@/util/resource-input.ts";
 
 export class AppController extends AppState {
   protected async createTarget(event: SubmitEvent): Promise<void> {
@@ -10,6 +10,7 @@ export class AppController extends AppState {
     const fields = new FormData(form);
     const assertions = form.querySelector<HttpAssertionEditor>("http-assertion-editor")?.value ?? [];
     const input = targetInput(fields, fields.getAll("channel_id").map(String), fields.get("use_default_channels") === "on", undefined, assertions);
+    this.targetError = "";
     this.saving = true;
     try {
       await request<Target>("/api/v1/targets", { method: "POST", body: JSON.stringify(input) });
@@ -17,7 +18,7 @@ export class AppController extends AppState {
       this.closeTargetDialog();
       await this.refresh();
     } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
+      this.targetError = error instanceof Error ? error.message : String(error);
     } finally {
       this.saving = false;
     }
@@ -65,13 +66,14 @@ export class AppController extends AppState {
       path = `/api/v1/targets/${this.selected.id}`;
       input = targetInput(fields, fields.getAll("channel_id").map(String), fields.get("use_default_channels") === "on", this.selected.kind, assertions);
     }
+    this.targetError = "";
     this.saving = true;
     try {
       await request<unknown>(path, { method: "PUT", body: JSON.stringify(input) });
       this.closeDetailDialog();
       await this.refresh();
     } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
+      this.targetError = error instanceof Error ? error.message : String(error);
     } finally {
       this.saving = false;
     }
@@ -135,36 +137,17 @@ export class AppController extends AppState {
     }
   }
 
-  protected async createChannel(event: SubmitEvent): Promise<void> {
-    event.preventDefault();
-    const form = event.currentTarget as HTMLFormElement;
-    const fields = new FormData(form);
-    const editing = this.editingChannel;
-    const body = channelInput(fields, this.channelKind, editing !== undefined);
-    this.saving = true;
-    try {
-      await request<Channel>(editing ? `/api/v1/channels/${editing.id}` : "/api/v1/channels", {
-        method: editing ? "PUT" : "POST",
-        body: JSON.stringify(body),
-      });
-      await this.refresh();
-      form.reset();
-      this.editingChannel = undefined;
-      this.channelKind = "webhook";
-      this.channelTestMessage = "";
-      this.closeDialog("channel-dialog");
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    } finally {
-      this.saving = false;
-    }
-  }
-
   protected openChannelDialog(channel?: Channel): void {
     this.editingChannel = channel;
-    this.channelKind = channel?.kind ?? "webhook";
-    this.channelTestMessage = "";
     this.showDialog("channel-dialog");
+  }
+
+  protected async channelSaved(event: CustomEvent<Channel>): Promise<void> {
+    const channel = event.detail;
+    this.channels = this.channels.some(({ id }) => id === channel.id) ? this.channels.map((current) => (current.id === channel.id ? channel : current)) : [...this.channels, channel];
+    this.editingChannel = undefined;
+    this.closeDialog("channel-dialog");
+    await this.refresh();
   }
 
   protected async setChannelDefault(channel: Channel, isDefault: boolean): Promise<void> {
@@ -176,25 +159,6 @@ export class AppController extends AppState {
       await this.refresh();
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
-    }
-  }
-
-  protected async testChannel(event: MouseEvent): Promise<void> {
-    const form = (event.currentTarget as HTMLButtonElement).form;
-    if (!form) return;
-    const required = [...form.querySelectorAll<HTMLInputElement>("[data-test-required]")];
-    if (!required.every((field) => field.reportValidity())) return;
-    this.testingChannel = true;
-    this.channelTestMessage = "";
-    try {
-      const body = channelInput(new FormData(form), this.channelKind);
-      await request<void>("/api/v1/channels/test", { method: "POST", body: JSON.stringify(body) });
-      this.channelTestMessage = "Test sent";
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.channelTestMessage = `Test failed: ${message}`;
-    } finally {
-      this.testingChannel = false;
     }
   }
 
@@ -215,7 +179,7 @@ export class AppController extends AppState {
           max_uses: this.unlimitedUses ? null : Number(fields.get("max_uses")),
         }),
       });
-      this.joinCommand = `upgrid --join '${link.url}'`;
+      this.joinUrl = link.url;
       this.copied = false;
       await this.refresh();
       this.closeDialog("token-config-dialog");
@@ -399,13 +363,13 @@ export class AppController extends AppState {
     }
   }
 
-  protected async copyJoinCommand(): Promise<void> {
+  protected async copyJoinUrl(): Promise<void> {
     let copied = false;
     try {
-      await navigator.clipboard.writeText(this.joinCommand);
+      await navigator.clipboard.writeText(this.joinUrl);
       copied = true;
     } catch {
-      const field = Object.assign(document.createElement("textarea"), { value: this.joinCommand });
+      const field = Object.assign(document.createElement("textarea"), { value: this.joinUrl });
       field.style.cssText = "position: fixed; opacity: 0";
       document.body.append(field);
       field.select();
@@ -413,7 +377,7 @@ export class AppController extends AppState {
       field.remove();
     }
     if (!copied) {
-      this.error = "Could not copy the join command";
+      this.error = "Could not copy the join URL";
       return;
     }
     this.copied = true;

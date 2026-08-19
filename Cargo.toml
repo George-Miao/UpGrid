@@ -9,7 +9,7 @@ edition = "2024"
 
 [workspace.dependencies]
 async-stream = "0.3.6"
-axum = { version = "0.8.1", features = ["json"] }
+axum = { version = "0.8.1", default-features = false, features = ["json", "query"] }
 base64 = "0.22.1"
 clap = { version = "4.6.1", features = ["derive"] }
 compio = { version = "0.19.1", features = ["macros", "runtime", "io", "net", "time", "enable_log"] }
@@ -25,8 +25,8 @@ futures-util = "0.3.31"
 http = "1"
 httpdate = "1"
 lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "rustls-tls"] }
-openraft = { version = "0.10.0-alpha.33", git = "https://github.com/databendlabs/openraft.git", branch = "main", default-features = false, features = ["serde", "single-threaded", "type-alias"] }
-openraft-rt-compio = { version = "0.10.0-alpha.33", git = "https://github.com/databendlabs/openraft.git", branch = "main" }
+openraft = { version = "0.10.0-alpha.34", default-features = false, features = ["serde", "single-threaded", "type-alias"] }
+openraft-rt-compio = "0.10.0-alpha.34"
 postcard = { version = "1.1.1", features = ["use-std"], default-features = false }
 ping = { version = "0.9", default-features = false }
 quick_cache = "0.6.16"

@@ -255,11 +255,9 @@ dependencies = [
  "serde_path_to_error",
  "serde_urlencoded",
  "sync_wrapper",
- "tokio",
  "tower",
  "tower-layer",
  "tower-service",
- "tracing",
 ]
 
 [[package]]
@@ -278,7 +276,6 @@ dependencies = [
  "sync_wrapper",
  "tower-layer",
  "tower-service",
- "tracing",
 ]
 
 [[package]]
@@ -2228,8 +2225,9 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
 name = "openraft"
-version = "0.10.0-alpha.33"
-source = "git+https://github.com/databendlabs/openraft.git?branch=main#bfd84e732da59e708ac92f1a58eddbae05e9d286"
+version = "0.10.0-alpha.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06fe14d529f8fc098fbb4b9655d5db9b7ee0594e6a9d4e220aa931618de17b1f"
 dependencies = [
  "anyerror",
  "backoff-series",
@@ -2254,8 +2252,9 @@ dependencies = [
 
 [[package]]
 name = "openraft-macros"
-version = "0.10.0-alpha.33"
-source = "git+https://github.com/databendlabs/openraft.git?branch=main#bfd84e732da59e708ac92f1a58eddbae05e9d286"
+version = "0.10.0-alpha.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5c57259539e016f70d05ea7e264573cc5ddabd651a127a13374e47b165b7664"
 dependencies = [
  "chrono",
  "proc-macro2",
@@ -2266,8 +2265,9 @@ dependencies = [
 
 [[package]]
 name = "openraft-rt"
-version = "0.10.0-alpha.33"
-source = "git+https://github.com/databendlabs/openraft.git?branch=main#bfd84e732da59e708ac92f1a58eddbae05e9d286"
+version = "0.10.0-alpha.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02379ddf29c426905a6e91c5df522003ee2a9a9811b3b8be01e90ab1106ecef6"
 dependencies = [
  "futures-channel",
  "futures-util",
@@ -2278,8 +2278,9 @@ dependencies = [
 
 [[package]]
 name = "openraft-rt-compio"
-version = "0.10.0-alpha.33"
-source = "git+https://github.com/databendlabs/openraft.git?branch=main#bfd84e732da59e708ac92f1a58eddbae05e9d286"
+version = "0.10.0-alpha.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b180775ffecc21232d92e9a03acb10eab86118db4b0cee605bf26b0e026be8e"
 dependencies = [
  "compio",
  "compio-executor",
@@ -2293,8 +2294,9 @@ dependencies = [
 
 [[package]]
 name = "openraft-rt-tokio"
-version = "0.10.0-alpha.33"
-source = "git+https://github.com/databendlabs/openraft.git?branch=main#bfd84e732da59e708ac92f1a58eddbae05e9d286"
+version = "0.10.0-alpha.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfeb8c656d8b0e01319aafc70f77b3b312cac56d07adf157d80b49677cc2fcec"
 dependencies = [
  "futures-util",
  "openraft-rt",
@@ -3895,10 +3897,8 @@ dependencies = [
  "futures-util",
  "pin-project-lite",
  "sync_wrapper",
- "tokio",
  "tower-layer",
  "tower-service",
- "tracing",
 ]
 
 [[package]]

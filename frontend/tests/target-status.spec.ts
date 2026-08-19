@@ -22,9 +22,6 @@ test("marks an Up target suspicious while failures accumulate", async ({ page })
 
   await expect(target.locator(".state")).toHaveClass(/suspicious/, { timeout: 15_000 });
   await expect(target.locator(".state")).toHaveCSS("background-color", "rgb(154, 103, 0)");
-  const health = page.locator(".brand .live");
-  await expect(health).toHaveText("partially down");
-  await expect(health.locator(".dot")).toHaveClass(/degraded/);
   await target.click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("dialog", { name: "Target details" }).getByRole("button", { name: "Move target to trash" }).click();

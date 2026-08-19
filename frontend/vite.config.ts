@@ -4,6 +4,11 @@ import { resolve } from "node:path";
 const apiUrl = process.env.UPGRID_API_URL ?? "http://127.0.0.1:8080";
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@": resolve(import.meta.dirname, "src"),
+    },
+  },
   server: {
     proxy: {
       "/api": {
