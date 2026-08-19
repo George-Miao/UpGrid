@@ -165,13 +165,6 @@ fn clients() -> Clients {
     Clients {
         insecure: verified.clone(),
         verified,
-        network_runtime: Arc::new(
-            tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(1)
-                .enable_all()
-                .build()
-                .unwrap(),
-        ),
     }
 }
 

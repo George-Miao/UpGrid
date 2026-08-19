@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use axum::extract::{Path, Query, State};
 use axum::http::{StatusCode, header};
-use axum::response::sse::{Event, KeepAlive};
+use axum::response::sse::Event;
 use axum::response::{IntoResponse, Response, Sse};
 use axum::routing::get;
 use axum::{Json, Router};

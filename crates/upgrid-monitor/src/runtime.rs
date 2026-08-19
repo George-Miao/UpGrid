@@ -14,7 +14,6 @@ use crate::{node, probe, schedule};
 pub(super) struct Clients {
     pub(super) verified: Client,
     pub(super) insecure: Client,
-    pub(super) network_runtime: Arc<tokio::runtime::Runtime>,
 }
 
 /// Starts Target scheduling and probe workers in the current Compio runtime.
@@ -23,14 +22,6 @@ pub fn start(cluster: Handle, cipher: Cipher) {
         .dangerous()
         .with_custom_certificate_verifier(SkipServerVerification::new())
         .with_no_client_auth();
-    let network_runtime = Arc::new(
-        tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(1)
-            .enable_all()
-            .thread_name("upgrid-network-worker")
-            .build()
-            .expect("network probe runtime should start"),
-    );
     let clients = Clients {
         verified: Client::builder()
             .use_rustls_default()
@@ -40,7 +31,6 @@ pub fn start(cluster: Handle, cipher: Cipher) {
             .use_rustls(Arc::new(insecure_tls))
             .build()
             .expect("insecure HTTP client configuration should be valid"),
-        network_runtime,
     };
     spawn(schedule::run(cluster.clone())).detach();
     spawn(probe::run(cluster.clone(), clients, cipher)).detach();

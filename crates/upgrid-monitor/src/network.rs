@@ -33,11 +33,8 @@ pub(super) enum Error {
 
 #[derive(Debug, Snafu)]
 pub(super) enum IcmpError {
-    #[snafu(display("request timed out"))]
-    EchoTimeout,
-
     #[snafu(display("{source}"))]
-    Ping { source: surge_ping::SurgeError },
+    Ping { source: ping::Error },
 }
 
 #[derive(Debug, Snafu)]
@@ -66,7 +63,6 @@ pub(super) enum TlsError {
     Handshake { source: io::Error },
 }
 pub(super) async fn probe(
-    runtime: &Arc<tokio::runtime::Runtime>,
     target: &HttpTarget,
     kind: TargetKind,
     timeout: Duration,
@@ -75,7 +71,7 @@ pub(super) async fn probe(
         TargetKind::Http => unreachable!("HTTP probes use the HTTP client"),
         TargetKind::Tcp => tcp(target).await,
         TargetKind::Dns => dns(target).await,
-        TargetKind::Icmp => icmp(runtime, target, timeout).await,
+        TargetKind::Icmp => icmp(target, timeout).await,
         TargetKind::Tls => tls(target, timeout).await,
     }
 }
@@ -107,22 +103,15 @@ async fn dns(target: &HttpTarget) -> Result<(), Error> {
     Ok(())
 }
 
-async fn icmp(
-    runtime: &Arc<tokio::runtime::Runtime>,
-    target: &HttpTarget,
-    timeout: Duration,
-) -> Result<(), Error> {
+async fn icmp(target: &HttpTarget, timeout: Duration) -> Result<(), Error> {
     let host = host(target, TargetKind::Icmp)?;
     let address = resolve_one(&host).await?;
-    let runtime = runtime.clone();
     let result = spawn_blocking(move || {
-        runtime.block_on(async move {
-            tokio::time::timeout(timeout, surge_ping::ping(address.ip(), b"upgrid"))
-                .await
-                .map_err(|_| IcmpError::EchoTimeout)?
-                .map(|_| ())
-                .map_err(|source| IcmpError::Ping { source })
-        })
+        ping::new(address.ip())
+            .timeout(timeout)
+            .send()
+            .map(|_| ())
+            .map_err(|source| IcmpError::Ping { source })
     })
     .await
     .expect("ICMP probe task should run to completion");
@@ -300,18 +289,9 @@ mod tests {
 
     #[compio::test]
     async fn icmp_probe_reports_echo_failure() {
-        let runtime = Arc::new(
-            tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(1)
-                .enable_all()
-                .build()
-                .unwrap(),
-        );
         let target = HttpTarget::get(Url::parse("icmp://192.0.2.1").unwrap());
 
-        let error = icmp(&runtime, &target, Duration::from_millis(50))
-            .await
-            .unwrap_err();
+        let error = icmp(&target, Duration::from_millis(50)).await.unwrap_err();
 
         assert!(matches!(error, Error::Icmp { .. }));
         assert!(error.to_string().contains("192.0.2.1"));

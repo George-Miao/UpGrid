@@ -1,5 +1,7 @@
 use std::cmp::Reverse;
 
+use futures_util::SinkExt;
+
 use super::*;
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -371,16 +373,32 @@ pub(super) async fn events(
 ) -> Sse<impl futures_core::Stream<Item = Result<Event, Infallible>>> {
     let mut receiver = state.cluster.subscribe();
     let initial = state.cluster.version();
-    let stream = async_stream::stream! {
-        yield Ok(Event::default().event("state").data(initial.to_string()));
-        while receiver.changed().await.is_ok() {
-            let version = *receiver.borrow_and_update();
-            yield Ok(Event::default().event("state").data(version.to_string()));
+    let (mut sender, stream) = futures_channel::mpsc::channel(1);
+    compio::runtime::spawn(async move {
+        if sender
+            .send(Ok(Event::default()
+                .event("state")
+                .data(initial.to_string())))
+            .await
+            .is_err()
+        {
+            return;
         }
-    };
-    Sse::new(stream).keep_alive(
-        KeepAlive::new()
-            .interval(Duration::from_secs(15))
-            .text("keep-alive"),
-    )
+        loop {
+            let event =
+                match compio::time::timeout(Duration::from_secs(15), receiver.changed()).await {
+                    Ok(Ok(())) => {
+                        let version = *receiver.borrow_and_update();
+                        Event::default().event("state").data(version.to_string())
+                    }
+                    Ok(Err(_)) => break,
+                    Err(_) => Event::default().comment("keep-alive"),
+                };
+            if sender.send(Ok(event)).await.is_err() {
+                break;
+            }
+        }
+    })
+    .detach();
+    Sse::new(stream)
 }

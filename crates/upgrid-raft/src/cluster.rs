@@ -5,9 +5,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
+use futures_channel::{mpsc, oneshot};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
-use tokio::sync::{mpsc, oneshot, watch};
+use synchrony::sync::watch;
 use uuid::Uuid;
 
 use crate::domain::{ApplicationState, Command, CommandResult, DomainError};
@@ -62,7 +63,7 @@ pub struct Handle {
 
 impl Handle {
     pub fn new(node_id: Uuid) -> (Self, Receiver) {
-        let (sender, receiver) = mpsc::unbounded_channel();
+        let (sender, receiver) = mpsc::unbounded();
         let (events, _) = watch::channel(0);
         let version = Arc::new(AtomicU64::new(0));
         (
@@ -83,7 +84,7 @@ impl Handle {
     pub async fn read(&self) -> Result<ApplicationState, ClusterError> {
         let (reply, response) = oneshot::channel();
         self.sender
-            .send(Request::Read { reply })
+            .unbounded_send(Request::Read { reply })
             .ok()
             .context(RuntimeStoppedSnafu { operation: "read" })?;
         let result = response
@@ -95,7 +96,7 @@ impl Handle {
     pub async fn local_read(&self) -> Result<ApplicationState, ClusterError> {
         let (reply, response) = oneshot::channel();
         self.sender
-            .send(Request::LocalRead { reply })
+            .unbounded_send(Request::LocalRead { reply })
             .ok()
             .context(RuntimeStoppedSnafu {
                 operation: "local read",
@@ -108,7 +109,7 @@ impl Handle {
     pub async fn apply(&self, command: Command) -> Result<CommandResult, ClusterError> {
         let (reply, response) = oneshot::channel();
         self.sender
-            .send(Request::Write {
+            .unbounded_send(Request::Write {
                 request: Box::new(Req::new(command)),
                 reply,
             })
@@ -121,7 +122,11 @@ impl Handle {
 
     pub async fn is_leader(&self) -> bool {
         let (reply, response) = oneshot::channel();
-        if self.sender.send(Request::IsLeader { reply }).is_err() {
+        if self
+            .sender
+            .unbounded_send(Request::IsLeader { reply })
+            .is_err()
+        {
             return false;
         }
         response.await.unwrap_or(false)
@@ -130,7 +135,7 @@ impl Handle {
     pub async fn voters(&self) -> Result<BTreeSet<Uuid>, ClusterError> {
         let (reply, response) = oneshot::channel();
         self.sender
-            .send(Request::Voters { reply })
+            .unbounded_send(Request::Voters { reply })
             .ok()
             .context(RuntimeStoppedSnafu {
                 operation: "list voters",
@@ -143,7 +148,7 @@ impl Handle {
     pub async fn status(&self) -> Result<Status, ClusterError> {
         let (reply, response) = oneshot::channel();
         self.sender
-            .send(Request::Status { reply })
+            .unbounded_send(Request::Status { reply })
             .ok()
             .context(RuntimeStoppedSnafu {
                 operation: "status",
@@ -156,7 +161,7 @@ impl Handle {
     pub async fn probe_node(&self, node_id: Uuid, url: String) -> Result<(), ClusterError> {
         let (reply, response) = oneshot::channel();
         self.sender
-            .send(Request::ProbeNode {
+            .unbounded_send(Request::ProbeNode {
                 node_id,
                 url,
                 reply,
@@ -174,7 +179,7 @@ impl Handle {
     pub async fn remove_node(&self, node_id: Uuid) -> Result<(), ClusterError> {
         let (reply, response) = oneshot::channel();
         self.sender
-            .send(Request::RemoveNode { node_id, reply })
+            .unbounded_send(Request::RemoveNode { node_id, reply })
             .ok()
             .context(RuntimeStoppedSnafu {
                 operation: "remove Node",
@@ -198,7 +203,7 @@ impl Handle {
 
 fn changed(version: &AtomicU64, events: &watch::Sender<u64>) {
     let version = version.fetch_add(1, Ordering::Relaxed).wrapping_add(1);
-    events.send_replace(version);
+    let _ = events.send_replace(version);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -233,7 +238,7 @@ pub enum ClusterError {
     #[snafu(display("Cluster runtime stopped before responding to {operation}: {source}"))]
     RuntimeResponse {
         operation: &'static str,
-        source: oneshot::error::RecvError,
+        source: oneshot::Canceled,
     },
 
     #[snafu(display("{source}"))]
@@ -258,8 +263,8 @@ impl Receiver {
             let request =
                 match compio::time::timeout(Duration::from_millis(250), self.requests.recv()).await
                 {
-                    Ok(Some(request)) => Some(request),
-                    Ok(None) => break,
+                    Ok(Ok(request)) => Some(request),
+                    Ok(Err(_)) => break,
                     Err(_) => None,
                 };
             match request {
@@ -327,5 +332,16 @@ mod tests {
             error,
             ClusterError::RuntimeStopped { operation: "read" }
         ));
+    }
+
+    #[compio::test]
+    async fn subscribers_receive_version_changes() {
+        let (handle, _receiver) = Handle::new(Uuid::nil());
+        let mut events = handle.subscribe();
+
+        changed(&handle.version, &handle.events);
+        events.changed().await.unwrap();
+
+        assert_eq!(*events.borrow_and_update(), 1);
     }
 }

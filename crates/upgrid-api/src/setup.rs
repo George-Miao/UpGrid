@@ -7,7 +7,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures_util::FutureExt;
 use snafu::ResultExt;
-use tokio::sync::Notify;
+use synchrony::sync::event::Event;
 use upgrid_config::{Config, JoinLink, store_node_name};
 
 use crate::assets::{favicon, index, webui_script};
@@ -22,8 +22,8 @@ struct SetupState {
     data_dir: std::path::PathBuf,
     node_name: Arc<Mutex<String>>,
     result: Arc<Mutex<Option<OobeChoice>>>,
-    accepted: Arc<Notify>,
-    deadline: Arc<Notify>,
+    accepted: Arc<Event>,
+    deadline: Arc<Event>,
 }
 
 pub enum OobeChoice {
@@ -44,14 +44,16 @@ pub fn wait_for_oobe(config: &Config, node_name: &str) -> Result<OobeChoice> {
     })?;
     listener.set_nonblocking(true).context(ListenerSnafu)?;
     let result = Arc::new(Mutex::new(None));
-    let accepted = Arc::new(Notify::new());
-    let deadline = Arc::new(Notify::new());
+    let accepted = Arc::new(Event::new());
+    let accepted_signal = accepted.listen();
+    let deadline = Arc::new(Event::new());
+    let deadline_signal = deadline.listen();
     let state = SetupState {
         data_dir: config.data_dir.clone(),
         node_name: Arc::new(Mutex::new(node_name.to_owned())),
         result: result.clone(),
-        accepted: accepted.clone(),
-        deadline: deadline.clone(),
+        accepted,
+        deadline,
     };
     let routes = Router::new()
         .route("/", get(index))
@@ -74,7 +76,7 @@ pub fn wait_for_oobe(config: &Config, node_name: &str) -> Result<OobeChoice> {
     tracing::info!(bind = %config.bind, "WebUI ready for cluster setup");
     runtime.block_on(async move {
         let listener = compio::net::TcpListener::from_std(listener).context(ListenerSnafu)?;
-        let shutdown = async move { accepted.notified().await };
+        let shutdown = accepted_signal;
         let server = if let (Some(cert), Some(key)) = (tls_cert, tls_key) {
             let acceptor = tls_acceptor(&cert, &key).context(TlsSnafu)?;
             cyper_axum::serve(TlsListener::new(listener, acceptor), app)
@@ -88,7 +90,7 @@ pub fn wait_for_oobe(config: &Config, node_name: &str) -> Result<OobeChoice> {
                 .boxed_local()
         };
         let deadline = async move {
-            deadline.notified().await;
+            deadline_signal.await;
             compio::time::sleep(Duration::from_secs(5)).await;
         }
         .boxed_local();
@@ -186,7 +188,40 @@ fn accept(state: &SetupState, choice: OobeChoice) -> Result<(), ApiError> {
     }
     *result = Some(choice);
     drop(result);
-    state.accepted.notify_one();
-    state.deadline.notify_one();
+    state.accepted.notify(1);
+    state.deadline.notify(1);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[compio::test]
+    async fn accepting_choice_notifies_shutdown_waiters() {
+        let accepted = Arc::new(Event::new());
+        let accepted_signal = accepted.listen();
+        let deadline = Arc::new(Event::new());
+        let deadline_signal = deadline.listen();
+        let state = SetupState {
+            data_dir: std::path::PathBuf::new(),
+            node_name: Arc::new(Mutex::new(String::new())),
+            result: Arc::new(Mutex::new(None)),
+            accepted,
+            deadline,
+        };
+
+        accept(
+            &state,
+            OobeChoice::NewCluster {
+                node_name: "node".to_owned(),
+                admin_username: "admin".to_owned(),
+                admin_password: "password".to_owned(),
+            },
+        )
+        .unwrap();
+
+        accepted_signal.await;
+        deadline_signal.await;
+    }
 }

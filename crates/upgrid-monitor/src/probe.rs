@@ -98,12 +98,7 @@ async fn evaluate(
         kind => ProbeOutcome::Network(
             match timeout(
                 timeout_duration,
-                network::probe(
-                    &clients.network_runtime,
-                    &target.http,
-                    kind,
-                    timeout_duration,
-                ),
+                network::probe(&target.http, kind, timeout_duration),
             )
             .await
             {

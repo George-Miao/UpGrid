@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use compio::runtime::spawn;
 use compio::time::timeout;
+use futures_channel::{mpsc, oneshot};
 use snafu::{OptionExt, ResultExt, Snafu};
-use tokio::sync::{mpsc, oneshot};
 
 use super::{ChannelError, Notifier, SendError, channel, send};
 
@@ -23,7 +23,7 @@ impl Tester {
     pub async fn send(&self, channel: TestChannel) -> Result<(), TestError> {
         let (reply, response) = oneshot::channel();
         self.sender
-            .send(Call { channel, reply })
+            .unbounded_send(Call { channel, reply })
             .ok()
             .context(UnavailableSnafu)?;
         response.await.ok().context(UnavailableSnafu)?
@@ -66,7 +66,7 @@ impl Receiver {
 }
 
 pub(crate) fn channel() -> (Tester, Receiver) {
-    let (sender, receiver) = mpsc::unbounded_channel();
+    let (sender, receiver) = mpsc::unbounded();
     (Tester { sender }, Receiver { receiver })
 }
 
@@ -85,3 +85,27 @@ async fn attempt(notifier: &Notifier, channel: &TestChannel) -> Result<(), TestE
 }
 
 pub use channel::TestChannel;
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use url::Url;
+
+    use super::*;
+
+    #[compio::test]
+    async fn stopped_runtime_rejects_channel_tests() {
+        let (tester, receiver) = channel();
+        drop(receiver);
+
+        let error = tester
+            .send(TestChannel::Webhook {
+                url: Url::parse("https://example.com").unwrap(),
+                headers: BTreeMap::new(),
+            })
+            .await
+            .unwrap_err();
+
+        assert!(matches!(error, TestError::Unavailable));
+    }
+}

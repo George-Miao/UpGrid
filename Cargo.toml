@@ -19,14 +19,16 @@ criterion = "0.8"
 cyper = { version = "0.9.0", default-features = false, features = ["rustls"] }
 cyper-axum = { version = "0.9.0", features = ["http2"] }
 figment = { version = "0.10.19", features = ["env", "toml"] }
+futures-channel = "0.3.31"
 futures-core = "0.3.31"
 futures-util = "0.3.31"
-httpdate = "1"
 http = "1"
+httpdate = "1"
 lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "rustls-tls"] }
 openraft = { version = "0.10.0-alpha.33", git = "https://github.com/databendlabs/openraft.git", branch = "main", default-features = false, features = ["serde", "single-threaded", "type-alias"] }
 openraft-rt-compio = { version = "0.10.0-alpha.33", git = "https://github.com/databendlabs/openraft.git", branch = "main" }
 postcard = { version = "1.1.1", features = ["use-std"], default-features = false }
+ping = { version = "0.9", default-features = false }
 quick_cache = "0.6.16"
 rcgen = "0.14.3"
 redb = "4.1.0"
@@ -42,10 +44,9 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1"
 serde_json_path = "0.7.2"
 snafu = { version = "0.8.6", features = ["futures"] }
-surge-ping = "0.9.0"
+synchrony = { version = "0.1.9", features = ["event", "watch"] }
 tap = "1.0.1"
 tarpc = { version = "0.36.0", features = ["serde1"], git = "https://github.com/George-Miao/tarpc.git" }
-tokio = { version = "1", features = ["net", "rt-multi-thread", "sync", "time"] }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 url = { version = "2.5.4", features = ["serde"] }
@@ -60,3 +61,6 @@ upgrid-notification = { path = "crates/upgrid-notification" }
 upgrid-monitor = { path = "crates/upgrid-monitor" }
 upgrid-raft = { path = "crates/upgrid-raft" }
 upgrid-transport = { path = "crates/upgrid-transport" }
+
+[patch.crates-io]
+see = { git = "https://github.com/compio-rs/see.git", rev = "f41697a753b28835d499ab1c2f4844f79dcd866c" }
