@@ -1,4 +1,4 @@
-import type { HttpAssertion, TargetInput, TargetKind } from "./api.ts";
+import type { HttpAssertion, TargetInput, TargetKind } from "@/app/api.ts";
 
 export type ChannelKind = "webhook" | "telegram" | "smtp";
 

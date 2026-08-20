@@ -15,8 +15,11 @@ use uuid::Uuid;
 use crate::{ApiError, ErrorBody, WebState};
 
 const SESSION_COOKIE: &str = "upgrid_session";
+const REFRESH_COOKIE: &str = "upgrid_session_refresh";
 const SESSION_TTL_MS: u64 = 15 * 60 * 1_000;
-const JWT_PURPOSE: &[u8] = b"upgrid-api-session-v1";
+const REFRESH_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1_000;
+const SESSION_JWT_PURPOSE: &[u8] = b"upgrid-api-session-v1";
+const REFRESH_JWT_PURPOSE: &[u8] = b"upgrid-api-session-refresh-v1";
 
 #[derive(Debug, Clone)]
 pub(super) struct Principal {
@@ -97,15 +100,22 @@ pub(super) async fn login(
 pub(super) async fn session(
     State(state): State<WebState>,
     headers: HeaderMap,
-) -> Result<Json<SessionView>, ApiError> {
-    let (principal, expires_at_ms) = authenticate(&state, &headers)
+) -> Result<Response, ApiError> {
+    if bearer(&headers).is_some() {
+        let (principal, expires_at_ms) = authenticate(&state, &headers)
+            .await
+            .ok_or_else(ApiError::unauthorized)?;
+        return Ok(Json(SessionView {
+            identity_id: principal.identity_id.0,
+            username: principal.username,
+            expires_at_ms,
+        })
+        .into_response());
+    }
+    let identity = browser_session_identity(&state, &headers)
         .await
         .ok_or_else(ApiError::unauthorized)?;
-    Ok(Json(SessionView {
-        identity_id: principal.identity_id.0,
-        username: principal.username,
-        expires_at_ms,
-    }))
+    session_response(&state, &identity)
 }
 
 #[utoipa::path(
@@ -116,9 +126,15 @@ pub(super) async fn session(
 )]
 pub(super) async fn logout() -> Response {
     let mut response = StatusCode::NO_CONTENT.into_response();
-    response.headers_mut().insert(
+    response.headers_mut().append(
         header::SET_COOKIE,
         HeaderValue::from_static("upgrid_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"),
+    );
+    response.headers_mut().append(
+        header::SET_COOKIE,
+        HeaderValue::from_static(
+            "upgrid_session_refresh=; Path=/api/v1/auth; HttpOnly; SameSite=Strict; Max-Age=0",
+        ),
     );
     response
 }
@@ -142,7 +158,7 @@ pub(super) async fn require_auth(
 }
 
 async fn authenticate(state: &WebState, headers: &HeaderMap) -> Option<(Principal, u64)> {
-    let token = bearer(headers).or_else(|| cookie(headers))?;
+    let token = bearer(headers).or_else(|| cookie(headers, SESSION_COOKIE))?;
     let application = state.cluster.read().await.ok()?;
     let now = now_ms();
     if token.starts_with("upgrid_") {
@@ -159,12 +175,25 @@ async fn authenticate(state: &WebState, headers: &HeaderMap) -> Option<(Principa
             api_token.expires_at_ms.unwrap_or(u64::MAX),
         ));
     }
-    let claims = decode_jwt(state, token)?;
-    if claims.exp < now {
-        return None;
-    }
+    let claims = valid_claims(state, token, SESSION_JWT_PURPOSE, now)?;
     let identity = application.identities.get(&IdentityId(claims.sub))?;
     (identity.auth_version == claims.ver).then(|| (Principal::from(identity), claims.exp))
+}
+
+async fn browser_session_identity(
+    state: &WebState,
+    headers: &HeaderMap,
+) -> Option<OperatorIdentity> {
+    let now = now_ms();
+    let claims = cookie(headers, SESSION_COOKIE)
+        .and_then(|token| valid_claims(state, token, SESSION_JWT_PURPOSE, now))
+        .or_else(|| {
+            cookie(headers, REFRESH_COOKIE)
+                .and_then(|token| valid_claims(state, token, REFRESH_JWT_PURPOSE, now))
+        })?;
+    let application = state.cluster.read().await.ok()?;
+    let identity = application.identities.get(&IdentityId(claims.sub))?;
+    (identity.auth_version == claims.ver).then(|| identity.clone())
 }
 
 fn session_response(state: &WebState, identity: &OperatorIdentity) -> Result<Response, ApiError> {
@@ -172,6 +201,7 @@ fn session_response(state: &WebState, identity: &OperatorIdentity) -> Result<Res
     let expires_at_ms = now.saturating_add(SESSION_TTL_MS);
     let token = encode_jwt(
         state,
+        SESSION_JWT_PURPOSE,
         &Claims {
             sub: identity.id.0,
             ver: identity.auth_version,
@@ -179,9 +209,23 @@ fn session_response(state: &WebState, identity: &OperatorIdentity) -> Result<Res
             exp: expires_at_ms,
         },
     )?;
+    let refresh = encode_jwt(
+        state,
+        REFRESH_JWT_PURPOSE,
+        &Claims {
+            sub: identity.id.0,
+            ver: identity.auth_version,
+            iat: now,
+            exp: now.saturating_add(REFRESH_TTL_MS),
+        },
+    )?;
     let cookie = HeaderValue::try_from(format!(
         "{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={}",
         SESSION_TTL_MS / 1_000
+    ))
+    .map_err(ApiError::unavailable)?;
+    let refresh_cookie = HeaderValue::try_from(format!(
+        "{REFRESH_COOKIE}={refresh}; Path=/api/v1/auth; HttpOnly; SameSite=Strict"
     ))
     .map_err(ApiError::unavailable)?;
     let mut response = Json(SessionView {
@@ -190,20 +234,23 @@ fn session_response(state: &WebState, identity: &OperatorIdentity) -> Result<Res
         expires_at_ms,
     })
     .into_response();
-    response.headers_mut().insert(header::SET_COOKIE, cookie);
+    response.headers_mut().append(header::SET_COOKIE, cookie);
+    response
+        .headers_mut()
+        .append(header::SET_COOKIE, refresh_cookie);
     Ok(response)
 }
 
-fn encode_jwt(state: &WebState, claims: &Claims) -> Result<String, ApiError> {
+fn encode_jwt(state: &WebState, purpose: &[u8], claims: &Claims) -> Result<String, ApiError> {
     let header = URL_SAFE_NO_PAD.encode(br#"{"alg":"HS256","typ":"JWT"}"#);
     let claims = URL_SAFE_NO_PAD.encode(serde_json::to_vec(claims).map_err(ApiError::unavailable)?);
     let payload = format!("{header}.{claims}");
-    let key = hmac::Key::new(hmac::HMAC_SHA256, &state.cipher.derive(JWT_PURPOSE));
+    let key = hmac::Key::new(hmac::HMAC_SHA256, &state.cipher.derive(purpose));
     let signature = URL_SAFE_NO_PAD.encode(hmac::sign(&key, payload.as_bytes()).as_ref());
     Ok(format!("{payload}.{signature}"))
 }
 
-fn decode_jwt(state: &WebState, token: &str) -> Option<Claims> {
+fn decode_jwt(state: &WebState, token: &str, purpose: &[u8]) -> Option<Claims> {
     let mut parts = token.split('.');
     let header = parts.next()?;
     let claims = parts.next()?;
@@ -213,10 +260,15 @@ fn decode_jwt(state: &WebState, token: &str) -> Option<Claims> {
     }
     let payload = format!("{header}.{claims}");
     let signature = URL_SAFE_NO_PAD.decode(signature).ok()?;
-    let key = hmac::Key::new(hmac::HMAC_SHA256, &state.cipher.derive(JWT_PURPOSE));
+    let key = hmac::Key::new(hmac::HMAC_SHA256, &state.cipher.derive(purpose));
     hmac::verify(&key, payload.as_bytes(), &signature).ok()?;
     let claims = URL_SAFE_NO_PAD.decode(claims).ok()?;
     serde_json::from_slice(&claims).ok()
+}
+
+fn valid_claims(state: &WebState, token: &str, purpose: &[u8], now: u64) -> Option<Claims> {
+    let claims = decode_jwt(state, token, purpose)?;
+    (claims.exp >= now).then_some(claims)
 }
 
 fn bearer(headers: &HeaderMap) -> Option<&str> {
@@ -227,14 +279,17 @@ fn bearer(headers: &HeaderMap) -> Option<&str> {
         .strip_prefix("Bearer ")
 }
 
-fn cookie(headers: &HeaderMap) -> Option<&str> {
+fn cookie<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
     headers
         .get(header::COOKIE)?
         .to_str()
         .ok()?
         .split(';')
         .map(str::trim)
-        .find_map(|value| value.strip_prefix("upgrid_session="))
+        .find_map(|value| {
+            let (candidate, token) = value.split_once('=')?;
+            (candidate == name).then_some(token)
+        })
 }
 
 fn unauthorized() -> Response {

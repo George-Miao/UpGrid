@@ -1,10 +1,13 @@
-import { html } from "lit";
-import type { Channel, Secret } from "./api.ts";
+import { html, nothing } from "lit";
+import type { Channel, Secret } from "@/app/api.ts";
+import "@/component/empty-state.ts";
+import { renderFormSubmit } from "@/component/form-submit.ts";
 
 interface Actions {
   backdrop: (event: MouseEvent) => void;
   close: () => void;
   create: (event: SubmitEvent) => void;
+  changed: () => void;
 }
 
 export function renderChannelFields(channels: Channel[], selected: string[] = [], useDefaults = true) {
@@ -56,7 +59,7 @@ export function renderChannelFields(channels: Channel[], selected: string[] = []
                   </label>
                 `;
               })
-            : html`<p class="meta">No notification channels are available.</p>`
+            : html`<upgrid-empty-state>No notification channels are available</upgrid-empty-state>`
         }
       </div>
     </div>`;
@@ -98,11 +101,41 @@ function activateTargetTab(form: HTMLFormElement, tabName: string) {
     .forEach((tab) => {
       const selected = tab.dataset.tab === tabName;
       tab.setAttribute("aria-selected", String(selected));
-      tab.tabIndex = selected ? 0 : -1;
+      tab.tabIndex = -1;
     });
   form.querySelectorAll<HTMLElement>("[role='tabpanel']").forEach((panel) => {
     panel.hidden = panel.dataset.panel !== tabName;
   });
+}
+
+type ValidatableTargetControl = HTMLElement & {
+  checkValidity: () => boolean;
+  reportValidity: () => boolean;
+};
+
+function firstInvalidTargetControl(form: HTMLFormElement): ValidatableTargetControl | undefined {
+  for (let index = 0; index < form.elements.length; index += 1) {
+    const element = form.elements.item(index);
+    if (element instanceof HTMLElement && "checkValidity" in element && typeof element.checkValidity === "function" && !element.checkValidity()) {
+      return element as ValidatableTargetControl;
+    }
+  }
+  return undefined;
+}
+
+export function submitTargetForm(event: SubmitEvent, submit: (event: SubmitEvent) => void) {
+  event.preventDefault();
+  const form = event.currentTarget as HTMLFormElement;
+  const invalid = firstInvalidTargetControl(form);
+  if (!invalid) {
+    submit(event);
+    return;
+  }
+  const panel = invalid.closest<HTMLElement>("[role='tabpanel']");
+  if (panel) {
+    form.closest("dialog")?.querySelector<HTMLButtonElement>(`[role='tab'][aria-controls='${panel.id}']`)?.click();
+  }
+  queueMicrotask(() => invalid.reportValidity());
 }
 
 function applyTargetKind(form: HTMLFormElement, kind: string) {
@@ -144,19 +177,19 @@ function resetTargetKind(event: Event) {
   });
 }
 
-export function renderTargetForm(channels: Channel[], secrets: Secret[], saving: boolean, actions: Actions) {
+export function renderTargetForm(channels: Channel[], secrets: Secret[], saving: boolean, error: string, actions: Actions) {
   return html`
     <dialog id="target-dialog" aria-labelledby="add-target-title" @click=${actions.backdrop}>
       <div class="dialog-head target-dialog-head">
         <h2 id="add-target-title">Add target</h2>
         <div class="form-tabs" role="tablist" aria-label="Target settings">
-          <button id="target-general-tab" form="target-form" type="button" role="tab" data-tab="general" aria-controls="target-general-panel" aria-selected="true" @click=${selectTargetTab}>General</button>
+          <button id="target-general-tab" form="target-form" type="button" role="tab" data-tab="general" aria-controls="target-general-panel" aria-selected="true" tabindex="-1" @click=${selectTargetTab}>General</button>
           <button id="target-assertions-tab" form="target-form" type="button" role="tab" data-tab="assertions" aria-controls="target-assertions-panel" aria-selected="false" tabindex="-1" @click=${selectTargetTab}>Assertions</button>
           <button id="target-evaluation-tab" form="target-form" type="button" role="tab" data-tab="evaluation" aria-controls="target-evaluation-panel" aria-selected="false" tabindex="-1" @click=${selectTargetTab}>Evaluation</button>
           <button id="target-notifications-tab" form="target-form" type="button" role="tab" data-tab="notifications" aria-controls="target-notifications-panel" aria-selected="false" tabindex="-1" @click=${selectTargetTab}>Notifications</button>
         </div>
       </div>
-      <form id="target-form" @submit=${actions.create} @reset=${resetTargetKind}>
+      <form id="target-form" novalidate @submit=${(event: SubmitEvent) => submitTargetForm(event, actions.create)} @input=${actions.changed} @reset=${resetTargetKind}>
         <section id="target-general-panel" class="target-tab-panel" role="tabpanel" data-panel="general" aria-labelledby="target-general-tab">
           <label>Name<input name="name" placeholder="Production API" required autofocus /></label>
           <div class="row endpoint-row">
@@ -182,9 +215,10 @@ export function renderTargetForm(channels: Channel[], secrets: Secret[], saving:
         <section id="target-notifications-panel" class="target-tab-panel" role="tabpanel" data-panel="notifications" aria-labelledby="target-notifications-tab" hidden>
           ${renderChannelFields(channels)}
         </section>
+        ${error ? html`<div class="notice" role="alert">${error}</div>` : nothing}
         <div class="dialog-actions">
           <button class="button secondary" type="button" @click=${actions.close}>Cancel</button>
-          <button class="button" type="submit" ?disabled=${saving}>${saving ? "Creating…" : "Create target"}</button>
+          ${renderFormSubmit({ label: saving ? "Creating..." : "Create target", busy: saving, error })}
         </div>
       </form>
     </dialog>`;

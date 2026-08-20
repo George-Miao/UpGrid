@@ -22,7 +22,8 @@ Use standard `rustfmt` output (four-space indentation and trailing commas). Name
 Do not use Tokio APIs or add Tokio as a direct dependency. Use Compio and runtime-neutral primitives through Synchrony. Transitive Tokio dependencies are acceptable when a required Compio-compatible library includes them.
 
 Panel and card headers contain only the title, controls, and compact status metadata. Never put explanatory descriptions in a box header; place that guidance in an accessible help tooltip beside the title.
-All clickable UI items use `cursor: pointer`, and their text is not selectable. Disabled controls use `cursor: not-allowed`.
+All clickable UI items use `cursor: pointer`, and their text is not selectable. Disabled controls use `cursor: not-allowed`. Disabled buttons use a gray border, background, icon, and label.
+Use switches for boolean controls. Use checkboxes only for multiselection.
 Use sentence case in all documentation and user-facing UI text. Capitalize only the first word of a sentence or label. Never capitalize an inline word because it is a domain term, page name, feature name, or other special term; use `cluster` and `target`, not `Cluster` or `Target`. This rule does not apply to case-sensitive code identifiers.
 
 The UpGrid slogan is **Stay up. Stay informed.** Its supporting line is **Distributed service monitoring that runs with your infrastructure.** Use this exact wording in brand and marketing material.

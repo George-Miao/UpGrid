@@ -85,6 +85,23 @@ test("explains Secret usage from related forms", async ({ page }) => {
   await page.getByRole("link", { name: "Alerts" }).click();
   await page.getByRole("button", { name: "Add channel" }).click();
   const channelDialog = page.getByRole("dialog", { name: "Add channel" });
+  const [dialogBox, headingBox, nameBox] = await Promise.all([channelDialog.boundingBox(), channelDialog.getByRole("heading", { name: "Add channel" }).boundingBox(), channelDialog.getByLabel("Name", { exact: true }).boundingBox()]);
+  expect(dialogBox).not.toBeNull();
+  expect(headingBox).not.toBeNull();
+  expect(nameBox).not.toBeNull();
+  expect(headingBox!.x - dialogBox!.x).toBeGreaterThan(20);
+  expect(headingBox!.x - dialogBox!.x).toBeLessThan(25);
+  expect(Math.abs(headingBox!.x - nameBox!.x)).toBeLessThan(1);
+  const createChannel = channelDialog.getByRole("button", { name: "Create channel" });
+  await expect(createChannel).toBeDisabled();
+  const disabledColors = await createChannel.evaluate((button) => {
+    const style = getComputedStyle(button);
+    return [style.backgroundColor, style.borderTopColor, style.color].map((color) => color.match(/\d+/g)?.slice(0, 3).map(Number) ?? []);
+  });
+  for (const channels of disabledColors) {
+    expect(channels).toHaveLength(3);
+    expect(Math.max(...channels) - Math.min(...channels)).toBeLessThan(12);
+  }
   await channelDialog.getByLabel("Type").selectOption("telegram");
   await channelDialog.getByRole("button", { name: "About Telegram bot token storage" }).focus();
   await expect(channelDialog.locator("#telegram-token-help")).toContainText("Get a bot token from Telegram's @BotFather");
@@ -94,7 +111,7 @@ test("keeps channel test errors above dialog actions", async ({ page }) => {
   await page.goto("/alerts");
   await page.getByRole("button", { name: "Add channel" }).click();
   const dialog = page.getByRole("dialog", { name: "Add channel" });
-  await dialog.getByLabel("Type").selectOption("smtp");
+  await dialog.getByLabel("Webhook URL").fill("http://127.0.0.1:1/hook");
   await dialog.getByRole("button", { name: "Send test" }).click();
   const message = dialog.getByRole("status");
   await expect(message).toContainText("Test failed:");
@@ -165,7 +182,12 @@ test("creates, tests, and edits an SMTP channel", async ({ page }) => {
   await expect(editDialog.getByLabel("Type")).toHaveValue("smtp");
   await expect(editDialog.getByLabel("Username")).toHaveValue("upgrid");
   await expect(editDialog.getByLabel("Password", { exact: true })).toHaveValue("");
+  await expect(editDialog.getByRole("button", { name: "Save changes" })).toBeDisabled();
   await editDialog.getByLabel("Recipient").fill("secondary@example.com");
+  smtpMessage = "";
+  await editDialog.getByRole("button", { name: "Send test" }).click();
+  await expect(editDialog.getByRole("status")).toHaveText("Test sent");
+  expect(smtpMessage).toContain("secondary@example.com");
   await editDialog.getByRole("button", { name: "Save changes" }).click();
 
   await row.getByRole("button", { name: `Edit channel ${channelName}` }).click();
@@ -336,6 +358,8 @@ test("filters, acknowledges, and retries alert deliveries", async ({ page }) => 
   await expect(alert).not.toBeVisible();
   await history.getByLabel("Acknowledged").selectOption("yes");
   await expect(alert).toBeVisible();
+  await history.getByLabel("Search").fill(`missing-${suffix}`);
+  await expect(history.locator("upgrid-empty-state")).toHaveText("No alerts match these filters");
 
   await page.goto("/");
   await target.click();

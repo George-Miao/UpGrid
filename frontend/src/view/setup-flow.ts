@@ -1,12 +1,15 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { ApiRequestError, type Channel, type Setup, request } from "./api.ts";
-import { channelInput, targetInput } from "./resource-input.ts";
+import { ApiRequestError, type Channel, type Setup, request } from "@/app/api.ts";
+import "@/component/channel-form.ts";
+import "@/component/empty-state.ts";
+import { cardStyles, renderCard } from "@/component/card.ts";
+import { renderFormSubmit } from "@/component/form-submit.ts";
+import { targetInput } from "@/util/resource-input.ts";
 
 @customElement("upgrid-setup")
 export class UpgridSetup extends LitElement {
   @property({ attribute: false }) setup!: Setup;
-  @state() private channelKind: "webhook" | "telegram" = "webhook";
   @state() private channels: Channel[] = [];
   @state() private saving = false;
   @state() private error = "";
@@ -15,15 +18,14 @@ export class UpgridSetup extends LitElement {
     :host { display: block; }
     *, *::before, *::after { box-sizing: border-box; }
     .flow { width: min(760px, 100%); margin: 0 auto; }
+    ${cardStyles}
     .eyebrow { color: var(--muted); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; }
     h1 { margin: 5px 0 8px; font-size: clamp(30px, 5vw, 46px); letter-spacing: -.04em; }
     .lead { margin: 0 0 16px; color: var(--muted); font-size: 15px; }
-    .panel { border: 1px solid var(--line); border-radius: 16px; background: var(--panel-surface); box-shadow: 0 16px 48px var(--panel-shadow); overflow: hidden; }
     .choice { display: grid; gap: 14px; padding: 22px; border-top: 1px solid var(--line); }
     .choice:first-child { border-top: 0; }
     .choice h2 { margin: 0; font-size: 17px; }
     .choice p { margin: -8px 0 0; color: var(--muted); }
-    .cluster-panel { border: 1px solid var(--line); border-radius: 16px; background: var(--panel-surface); box-shadow: 0 16px 48px var(--panel-shadow); overflow: hidden; }
     .cluster-identity, .cluster-create, .cluster-join { padding: 18px; }
     .cluster-identity { border-bottom: 1px solid var(--line); }
     .cluster-create { display: grid; gap: 14px; }
@@ -45,8 +47,8 @@ export class UpgridSetup extends LitElement {
     .switch-control::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
     .switch-control:checked { border-color: var(--button-border); background: var(--button-bg); }
     .switch-control:checked::after { background: var(--button-text); transform: translateX(18px); }
-    .checkbox-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .checkbox-control { width: 18px; min-height: 18px; height: 18px; flex: none; accent-color: var(--button-bg); cursor: pointer; }
+    fieldset { display: grid; gap: 8px; min-width: 0; margin: 0; border: 0; padding: 0; }
+    legend { margin-bottom: 4px; padding: 0; color: var(--text); font-size: 14px; }
     input:not([type="checkbox"]), select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font: inherit; font-size: 16px; transition: border-color 160ms ease, opacity 160ms ease; }
     input:not([type="checkbox"]):focus, select:focus { border-color: var(--focus); }
     button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
@@ -55,7 +57,7 @@ export class UpgridSetup extends LitElement {
     button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; border: 1px solid var(--button-border); border-radius: 9px; background: var(--button-bg); color: var(--button-text); padding: 9px 13px; cursor: pointer; font: inherit; transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease, transform 120ms ease; }
     button:hover { border-color: var(--button-hover-border); }
     button:active { transform: translateY(1px); }
-    button:disabled { cursor: not-allowed; opacity: .65; }
+    button:disabled { border-color: var(--disabled-border); background: var(--disabled-bg); color: var(--disabled-text); cursor: not-allowed; opacity: 1; }
     .secondary { background: transparent; color: var(--muted); border-color: var(--line); }
     .notice { margin-bottom: 16px; border: 1px solid var(--notice-border); border-radius: 10px; background: var(--notice-bg); color: var(--notice-text); padding: 10px 12px; }
     .count { display: inline-block; margin-top: 6px; color: var(--green); font-size: 12px; }
@@ -163,13 +165,6 @@ export class UpgridSetup extends LitElement {
     throw new Error("Cluster setup did not finish within 30 seconds");
   }
 
-  private async createChannel(event: SubmitEvent): Promise<void> {
-    event.preventDefault();
-    const fields = new FormData(event.currentTarget as HTMLFormElement);
-    const body = channelInput(fields, this.channelKind);
-    await this.createResource("/api/v1/channels", body);
-  }
-
   private async createTarget(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const fields = new FormData(event.currentTarget as HTMLFormElement);
@@ -208,7 +203,7 @@ export class UpgridSetup extends LitElement {
   }
 
   protected render() {
-    return html`<section class="flow" aria-label="UpGrid setup">
+    return html`<section class="flow" aria-label="UpGrid setup" @input=${() => (this.error = "")}>
       ${this.error ? html`<div class="notice" role="alert">${this.error}</div>` : nothing}
       ${this.setup.phase === "cluster" ? this.renderCluster() : this.setup.phase === "channel" ? this.renderChannel() : this.renderTarget()}
     </section>`;
@@ -218,59 +213,59 @@ export class UpgridSetup extends LitElement {
     return html`
       <span class="eyebrow">First-run setup</span><h1>Choose your cluster</h1>
       <p class="lead">Review this node’s name, then create a new cluster or use an invitation to join one.</p>
-      <div class="cluster-panel">
-        <div class="cluster-identity">
-          <label for="setup-node-name">Node name<input id="setup-node-name" .value=${this.setup.node_name} required /></label>
-        </div>
-        <form class="cluster-create" @submit=${this.createCluster}>
-          <div class="cluster-copy"><h2>Start a new cluster</h2><p>Create its first replicated administrator identity.</p></div>
-          <div class="cluster-create-fields">
-            <label>Administrator username<input name="admin_username" autocomplete="username" value="admin" required /></label>
-            <label>Administrator password<input name="admin_password" type="password" minlength="12" autocomplete="new-password" required /></label>
+      ${renderCard({
+        content: html`
+          <div class="cluster-identity">
+            <label for="setup-node-name">Node name<input id="setup-node-name" .value=${this.setup.node_name} required /></label>
           </div>
-          <button type="submit" ?disabled=${this.saving}>${this.saving ? "Setting up…" : "Create new cluster"}</button>
-        </form>
-        <div class="cluster-divider"><span>Or</span></div>
-        <form class="cluster-join" @submit=${this.joinCluster}>
-          <div class="cluster-copy"><h2>Join an existing cluster</h2><p>Paste an <code>up://</code> join token from a current member.</p></div>
-          <div class="cluster-join-fields">
-            <label>Join token<input name="join_link" type="url" pattern="up://.*" placeholder="up://node.example/token" autocomplete="off" required /></label>
-            <button class="secondary" type="submit" ?disabled=${this.saving}>Join cluster</button>
-          </div>
-        </form>
-      </div>`;
+          <form class="cluster-create" @submit=${this.createCluster}>
+            <div class="cluster-copy"><h2>Start a new cluster</h2><p>Create its first replicated administrator identity.</p></div>
+            <div class="cluster-create-fields">
+              <label>Administrator username<input name="admin_username" autocomplete="username" value="admin" required /></label>
+              <label>Administrator password<input name="admin_password" type="password" minlength="12" autocomplete="new-password" required /></label>
+            </div>
+            ${renderFormSubmit({ label: this.saving ? "Setting up..." : "Create new cluster", busy: this.saving, error: this.error })}
+          </form>
+          <div class="cluster-divider"><span>Or</span></div>
+          <form class="cluster-join" @submit=${this.joinCluster}>
+            <div class="cluster-copy"><h2>Join an existing cluster</h2><p>Paste an <code>up://</code> join token from a current member.</p></div>
+            <div class="cluster-join-fields">
+              <label>Join token<input name="join_link" type="url" pattern="up://.*" placeholder="up://node.example/token" autocomplete="off" required /></label>
+              ${renderFormSubmit({ label: "Join cluster", className: "secondary", busy: this.saving, error: this.error })}
+            </div>
+          </form>
+        `,
+      })}`;
   }
 
   private renderChannel() {
     return html`
       <span class="eyebrow">Optional · step 2 of 3</span><h1>Add a notification channel</h1>
-      <p class="lead">Send availability transitions to Telegram or a webhook. <span class="count">${this.setup.channel_count} already configured</span></p>
-      <div class="panel"><form class="choice" @submit=${this.createChannel}>
-        <label>Type<select name="type" @change=${(event: Event) => (this.channelKind = (event.target as HTMLSelectElement).value as "webhook" | "telegram")}><option value="webhook">Webhook</option><option value="telegram">Telegram</option></select></label>
-        <label>Name<input name="name" placeholder="On-call" required /></label>
-        ${
-          this.channelKind === "webhook" ? html`<label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/upgrid" required /></label>` : html`<label>Bot token<input name="bot_token" type="password" autocomplete="off" required /></label><label>Chat ID<input name="chat_id" required /></label>`
-        }
-        <label class="switch"><span>Use as default channel</span><input class="switch-control" name="default" type="checkbox" role="switch" checked /></label>
-        <div class="actions"><button class="secondary" type="button" @click=${this.next} ?disabled=${this.saving}>Skip</button><button type="submit" ?disabled=${this.saving}>Create and continue</button></div>
-      </form></div>`;
+      <p class="lead">Send availability transitions through Telegram, SMTP, or a webhook. <span class="count">${this.setup.channel_count} already configured</span></p>
+      ${renderCard({
+        content: html`<notification-channel-form default-channel submit-label="Create and continue" cancel-label="Skip" .disabled=${this.saving} @channel-cancel=${this.next} @channel-saved=${this.next}></notification-channel-form>`,
+      })}`;
   }
 
   private renderTarget() {
     return html`
       <span class="eyebrow">Optional · step 3 of 3</span><h1>Monitor your first target</h1>
       <p class="lead">Configure an HTTP endpoint now or continue to the dashboard. <span class="count">${this.setup.target_count} already configured</span></p>
-      <div class="panel"><form class="choice" @submit=${this.createTarget}>
-        <label>Name<input name="name" placeholder="Production API" required /></label>
-        <label>URL<input name="url" type="url" placeholder="https://example.com/health" required /></label>
-        <div class="row"><label>Method<input name="method" value="GET" required /></label><label>Interval (seconds)<input name="interval" type="number" min="1" value="60" required /></label></div>
-        <div class="row"><label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label><label>Failures before down<input name="failures" type="number" min="1" value="3" required /></label></div>
-        ${
-          this.channels.length
-            ? html`<fieldset><legend>Notification channels</legend>${this.channels.map((channel) => html`<label class="checkbox-option"><span>${channel.name}</span><input class="checkbox-control" name="channel_id" type="checkbox" value=${channel.id} /></label>`)}</fieldset>`
-            : html`<p class="meta">No notification channels are available.</p>`
-        }
-        <div class="actions"><button class="secondary" type="button" @click=${this.next} ?disabled=${this.saving}>Skip</button><button type="submit" ?disabled=${this.saving}>Create and finish</button></div>
-      </form></div>`;
+      ${renderCard({
+        content: html`
+          <form class="choice" @submit=${this.createTarget}>
+            <label>Name<input name="name" placeholder="Production API" required /></label>
+            <label>URL<input name="url" type="url" placeholder="https://example.com/health" required /></label>
+            <div class="row"><label>Method<input name="method" value="GET" required /></label><label>Interval (seconds)<input name="interval" type="number" min="1" value="60" required /></label></div>
+            <div class="row"><label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label><label>Failures before down<input name="failures" type="number" min="1" value="3" required /></label></div>
+            ${
+              this.channels.length
+                ? html`<fieldset><legend>Notification channels</legend>${this.channels.map((channel) => html`<label class="switch"><span>${channel.name}</span><input class="switch-control" name="channel_id" type="checkbox" role="switch" value=${channel.id} /></label>`)}</fieldset>`
+                : html`<upgrid-empty-state>No notification channels are available</upgrid-empty-state>`
+            }
+            <div class="actions"><button class="secondary" type="button" @click=${this.next} ?disabled=${this.saving}>Skip</button>${renderFormSubmit({ label: "Create and finish", busy: this.saving, error: this.error })}</div>
+          </form>
+        `,
+      })}`;
   }
 }

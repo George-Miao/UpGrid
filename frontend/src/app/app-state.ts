@@ -3,8 +3,8 @@ import { state } from "lit/decorators.js";
 import darkIcon from "@iconify-icons/lucide/moon";
 import systemIcon from "@iconify-icons/lucide/monitor";
 import brightIcon from "@iconify-icons/lucide/sun";
-import { ApiRequestError, type Alert, type ApiToken, type Channel, type Cluster, type HistoryPage, type Identity, type JoinToken, type ManageSettings, type PublicStatus, type Secret, type Session, type Setup, type Target, type TrashedTarget, type Transition, request } from "./api.ts";
-import type { TargetDetailTab } from "./target-detail-view.ts";
+import { ApiRequestError, type Alert, type ApiToken, type Channel, type Cluster, type HistoryPage, type Identity, type JoinToken, type ManageSettings, type PublicStatus, type Secret, type Session, type Setup, type Target, type TrashedTarget, type Transition, request, sessionExpiredEvent } from "@/app/api.ts";
+import type { TargetDetailTab } from "@/view/target-detail.ts";
 
 const themes = ["system", "dark", "bright"] as const;
 type Theme = (typeof themes)[number];
@@ -21,14 +21,6 @@ export const sectionPaths = {
   apiTokens: "/admin/api-tokens",
 } as const;
 export type Section = keyof typeof sectionPaths;
-export function serviceHealth(targets: Array<Pick<Target, "availability" | "paused" | "consecutive_failures">>, connected: boolean) {
-  if (!connected) return { tone: "pending", label: "connecting" };
-  const monitored = targets.filter((target) => !target.paused);
-  if (!monitored.length) return { tone: "pending", label: "ready" };
-  const affected = monitored.filter((target) => target.availability === "down" || target.consecutive_failures > 0).length;
-  if (!affected) return { tone: "up", label: "up" };
-  return affected === monitored.length ? { tone: "down", label: "down" } : { tone: "degraded", label: "partially down" };
-}
 
 function sectionFromPath(): Section {
   return (Object.entries(sectionPaths).find(([, path]) => path === window.location.pathname)?.[0] ?? "overview") as Section;
@@ -57,16 +49,14 @@ export class AppState extends LitElement {
   @state() protected newApiToken = "";
   @state() protected editingIdentity?: Identity;
   @state() protected error = "";
+  @state() protected targetError = "";
   @state() protected live = false;
   @state() protected saving = false;
   @state() protected selected?: Target;
   @state() protected targetHistory?: HistoryPage;
   @state() protected historyLoading = false;
-  @state() protected channelKind: "webhook" | "telegram" | "smtp" = "webhook";
   @state() protected editingChannel?: Channel;
-  @state() protected channelTestMessage = "";
-  @state() protected testingChannel = false;
-  @state() protected joinCommand = "";
+  @state() protected joinUrl = "";
   @state() protected alertSearch = "";
   @state() protected alertDeliveryFilter: "all" | Alert["delivery"] = "all";
   @state() protected alertKindFilter: "all" | Alert["kind"] = "all";
@@ -103,6 +93,19 @@ export class AppState extends LitElement {
     const menu = this.renderRoot.querySelector<HTMLDetailsElement>(".account-menu");
     if (menu?.open && !event.composedPath().includes(menu)) menu.open = false;
   };
+  private readonly sessionExpired = () => {
+    this.events?.close();
+    this.events = undefined;
+    this.stopPublicStatus();
+    this.session = undefined;
+    this.settings = undefined;
+    this.setupMode = false;
+    this.saving = false;
+    this.error = "";
+    this.targetError = "";
+    this.activeSection = "overview";
+    window.history.replaceState(null, "", "/");
+  };
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -110,6 +113,7 @@ export class AppState extends LitElement {
     this.systemTheme.addEventListener("change", this.systemThemeChanged);
     window.addEventListener("popstate", this.routeChanged);
     document.addEventListener("pointerdown", this.backgroundClicked);
+    window.addEventListener(sessionExpiredEvent, this.sessionExpired);
     void this.start();
   }
 
@@ -117,6 +121,7 @@ export class AppState extends LitElement {
     this.systemTheme.removeEventListener("change", this.systemThemeChanged);
     window.removeEventListener("popstate", this.routeChanged);
     document.removeEventListener("pointerdown", this.backgroundClicked);
+    window.removeEventListener(sessionExpiredEvent, this.sessionExpired);
     this.events?.close();
     this.stopPublicStatus();
     super.disconnectedCallback();
@@ -284,14 +289,17 @@ export class AppState extends LitElement {
   }
 
   protected openTargetDialog(): void {
+    this.targetError = "";
     this.renderRoot.querySelector<HTMLDialogElement>("#target-dialog")?.showModal();
   }
 
   protected closeTargetDialog(): void {
+    this.targetError = "";
     this.renderRoot.querySelector<HTMLDialogElement>("#target-dialog")?.close();
   }
 
   protected openTarget(target: Target): void {
+    this.targetError = "";
     this.detailDirty = false;
     this.detailTab = "details";
     this.selected = target;
@@ -318,6 +326,7 @@ export class AppState extends LitElement {
   }
 
   protected closeDetailDialog(): void {
+    this.targetError = "";
     this.renderRoot.querySelector<HTMLDialogElement>("#detail-dialog")?.close();
     this.detailDirty = false;
     this.detailTab = "details";
@@ -368,6 +377,7 @@ export class AppState extends LitElement {
   }
 
   protected updateDetailDirty(event: Event): void {
+    this.targetError = "";
     this.compareDetailForm(event.currentTarget as HTMLFormElement);
   }
 }

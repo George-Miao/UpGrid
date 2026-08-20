@@ -6,6 +6,10 @@
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
     "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "moduleDetection": "force",

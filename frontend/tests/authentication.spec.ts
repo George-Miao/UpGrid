@@ -26,12 +26,58 @@ test("requires an Operator Identity and supports logout", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Logout" }).click();
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 });
+test("refreshes an expired browser session without showing an error", async ({ page }) => {
+  let sessionRequests = 0;
+  let targetRequests = 0;
+  const refreshedCookies: Array<string | null> = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/v1/auth/session") sessionRequests += 1;
+  });
+  page.on("response", (response) => {
+    if (new URL(response.url()).pathname === "/api/v1/auth/session") {
+      void response.headerValue("set-cookie").then((cookie) => refreshedCookies.push(cookie));
+    }
+  });
+  await page.route("**/api/v1/targets", async (route) => {
+    if (targetRequests++ === 0) {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "authentication required" }),
+      });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+  await expect.poll(() => sessionRequests).toBe(2);
+  await expect.poll(() => refreshedCookies.some((cookie) => cookie?.includes("upgrid_session="))).toBe(true);
+  await expect(page.getByText("authentication required", { exact: true })).toHaveCount(0);
+
+  const refreshCookie = (await page.context().cookies()).find((cookie) => cookie.name === "upgrid_session_refresh");
+  expect(refreshCookie).toBeDefined();
+  await page.context().clearCookies({ name: "upgrid_session" });
+  sessionRequests = 0;
+  refreshedCookies.length = 0;
+
+  await page.reload();
+
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+  await expect.poll(() => refreshedCookies.some((cookie) => cookie?.includes("upgrid_session="))).toBe(true);
+  await expect(page.getByText("authentication required", { exact: true })).toHaveCount(0);
+});
 
 test("controls public status access from Manage", async ({ page, browser, baseURL }) => {
   await page.goto("/admin/manage");
   await expect(page.getByRole("heading", { name: "Manage" })).toBeVisible();
   const publicAccess = page.getByRole("switch", { name: "Allow status viewing without login" });
   await expect(publicAccess).not.toBeChecked();
+  const saveChanges = page.getByRole("button", { name: "Save changes" });
+  await expect(saveChanges).toBeDisabled();
+  await expect(page.getByRole("main").getByRole("tooltip")).toBeHidden();
 
   const guest = await browser.newContext();
   await guest.clearCookies();
@@ -101,8 +147,10 @@ test("manages replicated identities and revocable API Tokens", async ({ page }) 
   await addUser.getByLabel("Username").fill(identityName);
   await addUser.getByLabel("Password", { exact: true }).fill("secondary-password");
   await addUser.getByLabel("Confirm password").fill("different-password");
-  await addUser.getByRole("button", { name: "Add user" }).click();
-  await expect(addUser.getByLabel("Confirm password")).toHaveJSProperty("validationMessage", "Passwords do not match.");
+  const addUserSubmit = addUser.getByRole("button", { name: "Add user" });
+  await expect(addUserSubmit).toBeDisabled();
+  await addUser.locator("upgrid-form-submit").hover();
+  await expect(addUser.getByRole("tooltip")).toContainText("Confirm password: Passwords do not match.");
   await addUser.getByLabel("Confirm password").fill("secondary-password");
   await addUser.getByRole("button", { name: "Add user" }).click();
 
