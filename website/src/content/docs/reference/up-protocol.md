@@ -30,7 +30,7 @@ The host is the advertised node address and the TLS server name. The port is als
 
 The `up://` transport uses QUIC over UDP. It does not use TCP or HTTP. UpGrid resolves the endpoint host when it creates a connection. It reuses an open QUIC connection to a peer and opens bidirectional streams for RPC channels.
 
-The current RPC implementation uses tarpc messages in length-delimited Postcard frames. This framing is an internal implementation detail. It is not a stable public wire protocol.
+The current RPC implementation uses UpGrid RPC messages in length-delimited Postcard frames. This framing is an internal implementation detail. It is not a stable public wire protocol.
 
 ## Reachability
 
