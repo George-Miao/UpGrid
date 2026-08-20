@@ -29,7 +29,7 @@
         source = pkgs.nix-gitignore.gitignoreSourcePure [./.gitignore] ./.;
         upgrid = rustPlatform.buildRustPackage {
           pname = "upgrid";
-          version = "0.2.0";
+          version = "0.3.0";
           src = source;
           cargoBuildFlags = ["-p" "upgrid"];
           buildAndTestSubdir = ".";
@@ -38,9 +38,7 @@
           cargoLock = {
             lockFile = ./Cargo.lock;
             outputHashes = {
-              "openraft-0.10.0-alpha.33" = "sha256-IhUCyRg+MvR4UBvD1UphmzSdG7HBhcyHJw9L1eNuyKI=";
               "tarpc-0.36.0" = "sha256-RV0LUj0+5DZ2Qa1JsW+BSkA+mAJIvgWJEuPoNelfJ5I=";
-              "see-0.1.1" = "sha256-DqesR2JixrRixSTvuTPlLaQpLIsif6LieqzpLzFJOO0=";
             };
           };
           doCheck = false;

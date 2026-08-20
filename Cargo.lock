@@ -4057,7 +4057,7 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "upgrid"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "clap",
  "compio",
@@ -4074,7 +4074,7 @@ dependencies = [
 
 [[package]]
 name = "upgrid-api"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -4102,7 +4102,7 @@ dependencies = [
 
 [[package]]
 name = "upgrid-config"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "base64 0.22.1",
  "clap",
@@ -4117,7 +4117,7 @@ dependencies = [
 
 [[package]]
 name = "upgrid-monitor"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "compio",
  "cyper",
@@ -4141,7 +4141,7 @@ dependencies = [
 
 [[package]]
 name = "upgrid-notification"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "compio",
  "cyper",
@@ -4160,7 +4160,7 @@ dependencies = [
 
 [[package]]
 name = "upgrid-raft"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "base64 0.22.1",
  "compio",
@@ -4194,7 +4194,7 @@ dependencies = [
 
 [[package]]
 name = "upgrid-transport"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-stream",
  "compio",

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "UpGrid cluster API",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "paths": {
     "/api/v1/alerts": {
@@ -615,6 +615,16 @@
             }
           },
           "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -4390,18 +4400,20 @@
           }
         }
       },
-      "TestChannelRequest": {
+      "TestChannelInput": {
         "oneOf": [
           {
             "type": "object",
             "required": [
-              "bot_token",
               "chat_id",
               "type"
             ],
             "properties": {
               "bot_token": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "chat_id": {
                 "type": "string"
@@ -4422,7 +4434,10 @@
             ],
             "properties": {
               "headers": {
-                "type": "object",
+                "type": [
+                  "object",
+                  "null"
+                ],
                 "additionalProperties": {
                   "type": "string"
                 },
@@ -4486,6 +4501,25 @@
                   "string",
                   "null"
                 ]
+              }
+            }
+          }
+        ]
+      },
+      "TestChannelRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TestChannelInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "channel_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
               }
             }
           }
