@@ -21,9 +21,6 @@ jobs:
   build-container:
     name: Build ${{ matrix.name }} container
     runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -78,37 +75,20 @@ jobs:
       - name: Build container
         run: nix build .#container
 
-      - name: Install Skopeo
-        run: nix profile install nixpkgs#skopeo
-
-      - name: Publish architecture image
+      - name: Package container image
         env:
           ARTIFACT: ${{ matrix.artifact }}
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
-        run: |
-          image="${IMAGE_NAME}:build-${GITHUB_SHA}-${ARTIFACT}"
-          mkdir -p /tmp/digests
-          skopeo copy \
-            --dest-creds "${GHCR_USER}:${GHCR_TOKEN}" \
-            --digestfile /tmp/digest \
-            "docker-archive:result" \
-            "docker://${image}"
-          digest="$(cat /tmp/digest)"
-          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "could not read published image digest" >&2
-            exit 1
-          fi
-          touch "/tmp/digests/${digest#sha256:}"
+        run: cp --dereference result "upgrid-container-${ARTIFACT}.tar"
 
-      - name: Upload digest
+      - name: Upload container image
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ matrix.artifact }}
-          path: /tmp/digests/*
+          name: container-${{ matrix.artifact }}
+          path: upgrid-container-${{ matrix.artifact }}.tar
           if-no-files-found: error
           retention-days: 1
+          compression-level: 0
 
   publish:
     name: Publish container
@@ -119,12 +99,18 @@ jobs:
       packages: write
 
     steps:
-      - name: Download digests
+      - name: Download container images
         uses: actions/download-artifact@v4
         with:
-          path: /tmp/digests
-          pattern: digests-*
+          path: /tmp/images
+          pattern: container-*
           merge-multiple: true
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Install Skopeo
+        run: nix profile install nixpkgs#skopeo
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -135,6 +121,36 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push architecture manifests
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          archives=(/tmp/images/*.tar)
+          if (( ${#archives[@]} != 2 )); then
+            echo "expected two container image artifacts, found ${#archives[@]}" >&2
+            exit 1
+          fi
+
+          mkdir -p /tmp/digests
+          for archive in "${archives[@]}"; do
+            digest_file="/tmp/$(basename "${archive%.tar}").digest"
+            skopeo copy \
+              --dest-creds "${GHCR_USER}:${GHCR_TOKEN}" \
+              --digestfile "$digest_file" \
+              "docker-archive:${archive}" \
+              "docker://${IMAGE_NAME}@@unknown-digest@@"
+            digest="$(<"$digest_file")"
+            rm "$digest_file"
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "could not read published image digest" >&2
+              exit 1
+            fi
+            touch "/tmp/digests/${digest#sha256:}"
+          done
 
       - name: Select image tags
         id: image
@@ -163,8 +179,15 @@ jobs:
         shell: bash
         working-directory: /tmp/digests
         run: |
+          shopt -s nullglob
+          digests=(*)
+          if (( ${#digests[@]} != 2 )); then
+            echo "expected two architecture digests, found ${#digests[@]}" >&2
+            exit 1
+          fi
+
           images=()
-          for digest in *; do
+          for digest in "${digests[@]}"; do
             images+=("${IMAGE_NAME}@sha256:${digest}")
           done
           docker buildx imagetools create \
