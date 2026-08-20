@@ -16,5 +16,5 @@ rcgen.workspace = true
 rustls.workspace = true
 serde.workspace = true
 snafu.workspace = true
-tarpc.workspace = true
 upgrid-config.workspace = true
+upgrid-rpc.workspace = true

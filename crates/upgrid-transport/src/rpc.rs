@@ -20,7 +20,7 @@ struct Key {
     port: u16,
 }
 
-/// A reusable QUIC transport that yields typed tarpc-compatible channels.
+/// A reusable QUIC transport that yields typed UpGrid RPC channels.
 #[derive(Clone)]
 pub struct RpcTransport {
     endpoint: Endpoint,

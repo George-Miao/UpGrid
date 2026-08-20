@@ -1,0 +1,18 @@
+[package]
+name = "upgrid-rpc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+compio.workspace = true
+futures-channel = { workspace = true, features = ["sink"] }
+futures-util.workspace = true
+pin-project-lite.workspace = true
+serde.workspace = true
+snafu.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+postcard.workspace = true

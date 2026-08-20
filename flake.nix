@@ -35,12 +35,7 @@
           buildAndTestSubdir = ".";
           nativeBuildInputs = [pkgs.pkg-config];
           buildInputs = [pkgs.sqlite];
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-            outputHashes = {
-              "tarpc-0.36.0" = "sha256-RV0LUj0+5DZ2Qa1JsW+BSkA+mAJIvgWJEuPoNelfJ5I=";
-            };
-          };
+          cargoLock.lockFile = ./Cargo.lock;
           doCheck = false;
           meta.mainProgram = "upgrid";
         };

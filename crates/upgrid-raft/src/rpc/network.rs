@@ -1,6 +1,5 @@
-//! OpenRaft tarpc network adapter.
+//! OpenRaft RPC network adapter.
 
-use std::future::Future;
 use std::io::Cursor;
 use std::time::{Duration, Instant};
 
@@ -15,17 +14,15 @@ use openraft::raft::{
     AppendEntriesRequest, AppendEntriesResponse, SnapshotResponse, VoteRequest, VoteResponse,
 };
 use openraft::{OptionalSend, RPCTypes, RaftNetworkFactory};
-use tap::Tap;
-use tarpc::client::RpcError;
-use tarpc::context::Context;
 use tracing::debug;
+use upgrid_rpc::{CallError, Context};
 
 use super::runtime::Rpc;
 use super::service::UpgridServiceClient;
 use crate::raft::{Identity, TC};
 use crate::{Result, UpgridNode};
 
-/// [`RaftNetworkFactory`] implementation for Upgrid using tarpc.
+/// [`RaftNetworkFactory`] implementation for UpGrid RPC.
 pub struct UpgridNetwork {
     id: Identity,
     rpc: Rpc,
@@ -38,10 +35,10 @@ impl UpgridNetwork {
 }
 
 impl RaftNetworkFactory<TC> for UpgridNetwork {
-    type Network = TarpcConnector;
+    type Network = RpcConnector;
 
     async fn new_client(&mut self, target_id: NodeIdOf<TC>, target: &NodeOf<TC>) -> Self::Network {
-        TarpcConnector {
+        RpcConnector {
             self_id: self.id.id,
             target_id,
             target: target.clone(),
@@ -50,48 +47,45 @@ impl RaftNetworkFactory<TC> for UpgridNetwork {
     }
 }
 
-/// Raft network connector implemented with tarpc
+/// Raft network connector implemented with UpGrid RPC.
 #[derive(Clone)]
-pub struct TarpcConnector {
+pub struct RpcConnector {
     self_id: NodeIdOf<TC>,
     target_id: NodeIdOf<TC>,
     target: UpgridNode,
     rpc: Rpc,
 }
 
-impl TarpcConnector {
+impl RpcConnector {
     async fn client(&self) -> Result<UpgridServiceClient> {
         self.rpc.client(&self.target).await
     }
 
     fn context(&self, option: &RPCOption) -> Context {
-        Context::current().tap_mut(|c| c.deadline = Instant::now() + option.soft_ttl())
+        Context::with_deadline(Instant::now() + option.soft_ttl())
     }
 
-    fn map_tarpc_err(&self, action: RPCTypes, timeout: Duration, error: RpcError) -> RPCError<TC> {
-        match error {
-            error @ (RpcError::Shutdown | RpcError::Send(_) | RpcError::Channel(_)) => {
-                debug!(%error, "connection error");
-                self.rpc.invalidate(&self.target);
-                Unreachable::new(&error).into()
+    fn map_call_error(
+        &self,
+        action: RPCTypes,
+        timeout: Duration,
+        error: CallError,
+    ) -> RPCError<TC> {
+        if matches!(error, CallError::DeadlineExceeded) {
+            debug!("deadline exceeded");
+            self.rpc.invalidate(&self.target);
+            return Timeout {
+                action,
+                id: self.self_id,
+                target: self.target_id,
+                timeout,
             }
-            RpcError::DeadlineExceeded => {
-                debug!("deadline exceeded");
-                self.rpc.invalidate(&self.target);
-                Timeout {
-                    action,
-                    id: self.self_id,
-                    target: self.target_id,
-                    timeout,
-                }
-                .into()
-            }
-            RpcError::Server(error) => {
-                debug!(%error, "server error");
-                self.rpc.invalidate(&self.target);
-                Unreachable::new(&error).into()
-            }
+            .into();
         }
+
+        debug!(%error, "connection error");
+        self.rpc.invalidate(&self.target);
+        Unreachable::new(&error).into()
     }
 
     fn timeout_error(&self, action: RPCTypes, duration: Duration) -> RPCError<TC> {
@@ -112,7 +106,7 @@ impl TarpcConnector {
     }
 }
 
-impl RaftNetworkV2<TC> for TarpcConnector {
+impl RaftNetworkV2<TC> for RpcConnector {
     type SnapshotData = Cursor<Vec<u8>>;
 
     async fn full_snapshot(
@@ -134,7 +128,7 @@ impl RaftNetworkV2<TC> for TarpcConnector {
                     snapshot.snapshot.into_inner(),
                 )
                 .await
-                .map_err(|error| self.map_tarpc_err(RPCTypes::InstallSnapshot, duration, error))
+                .map_err(|error| self.map_call_error(RPCTypes::InstallSnapshot, duration, error))
         })
         .await
         .map_err(|_| self.timeout_error(RPCTypes::InstallSnapshot, duration))??;
@@ -153,7 +147,7 @@ impl RaftNetworkV2<TC> for TarpcConnector {
                 .map_err(|error| NetworkError::new(&error))?
                 .append_entries(self.context(&option), rpc)
                 .await
-                .map_err(|error| self.map_tarpc_err(RPCTypes::AppendEntries, duration, error))
+                .map_err(|error| self.map_call_error(RPCTypes::AppendEntries, duration, error))
         })
         .await
         .map_err(|_| self.timeout_error(RPCTypes::AppendEntries, duration))??;
@@ -172,7 +166,7 @@ impl RaftNetworkV2<TC> for TarpcConnector {
                 .map_err(|error| NetworkError::new(&error))?
                 .vote(self.context(&option), rpc)
                 .await
-                .map_err(|error| self.map_tarpc_err(RPCTypes::Vote, duration, error))
+                .map_err(|error| self.map_call_error(RPCTypes::Vote, duration, error))
         })
         .await
         .map_err(|_| self.timeout_error(RPCTypes::Vote, duration))??;

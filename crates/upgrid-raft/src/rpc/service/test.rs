@@ -1,12 +1,8 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use compio::runtime::spawn;
 use compio::time::sleep;
-use openraft_rt_compio::futures::StreamExt;
 use openraft_rt_compio::futures::future::try_join;
-use tarpc::client::{Config, NewClient};
-use tarpc::context::Context;
-use tarpc::server::{BaseChannel, Channel};
 use tracing::info;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::Layer;
@@ -14,6 +10,8 @@ use tracing_subscriber::filter::Targets;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use upgrid_config::QuicCaKey;
+use upgrid_rpc::Context;
+use upgrid_rpc::server::Channel;
 use upgrid_transport::{bi_stream_framed, secure_endpoint};
 
 use super::*;
@@ -62,19 +60,18 @@ impl UpgridService for DummyServer {
 
     async fn ask_to_join(
         self,
-        _: tarpc::context::Context,
+        _: Context,
         remote: Identity,
-        _: String,
+        token: String,
     ) -> Result<(), JoinError> {
         info!(?remote, "Ask to join");
+        if token == "slow" {
+            sleep(Duration::from_secs(1)).await;
+        }
         Ok(())
     }
 
-    async fn remove_node(
-        self,
-        _: tarpc::context::Context,
-        _: uuid::Uuid,
-    ) -> Result<(), crate::MembershipError> {
+    async fn remove_node(self, _: Context, _: uuid::Uuid) -> Result<(), crate::MembershipError> {
         Ok(())
     }
 
@@ -128,7 +125,7 @@ impl UpgridService for DummyServer {
 }
 
 #[compio::test]
-async fn reused_client_supports_concurrent_requests() {
+async fn multiplexes_requests_and_recovers_after_deadline() {
     let target_filter = Targets::new()
         .with_default(LevelFilter::INFO)
         .with_target("rustls", LevelFilter::WARN);
@@ -167,14 +164,12 @@ async fn reused_client_supports_concurrent_requests() {
 
         info!("Stream accepted");
 
-        let mut requests = Box::pin(BaseChannel::with_defaults(transport).requests());
-        while let Some(request) = requests.next().await {
-            match request {
-                Ok(request) => spawn(request.execute(DummyServer {}.serve())).detach(),
-                Err(error) => return Some(format!("{error:?}")),
-            }
-        }
-        None
+        Channel::new(transport)
+            .execute(UpgridServiceAdapter::new(DummyServer {}))
+            .run()
+            .await
+            .err()
+            .map(|error| format!("{error:?}"))
     });
 
     sleep(Duration::from_secs(1)).await;
@@ -199,8 +194,7 @@ async fn reused_client_supports_concurrent_requests() {
 
     info!("Stream Opened...");
 
-    let config = Config::default();
-    let NewClient { client, dispatch } = UpgridServiceClient::new(config, transport);
+    let (client, dispatch) = UpgridServiceClient::new(transport);
     let dispatch_handle = spawn(dispatch);
     let first_client = client.clone();
     let second_client = client.clone();
@@ -217,6 +211,17 @@ async fn reused_client_supports_concurrent_requests() {
     let (first, second) = try_join(first, second).await.unwrap();
     first.unwrap();
     second.unwrap();
+    let context = Context::with_deadline(Instant::now() + Duration::from_millis(50));
+    let error = client
+        .ask_to_join(
+            context,
+            Identity::new("up://dummy").unwrap(),
+            "slow".to_owned(),
+        )
+        .await
+        .expect_err("slow RPC must exceed its deadline");
+    assert!(matches!(error, upgrid_rpc::CallError::DeadlineExceeded));
+    client.ping(Context::current()).await.unwrap();
     drop(first_client);
     drop(second_client);
     drop(client);

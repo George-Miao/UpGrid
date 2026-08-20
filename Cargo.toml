@@ -28,6 +28,7 @@ httpdate = "1"
 lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "rustls-tls"] }
 openraft = { version = "0.10.0-alpha.34", default-features = false, features = ["serde", "single-threaded", "type-alias"] }
 openraft-rt-compio = "0.10.0-alpha.34"
+pin-project-lite = "0.2.17"
 postcard = { version = "1.1.1", features = ["use-std"], default-features = false }
 ping = { version = "0.9", default-features = false }
 quick_cache = "0.6.16"
@@ -46,8 +47,6 @@ serde_json = "1"
 serde_json_path = "0.7.2"
 snafu = { version = "0.8.6", features = ["futures"] }
 synchrony = { version = "0.1.9", features = ["event", "watch"] }
-tap = "1.0.1"
-tarpc = { version = "0.36.0", features = ["serde1"], git = "https://github.com/George-Miao/tarpc.git" }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 url = { version = "2.5.4", features = ["serde"] }
@@ -61,4 +60,5 @@ upgrid-config = { path = "crates/upgrid-config" }
 upgrid-notification = { path = "crates/upgrid-notification" }
 upgrid-monitor = { path = "crates/upgrid-monitor" }
 upgrid-raft = { path = "crates/upgrid-raft" }
+upgrid-rpc = { path = "crates/upgrid-rpc" }
 upgrid-transport = { path = "crates/upgrid-transport" }

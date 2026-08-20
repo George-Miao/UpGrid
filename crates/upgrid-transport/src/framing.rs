@@ -11,7 +11,7 @@ use futures_core::Stream;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use snafu::prelude::*;
-use tarpc::Transport;
+use upgrid_rpc::Transport;
 
 use crate::Result;
 use crate::error::QuicIncomingSnafu;

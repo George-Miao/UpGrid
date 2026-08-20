@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use openraft::error::{ClientWriteError, Fatal, InitializeError, LinearizableReadError, RaftError};
 use openraft::metrics::WaitError;
 use snafu::Snafu;
-use tarpc::client::RpcError;
+use upgrid_rpc::CallError;
 use url::Url;
 
 use crate::UpgridNode;
@@ -131,7 +131,7 @@ pub enum Error {
     },
 
     #[snafu(display("RPC error: {}", source))]
-    RpcError { source: RpcError },
+    RpcError { source: CallError },
 
     #[snafu(display("leadership could not be established before the write deadline"))]
     LeadershipDeadline,

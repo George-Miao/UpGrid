@@ -12,9 +12,9 @@ use openraft::async_runtime::watch::WatchReceiver as _;
 use openraft::error::{ClientWriteError, InitializeError, RaftError};
 use openraft::{Config, ReadPolicy};
 use snafu::ResultExt;
-use tarpc::context::Context;
 use tracing::{debug, info};
 use upgrid_config::{Cipher, QuicCaKey};
+use upgrid_rpc::Context;
 use upgrid_transport::RpcTransport;
 
 use crate::UpgridNode;
@@ -251,11 +251,12 @@ impl Node {
                         continue;
                     }
                 };
-                let mut context = Context::current();
-                context.deadline = Instant::now()
-                    + deadline
-                        .saturating_duration_since(Instant::now())
-                        .min(Duration::from_secs(1));
+                let context = Context::with_deadline(
+                    Instant::now()
+                        + deadline
+                            .saturating_duration_since(Instant::now())
+                            .min(Duration::from_secs(1)),
+                );
                 match client.client_write(context, request.clone()).await {
                     Ok(result) => result,
                     Err(source) => {
@@ -321,11 +322,12 @@ impl Node {
                             continue;
                         }
                     };
-                    let mut context = Context::current();
-                    context.deadline = Instant::now()
-                        + deadline
-                            .saturating_duration_since(Instant::now())
-                            .min(Duration::from_secs(1));
+                    let context = Context::with_deadline(
+                        Instant::now()
+                            + deadline
+                                .saturating_duration_since(Instant::now())
+                                .min(Duration::from_secs(1)),
+                    );
                     let read_log_id = match client.read_index(context).await {
                         Ok(Ok(log_id)) => log_id,
                         Ok(Err(source)) => {

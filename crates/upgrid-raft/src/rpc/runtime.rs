@@ -1,4 +1,4 @@
-//! Adapts generic transport channels to the UpGrid tarpc service.
+//! Adapts generic transport channels to the UpGrid RPC service.
 
 use std::cell::OnceCell;
 use std::pin::pin;
@@ -8,12 +8,11 @@ use compio::runtime::spawn;
 use openraft::alias::NodeOf;
 use openraft_rt_compio::futures::lock::Mutex;
 use openraft_rt_compio::futures::{FutureExt, StreamExt};
-use tarpc::client::{Config, NewClient};
-use tarpc::server::{BaseChannel, Channel};
 use tracing::debug;
+use upgrid_rpc::server::Channel;
 use upgrid_transport::{RpcSession, RpcTransport};
 
-use super::service::{UpgridServer, UpgridService, UpgridServiceClient};
+use super::service::{UpgridServer, UpgridServiceAdapter, UpgridServiceClient};
 use crate::Result;
 use crate::raft::{Raft, TC};
 
@@ -48,10 +47,7 @@ impl Rpc {
 
     pub(crate) async fn client(&self, node: &NodeOf<TC>) -> Result<UpgridServiceClient> {
         let channel = self.transport.connect(node.host(), node.port()).await?;
-        let mut config = Config::default();
-        config.max_in_flight_requests = 1024;
-        config.pending_request_buffer = 8;
-        let NewClient { client, dispatch } = UpgridServiceClient::new(config, channel);
+        let (client, dispatch) = UpgridServiceClient::new(channel);
         spawn(dispatch.map(|result| {
             if let Err(error) = result {
                 debug!(%error, "client RPC stream closed");
@@ -86,19 +82,10 @@ impl Rpc {
         while let Some(channel) = channels.next().await {
             match channel {
                 Ok(channel) => {
-                    let server = server.clone();
+                    let service = UpgridServiceAdapter::new(server.clone());
                     spawn(async move {
-                        let mut requests = pin!(BaseChannel::with_defaults(channel).requests());
-                        while let Some(request) = requests.next().await {
-                            match request {
-                                Ok(request) => {
-                                    spawn(request.execute(server.clone().serve())).detach()
-                                }
-                                Err(error) => {
-                                    tracing::warn!(%peer, ?error, "Node RPC stream failed");
-                                    break;
-                                }
-                            }
+                        if let Err(error) = Channel::new(channel).execute(service).run().await {
+                            tracing::warn!(%peer, %error, "Node RPC stream failed");
                         }
                         debug!(%peer, "Node RPC stream disconnected");
                     })

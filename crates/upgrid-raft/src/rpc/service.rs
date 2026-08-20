@@ -16,8 +16,8 @@ use openraft::raft::{
 use openraft::storage::Snapshot;
 use openraft_rt_compio::futures::lock::Mutex;
 use serde::{Deserialize, Serialize};
-use tarpc::context::Context;
 use upgrid_config::now_ms;
+use upgrid_rpc::Context;
 
 use crate::Result;
 use crate::domain::{Command, DomainError};
@@ -41,33 +41,39 @@ impl std::fmt::Display for JoinError {
 
 impl std::error::Error for JoinError {}
 
-#[tarpc::service]
-pub trait UpgridService {
-    async fn deployment_key_fingerprint() -> [u8; 32];
-
-    async fn ping();
-
-    async fn ask_to_join(remote: Identity, token: String) -> Result<(), JoinError>;
-
-    async fn remove_node(node_id: uuid::Uuid) -> Result<(), crate::MembershipError>;
-
-    async fn full_snapshot(
-        vote: VoteOf<TC>,
-        meta: SnapshotMetaOf<TC>,
-        data: Vec<u8>,
-    ) -> Result<SnapshotResponse<TC>, RaftError<TC>>;
-
-    async fn append_entries(
-        req: AppendEntriesRequest<TC>,
-    ) -> Result<AppendEntriesResponse<TC>, RaftError<TC>>;
-
-    async fn vote(req: VoteRequest<TC>) -> Result<VoteResponse<TC>, RaftError<TC>>;
-
-    async fn client_write(
-        req: Req,
-    ) -> Result<ClientWriteResponse<TC>, RaftError<TC, ClientWriteError<TC>>>;
-
-    async fn read_index() -> Result<LogIdOf<TC>, RaftError<TC, LinearizableReadError<TC>>>;
+upgrid_rpc::service! {
+    pub service {
+        trait UpgridService;
+        client UpgridServiceClient;
+        server UpgridServiceAdapter;
+        request UpgridServiceRequest;
+        response UpgridServiceResponse;
+        DeploymentKeyFingerprint => deployment_key_fingerprint() -> [u8; 32];
+        Ping => ping() -> ();
+        AskToJoin => ask_to_join(
+            remote: Identity,
+            token: String,
+        ) -> Result<(), JoinError>;
+        RemoveNode => remove_node(
+            node_id: uuid::Uuid,
+        ) -> Result<(), crate::MembershipError>;
+        FullSnapshot => full_snapshot(
+            vote: VoteOf<TC>,
+            meta: SnapshotMetaOf<TC>,
+            data: Vec<u8>,
+        ) -> Result<SnapshotResponse<TC>, RaftError<TC>>;
+        AppendEntries => append_entries(
+            req: AppendEntriesRequest<TC>,
+        ) -> Result<AppendEntriesResponse<TC>, RaftError<TC>>;
+        Vote => vote(
+            req: VoteRequest<TC>,
+        ) -> Result<VoteResponse<TC>, RaftError<TC>>;
+        ClientWrite => client_write(
+            req: Req,
+        ) -> Result<ClientWriteResponse<TC>, RaftError<TC, ClientWriteError<TC>>>;
+        ReadIndex => read_index(
+        ) -> Result<LogIdOf<TC>, RaftError<TC, LinearizableReadError<TC>>>;
+    }
 }
 
 #[derive(Clone)]
@@ -104,7 +110,7 @@ impl UpgridServer {
                 Ok(_) => return Ok(()),
                 Err(error)
                     if is_membership_change_in_progress(&error)
-                        && Instant::now() < context.deadline =>
+                        && Instant::now() < context.deadline() =>
                 {
                     sleep(std::time::Duration::from_millis(50)).await;
                 }
@@ -123,7 +129,7 @@ impl UpgridServer {
                 Ok(_) => return Ok(()),
                 Err(error)
                     if is_membership_change_in_progress(&error)
-                        && Instant::now() < context.deadline =>
+                        && Instant::now() < context.deadline() =>
                 {
                     sleep(std::time::Duration::from_millis(50)).await;
                 }
@@ -164,7 +170,7 @@ impl UpgridService for UpgridServer {
 
     async fn ask_to_join(
         self,
-        context: tarpc::context::Context,
+        context: Context,
         remote: Identity,
         token: String,
     ) -> Result<(), JoinError> {
@@ -217,7 +223,7 @@ impl UpgridService for UpgridServer {
 
     async fn remove_node(
         self,
-        context: tarpc::context::Context,
+        context: Context,
         node_id: uuid::Uuid,
     ) -> Result<(), crate::MembershipError> {
         let _membership_change = self.membership_changes.lock().await;

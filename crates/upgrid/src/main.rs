@@ -62,6 +62,7 @@ fn log_filter(level: LevelFilter) -> Targets {
         .with_target("upgrid_notification", level)
         .with_target("upgrid_monitor", level)
         .with_target("upgrid_raft", level)
+        .with_target("upgrid_rpc", level)
         .with_target("upgrid_transport", level)
         .with_target("openraft", LevelFilter::OFF)
         .with_target("rustls", LevelFilter::WARN)
@@ -181,7 +182,7 @@ mod logging_tests {
         let filter = log_filter(LevelFilter::INFO);
         assert!(filter.would_enable("upgrid_raft::node", &Level::INFO));
         assert!(!filter.would_enable("upgrid_raft::node", &Level::DEBUG));
-        assert!(!filter.would_enable("tarpc::client", &Level::INFO));
+        assert!(filter.would_enable("upgrid_rpc::client", &Level::INFO));
     }
 
     #[test]
