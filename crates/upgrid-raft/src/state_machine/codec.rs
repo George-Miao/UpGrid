@@ -18,8 +18,12 @@ pub(crate) fn encode_snapshot(value: &ApplicationState) -> io::Result<Vec<u8>> {
 }
 
 pub(super) fn decode_snapshot(bytes: &[u8]) -> io::Result<Decoded<ApplicationState>> {
-    let (version, payload) = split(bytes).map_err(invalid_data)?;
-    let value = migrations::snapshot(version, payload).map_err(invalid_data)?;
+    decode(bytes).map_err(invalid_data)
+}
+
+fn decode(bytes: &[u8]) -> Result<Decoded<ApplicationState>, FormatError> {
+    let (version, payload) = split(bytes)?;
+    let value = migrations::snapshot(version, payload).context(DecodeSnafu)?;
     Ok(Decoded {
         value,
         migrated: version != CURRENT_VERSION,
@@ -48,7 +52,7 @@ fn split(bytes: &[u8]) -> Result<(&str, &[u8]), FormatError> {
     Ok((version, &payload[1..]))
 }
 
-fn invalid_data(error: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
+fn invalid_data(error: FormatError) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, error)
 }
 
@@ -59,6 +63,9 @@ enum FormatError {
 
     #[snafu(display("state-machine version is not UTF-8: {source}"))]
     InvalidVersion { source: str::Utf8Error },
+
+    #[snafu(display("failed to decode state-machine data: {source}"))]
+    Decode { source: migrations::Error },
 
     #[snafu(display("failed to encode state-machine data: {source}"))]
     Encode { source: postcard::Error },

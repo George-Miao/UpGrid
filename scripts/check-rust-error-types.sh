@@ -11,8 +11,8 @@ if matches="$(rg -n \
   exit 1
 fi
 
-if matches="$(rg -n -U \
-  'Result[[:space:]]*<[^;{}]{0,500},[[:space:]]*(std::string::)?String[[:space:]]*>|type[[:space:]]+[A-Za-z0-9_]*Error[[:space:]]*=[[:space:]]*(std::string::)?String' \
+if matches="$(rg --pcre2 -n -U \
+  '(?(DEFINE)(?<A><(?:[^<>;{}]++|(?&A))*+>))Result[[:space:]]*<(?:[^<>,;{}]++|(?&A))*+,[[:space:]]*(std::string::)?String[[:space:]]*>|type[[:space:]]+[A-Za-z0-9_]*Error[[:space:]]*=[[:space:]]*(std::string::)?String' \
   "$repository/crates" --glob '*.rs')"; then
   printf '%s\n' "$matches" >&2
   printf 'use a typed SNAFU error instead of String as an error type\n' >&2
