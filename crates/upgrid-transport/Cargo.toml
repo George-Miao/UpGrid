@@ -3,6 +3,7 @@ name = "upgrid-transport"
 publish = false
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 async-stream.workspace = true

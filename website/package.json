@@ -1,6 +1,7 @@
 {
   "name": "upgrid-website",
   "private": true,
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "version": "0.0.1",
   "scripts": {
