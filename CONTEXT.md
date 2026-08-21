@@ -12,8 +12,28 @@ _Avoid_: network, federation
 The group of UpGrid nodes that collectively owns a deployment's monitoring data and availability.
 
 **Node**:
-One durably identified participating member of a cluster. A node retains its identity across restarts; a replacement is a new node.
+A participating member of a cluster, durably identified by its Node ID across restarts. Network addresses are mutable reachability metadata; a replacement is a new node.
 _Avoid_: instance, server, peer
+
+**Node ID**:
+The immutable identifier assigned to a node when it is created and retained across restarts.
+_Avoid_: Raft ID, node address
+
+**Local address**:
+A locally owned host and port on which a node accepts cluster traffic. A node can have multiple local addresses, and they are not part of its identity.
+_Avoid_: bind address, public address
+
+**Reachable address candidate**:
+A complete `up://` locator discovered for a node but not yet proven by a successful connection from another node.
+_Avoid_: observed address, unverified address
+
+**Reachable address**:
+A cluster-owned `up://` locator that another node can use to establish a connection. A node can have multiple reachable addresses, supplied by an operator or promoted from verified candidates.
+_Avoid_: advertised address, public address, rendezvous address
+
+**Route connectivity**:
+A process-local observation of whether one source node can connect to one reachable address. Connectivity from one node to another exists when at least one route to the destination succeeds.
+_Avoid_: route health, target evaluation
 
 **Cluster API**:
 The consistent user-facing interface exposed by every node for interacting with deployment-owned data.
