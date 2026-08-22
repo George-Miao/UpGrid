@@ -5,6 +5,7 @@ import { css, html, LitElement, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HttpAssertion } from "@/app/api.ts";
 import "@/component/empty-state.ts";
+import "@/component/icon-button.ts";
 import { helpTooltipStyles, renderHelpTooltip } from "@/component/tooltip.ts";
 import { controlValidationMessage } from "@/util/form-validation.ts";
 
@@ -19,7 +20,7 @@ const labels: Record<AssertionKind, string> = {
   script: "Script",
 };
 
-@customElement("http-assertion-editor")
+@customElement("upgrid-http-assertion-editor")
 export class HttpAssertionEditor extends LitElement {
   static formAssociated = true;
 
@@ -28,6 +29,7 @@ export class HttpAssertionEditor extends LitElement {
     :host { display: grid; gap: 10px; }
     .assertions, .assertion-list { display: grid; gap: 10px; }
     .assertion-list { max-height: min(420px, 50vh); overflow-y: auto; padding-right: 4px; scrollbar-gutter: stable; }
+    ::slotted(.required-assertion) { display: grid; grid-template-columns: minmax(140px, 0.7fr) minmax(180px, 1.3fr) auto; gap: 8px; align-items: end; }
     .assertion { display: grid; grid-template-columns: minmax(140px, 0.7fr) minmax(180px, 1.3fr) auto; gap: 8px; align-items: end; }
     .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .fields.single { grid-template-columns: 1fr; }
@@ -36,16 +38,12 @@ export class HttpAssertionEditor extends LitElement {
     textarea { min-height: 72px; resize: vertical; font-family: ui-monospace, monospace; }
     .actions { display: flex; align-items: flex-end; gap: 4px; }
     button { border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); padding: 8px 10px; cursor: pointer; user-select: none; }
-    button.icon-button:disabled, button.add:disabled { border-color: var(--disabled-border); background: var(--disabled-bg); color: var(--disabled-text); cursor: not-allowed; opacity: 1; }
-    .icon-button { display: grid; width: 44px; height: 44px; min-height: 44px; place-items: center; border-radius: 9px; padding: 0; }
-    .icon-button iconify-icon { display: inline-block; width: 16px; height: 16px; font-size: 16px; }
-    .icon-button.move { color: var(--green); }
-    .icon-button.danger { color: var(--danger-text); }
+    button.add:disabled { border-color: var(--disabled-border); background: var(--disabled-bg); color: var(--disabled-text); cursor: not-allowed; opacity: 1; }
     .add { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; justify-self: end; border-color: var(--line); background: var(--panel-2); color: var(--text); padding: 6px 10px; font-size: 13px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease; }
     .add::before { color: var(--green); content: "+"; font-size: 18px; font-weight: 400; line-height: 12px; }
     .add:hover { border-color: var(--green); color: var(--green); }
     .add:active { transform: translateY(1px); }
-    @media (max-width: 720px) { .assertion { grid-template-columns: 1fr; } .fields { grid-template-columns: 1fr; } }
+    @media (max-width: 720px) { .assertion, ::slotted(.required-assertion) { grid-template-columns: 1fr; } .fields { grid-template-columns: 1fr; } }
   `;
 
   @property({ attribute: false })
@@ -154,7 +152,8 @@ export class HttpAssertionEditor extends LitElement {
       <div class="assertions">
         <button class="add" type="button" aria-label="Add assertion" @click=${this.add}>Add assertion</button>
         <div class="assertion-list">
-          ${this.draft.length ? this.draft.map((assertion, index) => this.renderAssertion(assertion, index)) : html`<upgrid-empty-state>No assertions</upgrid-empty-state>`}
+          <slot name="required"></slot>
+          ${this.draft.length ? this.draft.map((assertion, index) => this.renderAssertion(assertion, index)) : html`<upgrid-empty-state>No additional assertions</upgrid-empty-state>`}
         </div>
       </div>
     `;
@@ -166,9 +165,9 @@ export class HttpAssertionEditor extends LitElement {
         <label>Type<select aria-label=${`Assertion ${index + 1} type`} .value=${assertion.kind} @change=${(event: Event) => this.setKind(index, event)}>${Object.entries(labels).map(([kind, label]) => html`<option value=${kind}>${label}</option>`)}</select></label>
         ${this.renderFields(assertion, index)}
         <div class="actions">
-          <button class="icon-button move" type="button" aria-label=${`Move assertion ${index + 1} up`} title="Move up" ?disabled=${index === 0} @click=${() => this.move(index, -1)}><iconify-icon .icon=${upIcon} aria-hidden="true"></iconify-icon></button>
-          <button class="icon-button move" type="button" aria-label=${`Move assertion ${index + 1} down`} title="Move down" ?disabled=${index === this.draft.length - 1} @click=${() => this.move(index, 1)}><iconify-icon .icon=${downIcon} aria-hidden="true"></iconify-icon></button>
-          <button class="icon-button danger" type="button" aria-label=${`Remove assertion ${index + 1}`} title="Remove assertion" @click=${() => this.removeAssertion(index)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
+          <upgrid-icon-button .icon=${upIcon} label=${`Move assertion ${index + 1} up`} title="Move up" variant="move" ?disabled=${index === 0} @click=${() => this.move(index, -1)}></upgrid-icon-button>
+          <upgrid-icon-button .icon=${downIcon} label=${`Move assertion ${index + 1} down`} title="Move down" variant="move" ?disabled=${index === this.draft.length - 1} @click=${() => this.move(index, 1)}></upgrid-icon-button>
+          <upgrid-icon-button .icon=${deleteIcon} label=${`Remove assertion ${index + 1}`} title="Remove assertion" variant="danger" @click=${() => this.removeAssertion(index)}></upgrid-icon-button>
         </div>
       </div>
     `;

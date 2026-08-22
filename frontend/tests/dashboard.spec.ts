@@ -243,7 +243,7 @@ test("creates a target from the embedded dashboard", async ({ page }) => {
   expect(formTabs).not.toBeNull();
   expect(formTabs!.y).toBeGreaterThanOrEqual(dialogHead!.y);
   expect(formTabs!.y + formTabs!.height).toBeLessThanOrEqual(dialogHead!.y + dialogHead!.height);
-  const [typeField, endpointField] = await Promise.all([addTarget.getByLabel("Type").boundingBox(), addTarget.getByLabel("URL / endpoint").boundingBox()]);
+  const [typeField, endpointField] = await Promise.all([addTarget.getByLabel(/^Type\b/).boundingBox(), addTarget.getByLabel("URL / endpoint").boundingBox()]);
   expect(typeField).not.toBeNull();
   expect(endpointField).not.toBeNull();
   expect(endpointField!.width).toBeGreaterThan(typeField!.width * 1.5);
@@ -272,13 +272,17 @@ test("creates and edits ordered HTTP assertions", async ({ page }) => {
   const create = page.getByRole("dialog", { name: "Add target" });
   await create.getByLabel("Name").fill("Assertion target");
   await create.getByLabel("URL").fill(new URL("/healthz", page.url()).toString());
+  await expect(create.getByLabel("Expected status", { exact: true })).not.toBeVisible();
   await create.getByRole("tab", { name: "Assertions" }).click();
   await expect(create.getByRole("tab", { name: "Assertions" })).toHaveAttribute("aria-selected", "true");
+  const expectedStatus = create.getByLabel("Expected status", { exact: true });
+  await expect(expectedStatus).toHaveValue("200-299");
+  await expect(create.getByLabel("Status assertion type")).toBeDisabled();
   await expect(create.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "false");
-  await expect(create.locator("http-assertion-editor fieldset")).toHaveCount(0);
-  const assertionEmpty = create.locator("http-assertion-editor upgrid-empty-state");
+  await expect(create.locator("upgrid-http-assertion-editor fieldset")).toHaveCount(0);
+  const assertionEmpty = create.locator("upgrid-http-assertion-editor upgrid-empty-state");
   await expect(create.getByRole("button", { name: "Add assertion" })).toHaveCSS("font-weight", "400");
-  await expect(assertionEmpty).toContainText("No assertions");
+  await expect(assertionEmpty).toContainText("No additional assertions");
   const illustration = assertionEmpty.locator(".illustration");
   const [emptyIllustration, emptyIcon, emptyText] = await Promise.all([illustration.boundingBox(), illustration.locator("iconify-icon").boundingBox(), assertionEmpty.locator("p").boundingBox()]);
   expect(emptyIllustration).not.toBeNull();
@@ -319,14 +323,21 @@ test("creates and edits ordered HTTP assertions", async ({ page }) => {
   await create.getByLabel("Assertion 4 header name").fill("content-type");
   await create.getByLabel("Assertion 5 maximum milliseconds").fill("60000");
   await create.getByLabel("Assertion 6 script").fill("status >= 200");
+  await expectedStatus.fill("200-204,206");
   await create.getByRole("button", { name: "Create target" }).click();
 
   const created = (await (await page.request.get("/api/v1/targets")).json()).find((target: { name: string }) => target.name === "Assertion target");
   expect(created.assertions.map((assertion: { kind: string }) => assertion.kind)).toEqual(kinds);
+  expect(created.accepted_statuses).toEqual([
+    { start: 200, end: 204 },
+    { start: 206, end: 206 },
+  ]);
 
   await page.getByRole("button", { name: "Assertion target" }).click();
   const edit = page.getByRole("dialog", { name: "Target details" });
   await edit.getByRole("tab", { name: "Assertions" }).click();
+  await expect(edit.getByLabel("Expected status", { exact: true })).toHaveValue("200-204,206");
+  await edit.getByLabel("Expected status", { exact: true }).fill("201,204-205");
   await edit.getByLabel("Assertion 1 required text").fill("healthy");
   await expect(edit.getByRole("button", { name: "Save changes" })).toBeEnabled();
   await edit.getByLabel("Assertion 2 regular expression").fill("healthy|ready");
@@ -341,11 +352,15 @@ test("creates and edits ordered HTTP assertions", async ({ page }) => {
   await expect(edit.getByLabel("Assertion 6 maximum milliseconds")).toBeVisible();
   await edit.getByRole("button", { name: "Save changes" }).click();
 
-  const updated = (await (await page.request.get(`/api/v1/targets/${created.id}`)).json()).assertions;
-  expect(updated.map((assertion: { kind: string }) => assertion.kind)).toEqual(["body_contains", "body_regex", "json_path", "response_header", "script", "latency"]);
-  expect(updated[2]).toMatchObject({ path: "$.ready", expected: "true" });
-  expect(updated[3]).toMatchObject({ name: "server", value: "UpGrid" });
-  expect(updated[4]).toMatchObject({ source: "status == 200 && latency_ms < 30000" });
+  const updated = await (await page.request.get(`/api/v1/targets/${created.id}`)).json();
+  expect(updated.accepted_statuses).toEqual([
+    { start: 201, end: 201 },
+    { start: 204, end: 205 },
+  ]);
+  expect(updated.assertions.map((assertion: { kind: string }) => assertion.kind)).toEqual(["body_contains", "body_regex", "json_path", "response_header", "script", "latency"]);
+  expect(updated.assertions[2]).toMatchObject({ path: "$.ready", expected: "true" });
+  expect(updated.assertions[3]).toMatchObject({ name: "server", value: "UpGrid" });
+  expect(updated.assertions[4]).toMatchObject({ source: "status == 200 && latency_ms < 30000" });
 });
 
 test("creates and edits a target with custom CA and mutual TLS secrets", async ({ page }) => {
@@ -388,6 +403,13 @@ test("creates and edits a target with custom CA and mutual TLS secrets", async (
     tls_client_private_key_secret_id: privateKeySecretId,
   });
   await expect(page.getByText("private-ca-pem")).toHaveCount(0);
+  const deleteReferencedSecret = page.getByRole("button", { name: "Delete secret Browser client certificate" });
+  await expect(deleteReferencedSecret).toBeDisabled();
+  const disabledColors = await deleteReferencedSecret.evaluate((button) => {
+    const style = getComputedStyle(button);
+    return [style.backgroundColor, style.borderTopColor, style.color].map((color) => color.match(/\d+/g)?.slice(0, 3).map(Number) ?? []);
+  });
+  for (const color of disabledColors) expect(Math.max(...color) - Math.min(...color)).toBeLessThanOrEqual(16);
 
   await page.getByRole("button", { name: "Mutual TLS target" }).click();
   const edit = page.getByRole("dialog", { name: "Target details" });
@@ -411,7 +433,7 @@ test("creates and edits a TCP-connect target", async ({ page }) => {
   const addTarget = page.getByRole("dialog", { name: "Add target" });
 
   await addTarget.getByLabel("Method").fill("POST");
-  await addTarget.getByLabel("Type").selectOption("tcp");
+  await addTarget.getByLabel(/^Type\b/).selectOption("tcp");
   await expect(addTarget.getByLabel("Method")).toBeHidden();
   await expect(addTarget.getByLabel("Method")).toBeDisabled();
   await expect(addTarget.getByLabel("URL")).toHaveAttribute("placeholder", "database.internal:5432");
@@ -430,7 +452,7 @@ test("creates and edits a TCP-connect target", async ({ page }) => {
 
   const details = page.getByRole("dialog", { name: "Target details" });
   await details.getByRole("tab", { name: "General" }).click();
-  await expect(details.getByLabel("Type")).toHaveValue("TCP");
+  await expect(details.getByLabel(/^Type\b/)).toHaveValue("TCP");
   await expect(details.getByLabel("Method")).toHaveCount(0);
   await details.getByLabel("Name").fill("Renamed TCP service");
   await details.getByRole("button", { name: "Save changes" }).click();
@@ -448,7 +470,7 @@ test("creates DNS, ICMP, and TLS target kinds", async ({ page }) => {
   ] as const) {
     await page.getByRole("button", { name: "Add target" }).click();
     const dialog = page.getByRole("dialog", { name: "Add target" });
-    await dialog.getByLabel("Type").selectOption(kind);
+    await dialog.getByLabel(/^Type\b/).selectOption(kind);
     await dialog.getByLabel("Name").fill(`${kind.toUpperCase()} target`);
     await dialog.getByLabel("URL").fill(endpoint);
     await dialog.getByRole("button", { name: "Create target" }).click();
@@ -684,6 +706,8 @@ test("pauses and resumes cluster-wide evaluations", async ({ page }) => {
   const resume = page.getByRole("button", { name: "Resume evaluations" });
   await expect(resume).toHaveClass(/success/);
   await expect(resume).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await resume.hover();
+  await expect(resume).toHaveCSS("border-color", "rgb(7, 95, 58)");
   await resume.click();
   await expect(page.getByRole("button", { name: "Pausing target" })).not.toContainText("Paused");
 });
@@ -834,6 +858,33 @@ test("keeps Target tabs in the compact dialog title bar", async ({ page }) => {
   expect(notifications!.x + notifications!.width).toBeLessThanOrEqual(tabs!.x + tabs!.width);
   await expect(tabList).toHaveCSS("border-radius", "14px");
   await expect(notificationsTab).toHaveCSS("border-radius", "10px");
+});
+
+test("keeps target switches attached to their labels and stacks narrow fields", async ({ page }) => {
+  await page.setViewportSize({ width: 703, height: 800 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add target" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Add target" });
+  const field = dialog.locator('upgrid-toggle-switch[name="follow_redirects"]');
+  const control = dialog.getByRole("switch", { name: "Follow redirects" });
+  const method = dialog.getByLabel("Method");
+  const maximum = dialog.getByLabel("Maximum redirects");
+  let [fieldBox, controlBox, methodBox, maximumBox] = await Promise.all([field.boundingBox(), control.boundingBox(), method.boundingBox(), maximum.boundingBox()]);
+  expect(fieldBox).not.toBeNull();
+  expect(controlBox).not.toBeNull();
+  expect(methodBox).not.toBeNull();
+  expect(maximumBox).not.toBeNull();
+  expect(controlBox!.x - fieldBox!.x).toBeLessThan(150);
+  const controlCenters = [controlBox!, methodBox!, maximumBox!].map((box) => box.y + box.height / 2);
+  expect(Math.max(...controlCenters) - Math.min(...controlCenters)).toBeLessThan(2);
+  expect(await dialog.evaluate((element) => element.scrollWidth - element.clientWidth)).toBe(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  [fieldBox, controlBox, maximumBox] = await Promise.all([field.boundingBox(), control.boundingBox(), maximum.boundingBox()]);
+  expect(fieldBox).not.toBeNull();
+  expect(controlBox).not.toBeNull();
+  expect(maximumBox).not.toBeNull();
+  expect(maximumBox!.y).toBeGreaterThan(fieldBox!.y + fieldBox!.height + 8);
 });
 
 test("aligns compact Target rows on mobile", async ({ page }) => {
@@ -989,7 +1040,7 @@ test("creates a Cluster and optional resources through OOBE", async ({ page }) =
   await setup.getByRole("button", { name: "Create new cluster" }).click();
 
   await expect(page).toHaveURL(/\/setup\/channel$/, { timeout: 20_000 });
-  const channelForm = page.locator("notification-channel-form");
+  const channelForm = page.locator("upgrid-notification-channel-form");
   await channelForm.getByLabel("Type").selectOption("smtp");
   await expect(channelForm.getByLabel("SMTP host")).toBeVisible();
   await channelForm.getByLabel("Type").selectOption("webhook");

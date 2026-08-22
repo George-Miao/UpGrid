@@ -1,7 +1,9 @@
 import { html, nothing } from "lit";
+import "@/component/switch.ts";
 import deleteIcon from "@iconify-icons/lucide/trash-2";
 import type { ApiToken, Identity, ManageSettings } from "@/app/api.ts";
 import "@/component/empty-state.ts";
+import "@/component/icon-button.ts";
 import { renderCard } from "@/component/card.ts";
 import { renderFormSubmit } from "@/component/form-submit.ts";
 import { renderHeaderBrand } from "@/component/header-brand.ts";
@@ -95,7 +97,7 @@ export function renderUsersPage(identities: Identity[], currentIdentityId: strin
                     <code>Operator identity${identity.id === currentIdentityId ? " · current user" : ""}</code>
                   </span>
                 </button>
-                <button class="button danger icon-button" type="button" aria-label=${`Delete user ${identity.username}`} title=${`Delete ${identity.username}`} ?disabled=${identity.id === currentIdentityId || saving} @click=${() => actions.deleteIdentity(identity)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
+                <upgrid-icon-button .icon=${deleteIcon} label=${`Delete user ${identity.username}`} title=${`Delete ${identity.username}`} variant="danger" ?disabled=${identity.id === currentIdentityId || saving} @click=${() => actions.deleteIdentity(identity)}></upgrid-icon-button>
               </div>
             `,
           )}
@@ -168,20 +170,12 @@ export function renderManagePage(settings: ManageSettings | undefined, saving: b
         title: "Public status access",
         content: html`
           <form @submit=${update} @input=${changed}>
-            <label class="switch">
+            <upgrid-toggle-switch name="public_status_enabled" .checked=${settings?.public_status_enabled ?? false} ?disabled=${settings === undefined || saving}>
               <span class="setting-copy">
                 Allow status viewing without login
                 <small>External visitors can see target names, states, and recent evaluation metrics. URLs, configuration, alerts, cluster data, and administration remain private.</small>
               </span>
-              <input
-                class="switch-control"
-                name="public_status_enabled"
-                type="checkbox"
-                role="switch"
-                .checked=${settings?.public_status_enabled ?? false}
-                ?disabled=${settings === undefined || saving}
-              />
-            </label>
+            </upgrid-toggle-switch>
             <div class="dialog-actions">${renderFormSubmit({ label: saving ? "Saving..." : "Save changes", busy: saving, blocked: settings === undefined, error, baselineKey: String(settings?.public_status_enabled), blockedMessage: "Settings are unavailable", trackChanges: true })}</div>
           </form>
         `,

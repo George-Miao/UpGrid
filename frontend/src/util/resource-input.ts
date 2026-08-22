@@ -38,17 +38,29 @@ export function channelInput(fields: FormData, kind: ChannelKind, update = false
   };
 }
 
+function acceptedStatuses(fields: FormData): Array<{ start: number; end: number }> {
+  return String(fields.get("statuses") ?? "200-299")
+    .split(",")
+    .map((part) => {
+      const [startText, endText] = part.trim().split("-");
+      const start = Number(startText);
+      return { start, end: endText === undefined ? start : Number(endText) };
+    });
+}
+
 export function targetInput(fields: FormData, notificationChannelIds: string[] = [], useDefaultChannels = true, kind = String(fields.get("kind") ?? "http") as TargetKind, assertions: HttpAssertion[] = []): TargetInput {
   const endpoint = String(fields.get("url"));
-  const url = kind === "http" ? endpoint : `${kind}://${endpoint.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")}`;
+  const isHttp = kind === "http";
+  const followRedirects = !isHttp || fields.get("follow_redirects") === "on";
+  const url = isHttp ? endpoint : `${kind}://${endpoint.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")}`;
   return {
     name: String(fields.get("name")),
     kind,
     url,
     method: String(fields.get("method") ?? "GET"),
-    accepted_statuses: [{ start: 200, end: 299 }],
-    follow_redirects: true,
-    max_redirects: 5,
+    accepted_statuses: isHttp ? acceptedStatuses(fields) : [{ start: 200, end: 299 }],
+    follow_redirects: followRedirects,
+    max_redirects: isHttp ? (followRedirects ? Number(fields.get("max_redirects") ?? 5) : 0) : 5,
     interval_seconds: Number(fields.get("interval")),
     timeout_seconds: Number(fields.get("timeout")),
     failure_threshold: Number(fields.get("failures")),
@@ -56,7 +68,7 @@ export function targetInput(fields: FormData, notificationChannelIds: string[] =
     headers: {},
     body: null,
     assertions,
-    skip_tls_verification: false,
+    skip_tls_verification: isHttp && fields.get("skip_tls_verification") === "on",
     tls_ca_secret_id: optionalId(fields, "tls_ca_secret_id"),
     tls_client_certificate_secret_id: optionalId(fields, "tls_client_certificate_secret_id"),
     tls_client_private_key_secret_id: optionalId(fields, "tls_client_private_key_secret_id"),

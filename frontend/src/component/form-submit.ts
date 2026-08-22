@@ -18,7 +18,7 @@ function formSnapshot(form: HTMLFormElement): string {
 }
 
 @customElement("upgrid-form-submit")
-export class UpgridFormSubmit extends LitElement {
+export class FormSubmit extends LitElement {
   @property({ type: Boolean }) busy = false;
   @property({ type: Boolean }) blocked = false;
   @property({ attribute: false }) changed: boolean | undefined;

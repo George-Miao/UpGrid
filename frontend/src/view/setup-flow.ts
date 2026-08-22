@@ -5,10 +5,11 @@ import "@/component/channel-form.ts";
 import "@/component/empty-state.ts";
 import { cardStyles, renderCard } from "@/component/card.ts";
 import { renderFormSubmit } from "@/component/form-submit.ts";
+import "@/component/switch.ts";
 import { targetInput } from "@/util/resource-input.ts";
 
 @customElement("upgrid-setup")
-export class UpgridSetup extends LitElement {
+export class SetupFlow extends LitElement {
   @property({ attribute: false }) setup!: Setup;
   @state() private channels: Channel[] = [];
   @state() private saving = false;
@@ -30,7 +31,7 @@ export class UpgridSetup extends LitElement {
     .cluster-identity { border-bottom: 1px solid var(--line); }
     .cluster-create { display: grid; gap: 14px; }
     .cluster-create-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
-    .cluster-create button { justify-self: end; }
+    .cluster-create upgrid-form-submit { justify-self: end; }
     .cluster-copy h2 { margin: 0; font-size: 17px; }
     .cluster-copy p { margin: 2px 0 0; color: var(--muted); }
     .cluster-divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
@@ -41,12 +42,6 @@ export class UpgridSetup extends LitElement {
     .cluster-join-fields button { height: 44px; white-space: nowrap; }
     form { display: grid; gap: 13px; }
     label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
-    .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .switch-label { display: flex; min-width: 0; align-items: center; gap: 8px; }
-    .switch-control { width: 42px; min-height: 24px; height: 24px; flex: none; appearance: none; border: 1px solid var(--line); border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
-    .switch-control::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
-    .switch-control:checked { border-color: var(--button-border); background: var(--button-bg); }
-    .switch-control:checked::after { background: var(--button-text); transform: translateX(18px); }
     fieldset { display: grid; gap: 8px; min-width: 0; margin: 0; border: 0; padding: 0; }
     legend { margin-bottom: 4px; padding: 0; color: var(--text); font-size: 14px; }
     input:not([type="checkbox"]), select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font: inherit; font-size: 16px; transition: border-color 160ms ease, opacity 160ms ease; }
@@ -61,7 +56,7 @@ export class UpgridSetup extends LitElement {
     .secondary { background: transparent; color: var(--muted); border-color: var(--line); }
     .notice { margin-bottom: 16px; border: 1px solid var(--notice-border); border-radius: 10px; background: var(--notice-bg); color: var(--notice-text); padding: 10px 12px; }
     .count { display: inline-block; margin-top: 6px; color: var(--green); font-size: 12px; }
-    @media (max-width: 620px) { .row, .cluster-create-fields, .cluster-join-fields { grid-template-columns: 1fr; } .cluster-create button, .cluster-join button { justify-self: end; } }
+    @media (max-width: 620px) { .row, .cluster-create-fields, .cluster-join-fields { grid-template-columns: 1fr; } .cluster-create upgrid-form-submit, .cluster-join upgrid-form-submit { justify-self: end; } }
     @media (max-height: 650px) and (min-width: 621px) {
       h1 { margin: 2px 0 4px; font-size: 30px; }
       .lead { margin-bottom: 8px; font-size: 13px; }
@@ -243,7 +238,7 @@ export class UpgridSetup extends LitElement {
       <span class="eyebrow">Optional · step 2 of 3</span><h1>Add a notification channel</h1>
       <p class="lead">Send availability transitions through Telegram, SMTP, or a webhook. <span class="count">${this.setup.channel_count} already configured</span></p>
       ${renderCard({
-        content: html`<notification-channel-form default-channel submit-label="Create and continue" cancel-label="Skip" .disabled=${this.saving} @channel-cancel=${this.next} @channel-saved=${this.next}></notification-channel-form>`,
+        content: html`<upgrid-notification-channel-form default-channel submit-label="Create and continue" cancel-label="Skip" .disabled=${this.saving} @channel-cancel=${this.next} @channel-saved=${this.next}></upgrid-notification-channel-form>`,
       })}`;
   }
 
@@ -258,11 +253,7 @@ export class UpgridSetup extends LitElement {
             <label>URL<input name="url" type="url" placeholder="https://example.com/health" required /></label>
             <div class="row"><label>Method<input name="method" value="GET" required /></label><label>Interval (seconds)<input name="interval" type="number" min="1" value="60" required /></label></div>
             <div class="row"><label>Timeout (seconds)<input name="timeout" type="number" min="1" value="10" required /></label><label>Failures before down<input name="failures" type="number" min="1" value="3" required /></label></div>
-            ${
-              this.channels.length
-                ? html`<fieldset><legend>Notification channels</legend>${this.channels.map((channel) => html`<label class="switch"><span>${channel.name}</span><input class="switch-control" name="channel_id" type="checkbox" role="switch" value=${channel.id} /></label>`)}</fieldset>`
-                : html`<upgrid-empty-state>No notification channels are available</upgrid-empty-state>`
-            }
+            ${this.channels.length ? html`<fieldset><legend>Notification channels</legend>${this.channels.map((channel) => html`<upgrid-toggle-switch name="channel_id" value=${channel.id}>${channel.name}</upgrid-toggle-switch>`)}</fieldset>` : html`<upgrid-empty-state>No notification channels are available</upgrid-empty-state>`}
             <div class="actions"><button class="secondary" type="button" @click=${this.next} ?disabled=${this.saving}>Skip</button>${renderFormSubmit({ label: "Create and finish", busy: this.saving, error: this.error })}</div>
           </form>
         `,

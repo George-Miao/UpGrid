@@ -4,7 +4,7 @@ import { LitElement, css, html } from "lit";
 import { customElement } from "lit/decorators.js";
 
 @customElement("upgrid-empty-state")
-export class UpgridEmptyState extends LitElement {
+export class EmptyState extends LitElement {
   static styles = css`
     :host {
       display: block;

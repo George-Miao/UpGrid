@@ -1,8 +1,11 @@
 import editIcon from "@iconify-icons/lucide/pencil";
+import "@/component/switch.ts";
+import type { ToggleSwitch } from "@/component/switch.ts";
 import deleteIcon from "@iconify-icons/lucide/trash-2";
 import { html, nothing } from "lit";
 import type { Alert, Channel, Transition } from "@/app/api.ts";
 import "@/component/empty-state.ts";
+import "@/component/icon-button.ts";
 import { renderCard } from "@/component/card.ts";
 
 export interface AlertFilters {
@@ -126,9 +129,9 @@ export function renderAlertsPage(alerts: Alert[], transitions: Transition[], cha
                     <div class="resource channel-resource">
                       <div class="channel-summary"><div class="channel-title"><strong>${channel.name}</strong><span class="badge">${channel.kind}</span></div><code>${channel.destination}</code></div>
                       <div class="channel-actions">
-                        <label class="switch"><span>Default</span><input class="switch-control" type="checkbox" role="switch" aria-label=${`Default channel ${channel.name}`} .checked=${channel.default} @change=${(event: Event) => actions.setDefault(channel, (event.target as HTMLInputElement).checked)} /></label>
-                        <button class="button secondary icon-button" aria-label=${`Edit channel ${channel.name}`} title=${`Edit ${channel.name}`} @click=${() => actions.edit(channel)}><iconify-icon .icon=${editIcon} aria-hidden="true"></iconify-icon></button>
-                        <button class="button danger icon-button" aria-label=${`Delete channel ${channel.name}`} title=${`Delete ${channel.name}`} @click=${() => actions.remove(channel)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
+                        <upgrid-toggle-switch aria-label=${`Default channel ${channel.name}`} .checked=${channel.default} @change=${(event: Event) => actions.setDefault(channel, (event.currentTarget as ToggleSwitch).checked)}>Default</upgrid-toggle-switch>
+                        <upgrid-icon-button .icon=${editIcon} label=${`Edit channel ${channel.name}`} title=${`Edit ${channel.name}`} @click=${() => actions.edit(channel)}></upgrid-icon-button>
+                        <upgrid-icon-button .icon=${deleteIcon} label=${`Delete channel ${channel.name}`} title=${`Delete ${channel.name}`} variant="danger" @click=${() => actions.remove(channel)}></upgrid-icon-button>
                       </div>
                     </div>
                   `,

@@ -14,7 +14,10 @@ import { type Section, sectionPaths, themeIcons } from "@/app/app-state.ts";
 import "@/component/channel-form.ts";
 import { cardStyles, renderCard } from "@/component/card.ts";
 import "@/component/empty-state.ts";
+import "@/component/icon-button.ts";
 import { renderFormSubmit } from "@/component/form-submit.ts";
+import "@/component/switch.ts";
+import type { ToggleSwitch } from "@/component/switch.ts";
 import { renderHeaderBrand } from "@/component/header-brand.ts";
 import { helpTooltipStyles, renderHelpTooltip } from "@/component/tooltip.ts";
 import { renderAlertsPage } from "@/view/alerts.ts";
@@ -22,8 +25,9 @@ import { type AuthActions, renderApiTokensPage, renderChangePassword, renderLogi
 import { renderFooter } from "@/view/footer.ts";
 import { renderTargetDetail } from "@/view/target-detail.ts";
 import { renderTargetForm } from "@/view/target-form.ts";
+
 @customElement("upgrid-app")
-export class UpgridApp extends AppController {
+export class Application extends AppController {
   static styles = css`
     :host {
       color-scheme: dark;
@@ -106,7 +110,7 @@ export class UpgridApp extends AppController {
     .button:active { transform: translateY(1px); }
     .button:disabled { border-color: var(--disabled-border); background: var(--disabled-bg); color: var(--disabled-text); cursor: not-allowed; opacity: 1; }
     .button[aria-busy="true"] { cursor: wait; }
-    .icon-button { display: grid; width: 44px; height: 44px; min-height: 44px; place-items: center; padding: 0; }
+    .account-menu-trigger { display: grid; width: 44px; height: 44px; min-height: 44px; place-items: center; padding: 0; }
     iconify-icon { display: inline-block; width: 18px; height: 18px; font-size: 18px; }
     .account-menu { position: relative; }
     .account-menu summary { list-style: none; }
@@ -148,7 +152,7 @@ export class UpgridApp extends AppController {
     .channel-summary { min-width: 0; }
     .channel-title, .channel-actions { display: flex; align-items: center; gap: 10px; }
     .channel-summary code { display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .channel-actions .switch span { font-size: 12px; }
+    .channel-actions upgrid-toggle-switch { font-size: 12px; }
     .alert-history { margin-bottom: 20px; }
     .alert-filters { display: grid; grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(120px, auto)); gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
     .alert-filters label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
@@ -189,7 +193,7 @@ export class UpgridApp extends AppController {
     .bulk, .bulk-actions .button { animation: reveal 160ms ease-out; }
     @keyframes reveal { from { opacity: 0; transform: translateY(-3px); } }
     dialog { width: min(580px, calc(100% - 28px)); max-height: calc(100dvh - 28px); overflow-y: auto; border: 1px solid var(--line); border-radius: 17px; background: var(--panel); color: var(--text); padding: 0; box-shadow: 0 28px 90px var(--dialog-shadow); opacity: 0; transform: translateY(8px) scale(.985); transition: opacity 170ms ease, transform 170ms ease, overlay 170ms allow-discrete, display 170ms allow-discrete; }
-    #target-dialog { width: min(720px, calc(100% - 28px)); }
+    #target-dialog, #detail-dialog { width: min(720px, calc(100% - 28px)); }
     dialog[open] { opacity: 1; transform: translateY(0) scale(1); }
     dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(5px); opacity: 0; transition: opacity 170ms ease, overlay 170ms allow-discrete, display 170ms allow-discrete; }
     dialog[open]::backdrop { opacity: 1; }
@@ -204,34 +208,36 @@ export class UpgridApp extends AppController {
     .target-dialog-head h2 { flex: none; }
     .detail-dialog-head { padding-right: 68px; }
     form { display: grid; gap: 13px; padding: 20px 22px 22px; }
-    .form-tabs { display: flex; width: fit-content; min-width: 0; max-width: 100%; gap: 4px; border: 1px solid var(--line); border-radius: 14px; background: var(--nav-bg); padding: 4px; overflow-x: auto; }
+    .form-tabs { display: flex; width: fit-content; min-width: 0; max-width: 100%; gap: 4px; border: 1px solid var(--line); border-radius: 14px; background: var(--nav-bg); padding: 4px; overflow-x: auto; scrollbar-width: none; }
+    .form-tabs::-webkit-scrollbar { display: none; }
     .form-tabs button { min-height: 34px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); padding: 7px 11px; white-space: nowrap; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; }
     .form-tabs button:hover { background: transparent; color: var(--muted); }
     .form-tabs button[aria-selected="true"], .form-tabs button[aria-selected="true"]:hover { background: var(--active-bg); color: var(--text); }
-    .form-tabs button:disabled { border-color: var(--disabled-border); background: var(--disabled-bg); color: var(--disabled-text); cursor: not-allowed; opacity: 1; }
+    .form-tabs button:disabled, .form-tabs button:disabled:hover { background: transparent; color: var(--disabled-text); cursor: not-allowed; opacity: 1; }
     .target-tab-panel { display: grid; gap: 13px; min-height: 190px; align-content: start; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
     .endpoint-row { grid-template-columns: minmax(140px, 1fr) minmax(0, 2fr); }
+    .http-settings { display: grid; grid-template-columns: minmax(140px, 1fr) auto auto; gap: 11px; align-items: end; }
+    .http-settings > upgrid-toggle-switch { align-self: end; margin-bottom: 10px; }
+    .redirect-limit { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+    .redirect-limit input { width: 72px; }
+    .http-fields { display: grid; gap: 13px; }
+    .http-fields .tls-fields { margin-top: 0; }
     label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
     [hidden] { display: none !important; }
     input, select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--input-bg); color: var(--text); padding: 9px 10px; font-size: 16px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease; }
     input:focus, select:focus { border-color: var(--focus); }
     button:focus-visible, a:focus-visible, .target:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
-    button, a, summary, [role="button"], [role="tab"], input[type="checkbox"], input[type="radio"], select, .target, .switch, .checkbox-option { cursor: pointer; user-select: none; }
+    button, a, summary, [role="button"], [role="tab"], input[type="checkbox"], input[type="radio"], select, .target, .checkbox-option { cursor: pointer; user-select: none; }
     button:disabled { border-color: var(--disabled-border); background: var(--disabled-bg); color: var(--disabled-text); cursor: not-allowed; opacity: 1; }
     input:disabled, select:disabled { cursor: not-allowed; }
     input:disabled { cursor: not-allowed; opacity: .5; }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
-    .danger-actions { display: flex; gap: 8px; margin-right: auto; }
+    .danger-actions { display: flex; gap: 8px; margin-left: auto; }
     .secondary { background: transparent; color: var(--muted); border-color: var(--line); }
     .danger { background: transparent; color: var(--danger-text); border-color: var(--danger-border); }
     .danger:hover:not(:disabled) { border-color: var(--danger-text); }
-    .warning { background: transparent; color: var(--warning-text); border-color: var(--warning-border); }
-    .warning:hover { border-color: var(--warning-text); }
-    .success { background: transparent; color: var(--green); border-color: var(--green); }
-    .success:hover { border-color: var(--button-text); }
-    .dialog-close { position: absolute; top: 12px; right: 14px; border-radius: 14px; }
-    .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .dialog-close { position: absolute; top: 12px; right: 14px; --icon-button-radius: 14px; }
     .setting-copy { display: grid; gap: 3px; color: var(--text); }
     .setting-copy small { color: var(--muted); font-size: 12px; font-weight: 400; }
     .channel-fields, .tls-fields { display: grid; gap: 10px; margin: 8px 0 0; border: 0; padding: 0; }
@@ -245,10 +251,6 @@ export class UpgridApp extends AppController {
     .switch-label .badge { margin-left: 0; }
     .checkbox-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .checkbox-control { width: 18px; min-height: 18px; height: 18px; flex: none; accent-color: var(--button-bg); cursor: pointer; }
-    .switch-control { width: 42px; min-height: 24px; height: 24px; flex: none; appearance: none; border-radius: 999px; background: var(--input-bg); padding: 2px; cursor: pointer; }
-    .switch-control::after { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); content: ""; transition: background-color 160ms ease, transform 160ms ease; }
-    .switch-control:checked { border-color: var(--button-border); background: var(--button-bg); }
-    .switch-control:checked::after { background: var(--button-text); transform: translateX(18px); }
     footer { display: flex; flex: 0 0 auto; width: calc(100% - 48px); max-width: 1152px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; margin: 0 auto; border-top: 1px solid var(--line); padding: 20px 0 24px; color: var(--muted); font-size: 12px; }
     .footer-links, .footer-powered { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; text-align: center; }
     footer a { display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; color: var(--muted); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; transition: color 160ms ease; }
@@ -351,6 +353,14 @@ export class UpgridApp extends AppController {
       .form-tabs { gap: 0; padding: 2px; }
       .form-tabs button { min-height: 30px; padding: 5px 2px; font-size: 12px; }
     }
+    @media (max-width: 600px) {
+      .http-settings { grid-template-columns: minmax(0, 1fr); }
+      .http-settings > upgrid-toggle-switch { margin-bottom: 0; }
+      .redirect-limit { justify-content: space-between; }
+    }
+    @media (max-width: 480px) {
+      .row, .endpoint-row { grid-template-columns: minmax(0, 1fr); }
+    }
   `;
   private renderBrand() {
     return renderHeaderBrand(this.live, (event) => this.navigate(event, "overview"));
@@ -398,7 +408,7 @@ export class UpgridApp extends AppController {
           <header>
             ${this.renderBrand()}
             <div></div>
-            <div class="actions"><button class="button secondary icon-button" aria-label=${`Theme: ${this.theme}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button></div>
+            <div class="actions"><upgrid-icon-button .icon=${themeIcons[this.theme]} label=${`Theme: ${this.theme}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}></upgrid-icon-button></div>
           </header>
           ${this.error ? html`<div class="notice" role="alert">${this.error}</div>` : nothing}
           <upgrid-setup .setup=${this.setup} @setup-changed=${this.setupChanged}></upgrid-setup>
@@ -413,9 +423,9 @@ export class UpgridApp extends AppController {
             ${sections.map((section) => html`<a class=${this.activeSection === section ? "active" : ""} href=${sectionPaths[section]} @click=${(event: MouseEvent) => this.navigate(event, section)}>${section[0].toUpperCase()}${section.slice(1)}</a>`)}
           </nav>
           <div class="actions">
-            <button class="button secondary icon-button" aria-label=${`Theme: ${this.theme}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button>
+            <upgrid-icon-button .icon=${themeIcons[this.theme]} label=${`Theme: ${this.theme}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}></upgrid-icon-button>
             <details class="account-menu">
-              <summary class="button secondary icon-button" aria-label=${`Account menu for ${this.session?.username}`} title=${`Account: ${this.session?.username}`}><iconify-icon .icon=${userIcon} aria-hidden="true"></iconify-icon></summary>
+              <summary class="button secondary account-menu-trigger" aria-label=${`Account menu for ${this.session?.username}`} title=${`Account: ${this.session?.username}`}><iconify-icon .icon=${userIcon} aria-hidden="true"></iconify-icon></summary>
               <div class="account-dropdown" role="menu">
                 <a class="button secondary" role="menuitem" href=${sectionPaths.manage} @click=${(event: MouseEvent) => this.navigate(event, "manage")}>Manage</a>
                 <a class="button secondary" role="menuitem" href=${sectionPaths.changePassword} @click=${(event: MouseEvent) => this.navigate(event, "changePassword")}>Change password</a>
@@ -494,7 +504,6 @@ export class UpgridApp extends AppController {
               close: () => this.closeDetailDialog(),
               update: (event) => void this.updateTarget(event),
               changed: (event) => this.updateDetailDirty(event),
-              redirects: (event) => this.toggleMaxRedirects(event),
               delete: () => void this.deleteTarget(),
               selectTab: (tab) => this.selectDetailTab(tab),
               pause: (paused) => void this.setPaused(paused),
@@ -502,7 +511,7 @@ export class UpgridApp extends AppController {
           : nothing
       }
       <dialog id="secret-dialog" aria-labelledby="secret-title" @click=${this.dismissOnBackdrop}>
-        <div class="dialog-head"><div class="title-with-help"><h2 id="secret-title">Add secret</h2>${renderHelpTooltip("add-secret-help", "About adding a secret", "Create an encrypted, write-only value to reference from target requests or webhook headers through the HTTP API.")}</div></div>
+        <div class="dialog-head"><div class="title-with-help"><h2 id="secret-title">Add secret</h2>${renderHelpTooltip("add-secret-help", "About adding a secret", "Create an encrypted, write-only secret to reference from supported field like TLS key.")}</div></div>
         <form @submit=${this.createSecret} @input=${() => (this.error = "")}>
           <label>Name<input name="name" placeholder="Webhook token" required autofocus /></label>
           <label>Value<input name="value" type="password" autocomplete="new-password" required /></label>
@@ -511,7 +520,7 @@ export class UpgridApp extends AppController {
       </dialog>
       <dialog id="channel-dialog" aria-labelledby="channel-title" @click=${this.dismissOnBackdrop}>
         <div class="dialog-head"><h2 id="channel-title">${this.editingChannel ? "Edit channel" : "Add channel"}</h2></div>
-        <notification-channel-form
+        <upgrid-notification-channel-form
           .channel=${this.editingChannel}
           .submitLabel=${this.editingChannel ? "Save changes" : "Create channel"}
           cancel-label="Cancel"
@@ -520,13 +529,13 @@ export class UpgridApp extends AppController {
             this.editingChannel = undefined;
             this.closeDialog("channel-dialog");
           }}
-        ></notification-channel-form>
+        ></upgrid-notification-channel-form>
       </dialog>
       <dialog id="token-config-dialog" aria-labelledby="token-config-title" @click=${this.dismissOnBackdrop}>
         <div class="dialog-head"><div class="title-with-help"><h2 id="token-config-title">Create join token</h2>${renderHelpTooltip("join-token-config-help", "About join token settings", "Choose how many days the token remains valid and whether it can be reused.")}</div></div>
         <form @submit=${this.createJoinToken} @input=${() => (this.error = "")}>
           <label>Expiration (days)<input name="expiration_days" type="number" min="1" step="1" value="1" required autofocus /></label>
-          <label class="switch"><span>Unlimited uses</span><input class="switch-control" type="checkbox" role="switch" .checked=${this.unlimitedUses} @change=${(event: Event) => (this.unlimitedUses = (event.target as HTMLInputElement).checked)} /></label>
+          <upgrid-toggle-switch .checked=${this.unlimitedUses} @change=${(event: Event) => (this.unlimitedUses = (event.currentTarget as ToggleSwitch).checked)}>Unlimited uses</upgrid-toggle-switch>
           <label>Maximum uses<input name="max_uses" type="number" min="1" step="1" value="1" ?disabled=${this.unlimitedUses} required /></label>
           <div class="dialog-actions"><button class="button secondary" type="button" @click=${() => this.closeDialog("token-config-dialog")}>Cancel</button>${renderFormSubmit({ label: this.saving ? "Creating..." : "Create token", busy: this.saving, error: this.error })}</div>
         </form>
@@ -548,7 +557,7 @@ export class UpgridApp extends AppController {
           ${this.renderBrand()}
           <nav aria-label="Primary"><a class="active" href="/">Status</a></nav>
           <div class="actions">
-            <button class="button secondary icon-button" aria-label=${`Theme: ${this.theme}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}><iconify-icon .icon=${themeIcons[this.theme]} aria-hidden="true"></iconify-icon></button>
+            <upgrid-icon-button .icon=${themeIcons[this.theme]} label=${`Theme: ${this.theme}`} title=${`Theme: ${this.theme}. Click to switch.`} @click=${this.cycleTheme}></upgrid-icon-button>
             <button class="button secondary" type="button" @click=${this.showLogin}>Sign in</button>
           </div>
         </header>
@@ -604,7 +613,7 @@ export class UpgridApp extends AppController {
           tooltip: {
             id: "secrets-help",
             label: "About reusable secrets",
-            message: "Reusable secrets are encrypted and write-only. Reference them from target headers or bodies and webhook headers or other notification channel credentials. UpGrid reports whether each secret is referenced by an active or trashed target or a notification channel.",
+            message: "Reusable secrets are encrypted and write-only. Reference them from supported fields like TLS key. In use ones cannot be deleted.",
           },
           actions: [
             ...(unusedSecrets.length ? [{ key: "delete-unused", label: `Delete unused (${unusedSecrets.length})`, variant: "danger" as const, disabled: this.saving, onClick: () => this.cleanupSecrets() }] : []),
@@ -615,7 +624,7 @@ export class UpgridApp extends AppController {
               this.secrets.length
                 ? this.secrets.map(
                     (secret) =>
-                      html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id} · ${secret.referenced ? "In use" : "Unused"}</code></div><button class="button danger icon-button" aria-label=${`Delete secret ${secret.name}`} title=${`Delete ${secret.name}`} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div>`,
+                      html`<div class="resource"><div><strong>${secret.name}</strong><code>${secret.id} · ${secret.referenced ? "In use" : "Unused"}</code></div><upgrid-icon-button .icon=${deleteIcon} label=${`Delete secret ${secret.name}`} title=${secret.referenced ? "Secret is in use" : `Delete ${secret.name}`} variant="danger" ?disabled=${secret.referenced || this.saving} @click=${() => this.deleteResource("secrets", secret.id, secret.name)}></upgrid-icon-button></div>`,
                   )
                 : html`<upgrid-empty-state>No reusable secrets</upgrid-empty-state>`
             }
@@ -631,7 +640,7 @@ export class UpgridApp extends AppController {
             <select aria-label="Filter targets" .value=${this.statusFilter} @change=${(event: Event) => (this.statusFilter = (event.target as HTMLSelectElement).value)}><option value="all">All states</option><option value="up">Up</option><option value="down">Down</option><option value="unknown">Unknown</option><option value="paused">Paused</option></select>
             <select aria-label="Sort targets" .value=${this.sort} @change=${(event: Event) => (this.sort = (event.target as HTMLSelectElement).value)}><option value="name">Sort by name</option><option value="status">Sort by status</option></select>
           </div>
-          ${this.selectedIds.size ? html`<div class="bulk"><span class="meta">${this.selectedIds.size} selected</span><div class="bulk-actions"><button class="button secondary icon-button" aria-label="Unselect all" title="Unselect all" @click=${() => (this.selectedIds = new Set())}><iconify-icon .icon=${closeIcon} aria-hidden="true"></iconify-icon></button>${canPauseSelected ? html`<button class="button warning icon-button" aria-label="Pause selected" title="Pause selected" @click=${() => this.bulkPause(true)}><iconify-icon .icon=${pauseIcon} aria-hidden="true"></iconify-icon></button>` : nothing}${canResumeSelected ? html`<button class="button success icon-button" aria-label="Resume selected" title="Resume selected" @click=${() => this.bulkPause(false)}><iconify-icon .icon=${playIcon} aria-hidden="true"></iconify-icon></button>` : nothing}<button class="button danger icon-button" aria-label="Delete selected" title="Delete selected" @click=${this.bulkDelete}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button></div></div>` : nothing}
+          ${this.selectedIds.size ? html`<div class="bulk"><span class="meta">${this.selectedIds.size} selected</span><div class="bulk-actions"><upgrid-icon-button .icon=${closeIcon} label="Unselect all" title="Unselect all" @click=${() => (this.selectedIds = new Set())}></upgrid-icon-button>${canPauseSelected ? html`<upgrid-icon-button .icon=${pauseIcon} label="Pause selected" title="Pause selected" variant="warning" @click=${() => this.bulkPause(true)}></upgrid-icon-button>` : nothing}${canResumeSelected ? html`<upgrid-icon-button .icon=${playIcon} label="Resume selected" title="Resume selected" variant="success" @click=${() => this.bulkPause(false)}></upgrid-icon-button>` : nothing}<upgrid-icon-button .icon=${deleteIcon} label="Delete selected" title="Delete selected" variant="danger" @click=${this.bulkDelete}></upgrid-icon-button></div></div>` : nothing}
           ${visibleTargets.length ? visibleTargets.map((target) => this.renderTarget(target)) : html`<upgrid-empty-state>${this.targets.length ? "No targets match these filters" : "No targets yet. Add the first one to begin monitoring"}</upgrid-empty-state>`}
         `,
       })}
@@ -662,7 +671,7 @@ export class UpgridApp extends AppController {
       <div class="resource">
         <div>
           <strong>${target.name}</strong>
-          <code>${target.kind.toUpperCase()} · deleted ${new Date(target.deleted_at_ms).toLocaleString()} · permanently deleted ${new Date(target.purge_at_ms).toLocaleString()}</code>
+          <code>${target.kind.toUpperCase()} · trashed ${new Date(target.deleted_at_ms).toLocaleString()} · delete on ${new Date(target.purge_at_ms).toLocaleString()}</code>
         </div>
         <div class="actions">
           <button class="button secondary" ?disabled=${this.saving} @click=${() => this.restoreTarget(target)}>Restore</button>
@@ -776,6 +785,6 @@ export class UpgridApp extends AppController {
 }
 declare global {
   interface HTMLElementTagNameMap {
-    "upgrid-app": UpgridApp;
+    "upgrid-app": Application;
   }
 }

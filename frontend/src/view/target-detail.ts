@@ -5,8 +5,9 @@ import pauseIcon from "@iconify-icons/lucide/pause";
 import playIcon from "@iconify-icons/lucide/play";
 import type { Channel, ClusterMember, HistoryPage, Secret, Target } from "@/app/api.ts";
 import "@/component/empty-state.ts";
+import "@/component/icon-button.ts";
 import { renderFormSubmit } from "@/component/form-submit.ts";
-import { renderChannelFields, renderTlsSecretFields, submitTargetForm } from "@/view/target-form.ts";
+import { renderChannelFields, renderTargetAssertions, renderTargetGeneralFields, submitTargetForm } from "@/view/target-form.ts";
 export type TargetDetailTab = "details" | "general" | "assertions" | "evaluation" | "notifications";
 
 interface Actions {
@@ -14,7 +15,6 @@ interface Actions {
   close: () => void;
   update: (event: SubmitEvent) => void;
   changed: (event: Event) => void;
-  redirects: (event: Event) => void;
   delete: () => void;
   pause: (paused: boolean) => void;
   selectTab: (tab: TargetDetailTab) => void;
@@ -23,7 +23,6 @@ interface Actions {
 export function renderTargetDetail(target: Target, longTermHistory: HistoryPage | undefined, historyLoading: boolean, saving: boolean, dirty: boolean, activeTab: TargetDetailTab, members: ClusterMember[], channels: Channel[], secrets: Secret[], error: string, actions: Actions) {
   const isNode = target.kind === "node";
   const isHttp = target.kind === "http";
-  const statuses = target.accepted_statuses.map((range) => (range.start === range.end ? range.start : `${range.start}-${range.end}`)).join(",");
   const history = target.history.slice(0, 30).reverse();
   const maxLatency = Math.max(1, ...history.map((item) => item.latency_ms));
   const rollups = longTermHistory?.items ?? [];
@@ -60,7 +59,7 @@ export function renderTargetDetail(target: Target, longTermHistory: HistoryPage 
         <div class="form-tabs" role="tablist" aria-label=${`${isNode ? "Node" : "Target"} details`}>
           ${tabs.map(({ id, label }) => html`<button form="detail-form" type="button" role="tab" aria-controls=${`target-${id}-panel`} aria-selected=${String(tab === id)} tabindex="-1" @click=${() => actions.selectTab(id)}>${label}</button>`)}
         </div>
-        <button class="button secondary icon-button dialog-close" type="button" aria-label=${`Close ${isNode ? "Node" : "Target"} details`} title="Close" @click=${actions.close}><iconify-icon .icon=${closeIcon} aria-hidden="true"></iconify-icon></button>
+        <upgrid-icon-button class="dialog-close" .icon=${closeIcon} label=${`Close ${isNode ? "Node" : "Target"} details`} title="Close" @click=${actions.close}></upgrid-icon-button>
       </div>
       <form id="detail-form" class="detail-form" novalidate @submit=${(event: SubmitEvent) => submitTargetForm(event, actions.update)} @input=${actions.changed}>
         <section id="target-details-panel" class="target-tab-panel details-panel" role="tabpanel" aria-label="Details" ?hidden=${tab !== "details"}>
@@ -105,29 +104,12 @@ export function renderTargetDetail(target: Target, longTermHistory: HistoryPage 
           </section>
         </section>
         <section id="target-general-panel" class="target-tab-panel" role="tabpanel" aria-label="General" ?hidden=${tab !== "general"}>
-          <label>Name<input name="name" .value=${target.name} required /></label>
-          ${
-            isNode
-              ? html`<label>RPC URL<input .value=${target.url} disabled /></label>`
-              : html`
-                <div class="row endpoint-row"><label>Type<input .value=${target.kind.toUpperCase()} disabled /></label><label>URL / endpoint<input name="url" .value=${target.url} required /></label></div>
-                ${
-                  isHttp
-                    ? html`
-                      <div class="row"><label>Method<input name="method" .value=${target.method} required /></label><label>Expected statuses<input name="statuses" .value=${statuses} required /></label></div>
-                      <div class="row"><label class="switch"><span>Follow redirects</span><input class="switch-control" name="follow_redirects" type="checkbox" role="switch" .checked=${target.follow_redirects} @change=${actions.redirects} /></label><label>Maximum redirects<input name="max_redirects" type="number" min="0" .value=${String(target.max_redirects)} ?disabled=${!target.follow_redirects} required /></label></div>
-                      <label class="switch"><span>Skip TLS verification</span><input class="switch-control" name="skip_tls_verification" type="checkbox" role="switch" .checked=${target.skip_tls_verification} /></label>
-                      ${renderTlsSecretFields(secrets, target.tls_ca_secret_id, target.tls_client_certificate_secret_id, target.tls_client_private_key_secret_id)}
-                    `
-                    : nothing
-                }
-              `
-          }
+          ${renderTargetGeneralFields({ secrets, target })}
         </section>
         ${
           isHttp
             ? html`<section id="target-assertions-panel" class="target-tab-panel" role="tabpanel" aria-label="Assertions" ?hidden=${tab !== "assertions"}>
-                <http-assertion-editor name="assertions" target-id=${target.id} .assertions=${target.assertions}></http-assertion-editor>
+                ${renderTargetAssertions(target)}
               </section>`
             : nothing
         }
@@ -150,8 +132,8 @@ export function renderTargetDetail(target: Target, longTermHistory: HistoryPage 
             ? isNode
               ? nothing
               : html`<div class="dialog-actions"><div class="danger-actions">
-                  <button class="button danger icon-button" type="button" aria-label="Move target to trash" title="Move to trash" @click=${actions.delete}><iconify-icon .icon=${deleteIcon} aria-hidden="true"></iconify-icon></button>
-                  <button class=${`button ${target.paused ? "success" : "warning"} icon-button`} type="button" aria-label=${target.paused ? "Resume evaluations" : "Pause evaluations"} title=${target.paused ? "Resume evaluations" : "Pause evaluations"} @click=${() => actions.pause(!target.paused)}><iconify-icon .icon=${target.paused ? playIcon : pauseIcon} aria-hidden="true"></iconify-icon></button>
+                  <upgrid-icon-button .icon=${deleteIcon} label="Move target to trash" title="Move to trash" variant="danger" @click=${actions.delete}></upgrid-icon-button>
+                  <upgrid-icon-button .icon=${target.paused ? playIcon : pauseIcon} label=${target.paused ? "Resume evaluations" : "Pause evaluations"} title=${target.paused ? "Resume evaluations" : "Pause evaluations"} .variant=${target.paused ? "success" : "warning"} @click=${() => actions.pause(!target.paused)}></upgrid-icon-button>
                 </div></div>`
             : html`<div class="dialog-actions">${renderFormSubmit({ label: "Save changes", busy: saving, changed: dirty, error, baselineKey: target.id })}</div>`
         }

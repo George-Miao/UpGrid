@@ -79,7 +79,7 @@ test("explains Secret usage from related forms", async ({ page }) => {
   const reusableTooltip = page.locator("#secrets-help");
   await expect(reusableTooltip).toBeHidden();
   await reusableHelp.focus();
-  await expect(reusableTooltip).toContainText("target headers or bodies and webhook headers");
+  await expect(reusableTooltip).toContainText("supported fields like TLS key");
   await expect(reusableTooltip).toBeVisible();
 
   await page.getByRole("link", { name: "Alerts" }).click();

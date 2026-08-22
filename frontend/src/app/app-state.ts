@@ -361,13 +361,6 @@ export class AppState extends LitElement {
     this.detailTab = tab;
   }
 
-  protected toggleMaxRedirects(event: Event): void {
-    const follow = event.currentTarget as HTMLInputElement;
-    const maximum = follow.form?.elements.namedItem("max_redirects") as HTMLInputElement | null;
-    if (maximum) maximum.disabled = !follow.checked;
-    if (follow.form) this.compareDetailForm(follow.form);
-  }
-
   private detailFormState(form: HTMLFormElement): string {
     return JSON.stringify([...new FormData(form).entries()]);
   }
