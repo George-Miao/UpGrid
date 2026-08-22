@@ -21,6 +21,10 @@ mod error;
 
 use crate::error::{ClusterWriteSnafu, Error, Result};
 
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static ALLOCATOR: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 #[derive(Debug, Parser)]
 #[command(name = "upgrid", version, about = "Distributed service monitor")]
 struct Cli {

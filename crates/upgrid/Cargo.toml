@@ -17,3 +17,6 @@ upgrid-notification.workspace = true
 upgrid-monitor.workspace = true
 upgrid-raft.workspace = true
 uuid.workspace = true
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator.workspace = true
