@@ -4,7 +4,7 @@
 
 Distributed service monitoring that runs with your infrastructure.
 
-[Website](https://upgrid.rs) · [Get started](https://upgrid.rs/getting-started/first-node/) · [HTTP API](https://upgrid.rs/reference/api/)
+[Website](https://upgrid.rs) · [Get Started](https://upgrid.rs/getting-started/first-node/) · [Configuration](https://upgrid.rs/reference/configuration) · [HTTP API](https://upgrid.rs/reference/api/)
 
 ![UpGrid WebUI in bright and dark themes](website/src/assets/webui-showcase.png)
 
