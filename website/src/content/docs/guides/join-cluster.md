@@ -25,12 +25,16 @@ Run the generated command on the new host with an empty data directory:
 upgrid \
   --join 'up://existing-node.example/opaque-token' \
   --bind 127.0.0.1:8081 \
-  --raft-url up://node-2.internal:11451 \
+  --local-address 10.0.0.11 \
+  --raft-port 11451 \
+  --reachable-address up://node-2.internal:11451 \
   --data-dir /var/lib/upgrid \
   --node-name edge-two
 ```
 
-`UPGRID_JOIN` is the environment-variable equivalent. The joining node contacts the address embedded in the token and receives the cluster's operator identities and API tokens through Raft. After admission, every cluster member must be able to reach every advertised `up://` hostname and UDP port.
+`UPGRID_JOIN` is the environment-variable equivalent. The joining node contacts the reachable address embedded in the token and receives the cluster's operator identities and API tokens through Raft. It also publishes its configured reachable addresses and reachable address candidates. After admission, every ordered node pair must have at least one working route.
+
+To use browser setup, start the new node without `join` or `new_cluster`, then open `/setup`. Expand **network settings** to add this node's reachable addresses and optional HTTP discovery service URLs before you paste the join token. WebUI network settings persist in the node's data directory.
 
 ## Restart an existing member
 

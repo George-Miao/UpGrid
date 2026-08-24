@@ -14,7 +14,10 @@ UpGrid merges configuration in this precedence order, from lowest to highest:
 
 ```toml title="/etc/upgrid.toml"
 bind = "127.0.0.1:8080"
-raft_url = "up://node-1.internal:11451"
+local_addresses = ["10.0.0.10"]
+raft_port = 11451
+reachable_addresses = ["up://node-1.internal:11451"]
+discovery_urls = ["https://discovery.internal/upgrid/nodes"]
 data_dir = "/var/lib/upgrid"
 node_name = "edge-shanghai"
 history_retention_hours = 24
@@ -31,7 +34,10 @@ Start with `upgrid --config /etc/upgrid.toml` or set `UPGRID_CONFIG=/etc/upgrid.
 | TOML key | Environment | CLI | Default |
 | --- | --- | --- | --- |
 | `bind` | `UPGRID_BIND` | `--bind` | `127.0.0.1:8080` |
-| `raft_url` | `UPGRID_RAFT_URL` | `--raft-url` | `up://127.0.0.1:11451` |
+| `local_addresses` | `UPGRID_LOCAL_ADDRESSES` | `--local-address` | `["127.0.0.1"]` |
+| `raft_port` | `UPGRID_RAFT_PORT` | `--raft-port` | `11451` |
+| `reachable_addresses` | `UPGRID_REACHABLE_ADDRESSES` | `--reachable-address` | Unset |
+| `discovery_urls` | `UPGRID_DISCOVERY_URLS` | `--discovery-url` | Unset |
 | `data_dir` | `UPGRID_DATA_DIR` | `--data-dir` | `upgrid-data` |
 | `node_name` | `UPGRID_NODE_NAME` | `--node-name` | Generated friendly name |
 | `username` | `UPGRID_USERNAME` | `--username` | `admin` |
@@ -45,6 +51,10 @@ Start with `upgrid --config /etc/upgrid.toml` or set `UPGRID_CONFIG=/etc/upgrid.
 | `target_trash_retention_days` | `UPGRID_TARGET_TRASH_RETENTION_DAYS` | `--target-trash-retention-days` | 30 days for a new cluster |
 | `tls_cert` | `UPGRID_TLS_CERT` | `--tls-cert` | Unset |
 | `tls_key` | `UPGRID_TLS_KEY` | `--tls-key` | Unset |
+
+Collection values use arrays in TOML and environment variables. For example, set `UPGRID_LOCAL_ADDRESSES='["0.0.0.0"]'` and `UPGRID_REACHABLE_ADDRESSES='["up://node-1.internal:11451"]'`. Repeat the matching CLI option to add more than one value.
+
+`local_addresses` controls the local UDP interfaces for cluster traffic. `raft_port` is shared by all local addresses. `reachable_addresses` lists addresses that other nodes can use. Browser setup and explicit startup configuration persist reachable addresses in the node's data directory. A later explicit startup value replaces the stored set. Up to eight services in `discovery_urls` can add reachable address candidates at runtime. These candidates use renewable reachability leases. Each service must return JSON in the form `{"addresses":["up://node-1.internal:11451"]}`.
 
 `new_cluster` and `join` are mutually exclusive. `tls_cert` and `tls_key` must always be configured together. `username` and `password` create the first operator identity during unattended `new_cluster` setup. They are also used once to migrate a pre-authentication cluster whose replicated state contains no identities; remove credential-bearing configuration after migration.
 

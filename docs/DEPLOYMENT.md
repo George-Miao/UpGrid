@@ -8,7 +8,10 @@ UpGrid combines built-in defaults, an optional TOML file, `UPGRID_` environment 
 
 ```toml
 bind = "127.0.0.1:8080"
-raft_url = "up://node-1.internal:11451"
+local_addresses = ["10.0.0.10"]
+raft_port = 11451
+reachable_addresses = ["up://node-1.internal:11451"]
+discovery_urls = ["https://discovery.internal/upgrid/nodes"]
 data_dir = "/var/lib/upgrid"
 node_name = "edge-shanghai"
 username = "admin"
@@ -58,13 +61,13 @@ Do not expose basic authentication over an untrusted plaintext connection. Restr
 
 ## Node admission
 
-An authenticated operator creates an expiring invitation from the cluster page's **Create token** action or `POST /api/v1/join-tokens`. The WebUI defaults to one day and one use. The API defaults to one day when `expires_in_seconds` is omitted; omit `max_uses` for unlimited use or set it to a positive integer to bound admissions. The response is an opaque bearer URL used directly as `upgrid --join 'up://…'`. Revoke it from the cluster page or with `DELETE /api/v1/join-tokens/{id}`.
+An authenticated operator creates an expiring join token from the cluster page's **Create token** action or `POST /api/v1/join-tokens`. The WebUI defaults to one day and one use. The API defaults to one day when `expires_in_seconds` is omitted; omit `max_uses` for unlimited use or set it to a positive integer to bound admissions. The response is an opaque bearer URL used directly as `upgrid --join 'up://…'`. Revoke it from the cluster page or with `DELETE /api/v1/join-tokens/{id}`.
 
-With a fresh data directory and no lifecycle option, UpGrid opens an authenticated browser OOBE at `/setup`. Review the generated friendly node name, then create a new cluster or paste a join token. Notification channel and target steps follow after membership and may be skipped. The pre-membership listener exposes no replicated resource endpoints.
+With a fresh data directory and no lifecycle option, UpGrid opens an authenticated browser OOBE at `/setup`. Review the generated friendly node name, then create a new cluster or paste a join token. Open **network settings** to add reachable addresses and HTTP discovery service URLs. Discovery service URLs entered in the WebUI persist in the node's data directory. Notification channel and target steps follow after membership and may be skipped. The pre-membership listener exposes no replicated resource endpoints.
 
 For unattended provisioning, use `--new-cluster` or `UPGRID_NEW_CLUSTER=true` for the first node, and `--join 'up://…'` or `UPGRID_JOIN` for subsequent nodes. These choices are mutually exclusive. Existing durable membership always wins on restart: `--new-cluster` and matching join tokens are harmlessly ignored; a join token pointing outside the stored membership is ignored and reported as a dismissible WebUI warning.
 
-Join tokens transport long-lived deployment material. Keep them confidential, never place them in logs or tickets, and revoke reusable tokens as soon as provisioning is complete. Normal restarts use the persisted data directory and need no invitation.
+Join tokens transport long-lived deployment material. Keep them confidential, never place them in logs or tickets, and revoke reusable tokens as soon as provisioning is complete. During incomplete admission, UpGrid keeps the pending join link in a private file and resumes the same reservation after restart without consuming another use. It removes the file only after membership and the next OOBE phase are durable. Normal restarts use the persisted data directory and need no join link.
 
 ## Operational checks
 

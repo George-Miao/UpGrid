@@ -48,7 +48,8 @@ docker run --name upgrid \
   --security-opt seccomp=./upgrid-seccomp.json \
   --publish 8080:8080 \
   --publish 11451:11451/udp \
-  --env UPGRID_RAFT_URL=up://node-1.internal:11451 \
+  --env UPGRID_LOCAL_ADDRESSES='["0.0.0.0"]' \
+  --env UPGRID_REACHABLE_ADDRESSES='["up://node-1.internal:11451"]' \
   --env UPGRID_NODE_NAME=edge-one \
   --volume upgrid-data:/var/lib/upgrid \
   ghcr.io/george-miao/upgrid:latest
@@ -59,12 +60,14 @@ docker run --name upgrid \
 <details class="run-option" id="first-node-binary">
 <summary>Precompiled or source-built binary</summary>
 
-Set the advertised endpoint with `--raft-url`:
+Set the local UDP bind address and the addresses that other nodes can reach:
 
 ```sh
 upgrid \
   --bind 127.0.0.1:8080 \
-  --raft-url up://node-1.internal:11451 \
+  --local-address 10.0.0.10 \
+  --raft-port 11451 \
+  --reachable-address up://node-1.internal:11451 \
   --data-dir /var/lib/upgrid \
   --node-name edge-one
 ```
@@ -97,7 +100,9 @@ Run the generated command on the new host with an empty data directory:
 upgrid \
   --join 'up://node-1.internal:11451/opaque-token' \
   --bind 127.0.0.1:8080 \
-  --raft-url up://node-2.internal:11451 \
+  --local-address 10.0.0.11 \
+  --raft-port 11451 \
+  --reachable-address up://node-2.internal:11451 \
   --data-dir /var/lib/upgrid \
   --node-name edge-two
 ```
@@ -115,7 +120,8 @@ docker run --name upgrid \
   --publish 8080:8080 \
   --publish 11451:11451/udp \
   --env UPGRID_JOIN='up://node-1.internal:11451/opaque-token' \
-  --env UPGRID_RAFT_URL=up://node-2.internal:11451 \
+  --env UPGRID_LOCAL_ADDRESSES='["0.0.0.0"]' \
+  --env UPGRID_REACHABLE_ADDRESSES='["up://node-2.internal:11451"]' \
   --env UPGRID_NODE_NAME=edge-two \
   --volume upgrid-data:/var/lib/upgrid \
   ghcr.io/george-miao/upgrid:latest
@@ -125,6 +131,6 @@ docker run --name upgrid \
 
 ## 5. Verify membership
 
-The joining node must reach the endpoint in the token. After admission, every node must reach every advertised `up://` endpoint. Check that the new member appears in **cluster**, then create a new one-use token for the next node.
+The joining node must reach one address in the token. After admission, every ordered node pair must have a working route. Check the cluster page for each member's reachable addresses and any directed route failures.
 
 Never reuse another node's data directory. Treat each join token like a password and revoke unused reusable tokens. See [Add a node](/guides/join-cluster/) for token controls, restart behavior, draining, and replacement.

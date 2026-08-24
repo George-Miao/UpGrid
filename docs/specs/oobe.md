@@ -42,6 +42,7 @@ Give every fresh, unconfigured node an authenticated out-of-box experience (OOBE
 28. As an operator of a configured cluster, I do not want **Join cluster** displayed, so that the UI does not offer an unsafe in-place switch.
 29. As an operator of an unconfigured node, I want only **Join cluster** and **Create new cluster** choices, so that unavailable cluster operations are hidden.
 30. As an operator, I want completing OOBE to redirect to overview, so that the transition into normal operation is explicit.
+31. As an operator, I want to review configured network sources and add reachable addresses or discovery services before cluster creation or joining, so that the node can work across its deployment network.
 
 ## Implementation decisions
 
@@ -54,15 +55,16 @@ Give every fresh, unconfigured node an authenticated out-of-box experience (OOBE
 - After membership starts, the ordinary cluster API exposes local OOBE phase reads and phase advancement. Channel and target creation continue through their existing replicated endpoints.
 - OOBE routes are `/setup`, `/setup/channel`, and `/setup/target`. Advancing past cluster choice replaces browser history. Completing or skipping the last step redirects to `/`.
 - If a joined cluster already contains channels or targets, OOBE shows existing counts and still offers add or skip.
-- On restart, a configured join token is compared with persisted membership by advertised remote URL. A match is ignored. A mismatch becomes process-local warning state and never blocks startup or enters Raft.
+- On restart, a configured join token is compared with persisted membership by issuer node ID and reachable remote address. A match is ignored. A mismatch becomes process-local warning state and never blocks startup or enters Raft.
 - Startup warnings are exposed through a local API response, displayed prominently, and dismissible in browser session state.
 - Configured cluster pages show **Create token** as the primary action and never render **Join cluster**. Unconfigured OOBE renders the cluster choices instead.
 - OOBE node-name edits are validated and durably stored when cluster choice is submitted, including when joining subsequently fails.
+- OOBE shows configured reachable addresses and discovery services as fixed values. Operators can add sources before either cluster choice. The accepted values are validated and stored before bootstrap.
 
 ## Testing decisions
 
 - Tests observe public behavior rather than private helpers.
-- Playwright is the primary OOBE seam: cover fresh default startup, create-cluster confirmation, browser joining, URL phases, skips, resource creation, existing-resource summaries, navigation visibility, warning dismissal, and final redirect.
+- Playwright is the primary OOBE seam: cover fresh default startup, create-cluster confirmation, browser joining, network source review and entry, URL phases, skips, resource creation, existing-resource summaries, navigation visibility, warning dismissal, and final redirect.
 - The local three-node verifier covers non-interactive `--new-cluster`, reusable join token admission, configured node names, and normal cluster topology.
 - Focused configuration tests cover Clap conflicts and Figment environment parity.
 - Focused durable-state tests cover OOBE phase persistence and restart behavior.
@@ -75,7 +77,7 @@ Give every fresh, unconfigured node an authenticated out-of-box experience (OOBE
 - Clearing cluster data from the WebUI.
 - Replacing basic auth with the future identity and role system.
 - Per-node targets or notification channels; these remain cluster-wide replicated resources.
-- Editing bind addresses, advertised Raft URLs, or TLS paths from OOBE.
+- Editing local bind addresses or TLS paths from OOBE.
 - Automatically creating sample targets or channels.
 
 ## Further notes

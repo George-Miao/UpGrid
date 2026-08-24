@@ -3,26 +3,30 @@ title: Network setup
 description: Connect every cluster node to each advertised up:// endpoint.
 ---
 
-A multi-node cluster needs direct network access between its members. Every node must be able to reach the advertised `up://` endpoint of every other node.
+A multi-node cluster needs direct network access between its members. Every ordered node pair must have at least one working `up://` route.
 
-UpGrid sends Raft traffic directly to these endpoints and does not use a relay. Any voting node can become the leader, so the direction of traffic can change. Design the cluster network as a full mesh.
+UpGrid sends Raft traffic directly and does not use a relay. Any voting node can become the leader, so the direction of traffic can change. Design the cluster network as a full mesh. Nodes can publish more than one address for networks with NAT, VPN, or several interfaces.
 
-Endpoints can use private or public routable addresses. Choose addresses that remain stable and reachable from every member.
+Addresses can use private or public routable hosts. A reachable address can use a different public port when NAT translates the shared local Raft port. Configure stable addresses when possible. UpGrid can also retain verified reachable addresses and discovery-service reachable address candidates with renewable reachability leases.
 
 ## Endpoint requirements
 
-Give each node one stable DNS name or IP address. Configure it with `--raft-url` or `UPGRID_RAFT_URL`:
+Set one or more local IP addresses, one shared UDP port, and any reachable addresses that other nodes can use:
 
-```text
-up://node-1.internal:11451
+```sh
+upgrid \
+  --local-address 10.0.0.10 \
+  --raft-port 11451 \
+  --reachable-address up://node-1.internal:11451 \
+  --reachable-address up://node-1.vpn:11451
 ```
 
-Each endpoint must meet these requirements:
+Each reachable address must meet these requirements:
 
-- Its hostname resolves to the correct node from every cluster member.
-- Its UDP port is reachable from every other node.
-- It remains stable across process restarts.
-- It identifies one node. Do not put several nodes behind one load-balanced endpoint.
+- Its hostname resolves to the correct node from each source node that uses this route.
+- Its UDP port is reachable from at least one other node.
+- It remains stable across process restarts when configured directly.
+- It identifies one node. Do not put several nodes behind one load-balanced address.
 
 The default cluster transport port is UDP `11451`. If a URL uses another port, open that port instead. The `up://` transport uses QUIC over UDP, not TCP. An HTTP reverse proxy cannot forward it.
 
@@ -41,7 +45,7 @@ The HTTP API is separate. Operators use TCP port `8080` by default, but cluster 
 
 Apply these rules to every node:
 
-| Direction | Protocol | Port | Allowed peers |
+| Direction | Protocol | Port | Allowed nodes |
 | --- | --- | --- | --- |
 | Inbound | UDP | Port in this node's `up://` URL | Every other cluster node |
 | Outbound | UDP | Port in the destination node's `up://` URL | Every other cluster node |
@@ -56,7 +60,7 @@ When you add a node, update both sides before it joins:
 
 ## Containers and address translation
 
-Publish the transport port as UDP when peers connect through the container host:
+Publish the transport port as UDP when other nodes connect through the container host:
 
 The command also uses the custom `io_uring` seccomp profile from the [Docker reference](/reference/docker/#allow-io_uring-in-docker).
 
@@ -64,18 +68,19 @@ The command also uses the custom `io_uring` seccomp profile from the [Docker ref
 docker run \
   --security-opt seccomp=./upgrid-seccomp.json \
   --publish 11451:11451/udp \
-  --env UPGRID_RAFT_URL=up://node-1.internal:11451 \
+  --env UPGRID_LOCAL_ADDRESSES='["0.0.0.0"]' \
+  --env UPGRID_REACHABLE_ADDRESSES='["up://node-1.internal:11451"]' \
   ghcr.io/george-miao/upgrid:latest
 ```
 
-You do not need a host port publish when all nodes share a container network and the advertised container address is reachable on that network. The advertised hostname and port must still be reachable by every node.
+You do not need a host port publish when all nodes share a container network and a configured or discovered container address is reachable on that network.
 
-If the node is behind address translation, forward the advertised UDP port to that node and make the advertised hostname resolve to the reachable address. Keep one stable endpoint for each node.
+If the node is behind address translation, forward the reachable UDP port to that node. Add both private and public addresses when different source nodes use different routes.
 
 ## Check the network
 
-Before a node joins, confirm that its advertised hostname resolves from every existing host and that its firewall accepts UDP traffic from them. Also check the existing endpoints from the new host.
+Before a node joins, confirm that at least one route works in each required direction. `curl` and TCP port checks cannot test an `up://` address.
 
-`curl` and TCP port checks cannot test an `up://` endpoint. After the node joins, open **cluster** in the WebUI and confirm that the node remains active. Repeated connection or election errors in the node logs usually mean that DNS, routing, or a UDP firewall rule is wrong.
+After the node joins, open the cluster page. It lists each node's reachable addresses and reports failed directed routes. A healthy three-node cluster has six working directed routes.
 
 For the transport URI, connection, and security model, see [Up protocol](/reference/up-protocol/). For deployment-key protection, API TLS, and host controls, see [Cluster hardening](/guides/cluster-hardening/).
