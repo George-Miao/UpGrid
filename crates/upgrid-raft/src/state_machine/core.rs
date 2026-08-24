@@ -1,4 +1,5 @@
 use std::cell::{Cell, RefCell};
+use std::collections::BTreeSet;
 use std::fmt::Debug;
 use std::io::{self, Cursor};
 use std::rc::Rc;
@@ -10,9 +11,11 @@ use openraft::{EntryPayload, OptionalSend, RaftSnapshotBuilder};
 use openraft_rt_compio::futures::{Stream, StreamExt};
 
 use super::codec::{decode_snapshot, encode_snapshot};
+use super::membership::validate_reachability_command;
 use crate::database::{RaftDatabase, StateRepository};
 use crate::domain::ApplicationState;
 use crate::raft::{Res, TC};
+use crate::{DirectedRoute, ReachableAddress};
 
 pub(super) const CHECKPOINT_INTERVAL: u64 = 256;
 
@@ -65,7 +68,15 @@ pub struct StateMachine {
 impl StateMachine {
     pub(crate) fn open(database: Rc<RaftDatabase>) -> io::Result<Self> {
         let repository = StateRepository::new(database);
-        let (state_machine, current_snapshot, snapshot_idx) = repository.load()?;
+        let (mut state_machine, mut current_snapshot, snapshot_idx) = repository.load()?;
+        let state_migrated = migrate_legacy_membership(
+            &mut state_machine.application,
+            &mut state_machine.last_membership,
+        );
+        let snapshot_migrated = migrate_snapshot_reachability(&mut current_snapshot)?;
+        if state_migrated || snapshot_migrated {
+            repository.replace(&state_machine, current_snapshot.as_ref(), snapshot_idx)?;
+        }
         Ok(Self {
             state_machine: RefCell::new(state_machine),
             snapshot_idx: AtomicU64::new(snapshot_idx),
@@ -81,6 +92,87 @@ impl StateMachine {
     /// before using this snapshot.
     pub fn application_state(&self) -> ApplicationState {
         self.state_machine.borrow().application.clone()
+    }
+
+    pub(crate) fn reachable_addresses(
+        &self,
+        node_id: uuid::Uuid,
+        observer: uuid::Uuid,
+        now_ms: u64,
+    ) -> Option<Vec<ReachableAddress>> {
+        self.state_machine
+            .borrow()
+            .application
+            .node_reachability
+            .get(&node_id)
+            .map(|reachability| reachability.ordered_reachable(observer, now_ms))
+    }
+
+    pub(crate) fn reachable_address_candidates(
+        &self,
+        node_id: uuid::Uuid,
+        observer: uuid::Uuid,
+        now_ms: u64,
+    ) -> Option<Vec<ReachableAddress>> {
+        self.state_machine
+            .borrow()
+            .application
+            .node_reachability
+            .get(&node_id)
+            .map(|reachability| reachability.ordered_candidates(observer, now_ms))
+    }
+
+    pub(crate) fn is_configured_reachable_address(
+        &self,
+        node_id: uuid::Uuid,
+        address: &ReachableAddress,
+    ) -> bool {
+        self.state_machine
+            .borrow()
+            .application
+            .node_reachability
+            .get(&node_id)
+            .is_some_and(|reachability| {
+                reachability
+                    .configured_reachable_addresses()
+                    .contains(address)
+            })
+    }
+
+    pub(crate) fn is_reachable_address(
+        &self,
+        node_id: uuid::Uuid,
+        address: &ReachableAddress,
+        observer: uuid::Uuid,
+        now_ms: u64,
+    ) -> bool {
+        self.state_machine
+            .borrow()
+            .application
+            .node_reachability
+            .get(&node_id)
+            .is_some_and(|reachability| reachability.is_reachable(address, observer, now_ms))
+    }
+
+    pub(crate) fn connectivity_scan_requires_record(
+        &self,
+        failures: &BTreeSet<DirectedRoute>,
+        now_ms: u64,
+    ) -> bool {
+        self.state_machine
+            .borrow()
+            .application
+            .connectivity_scan_requires_record(failures, now_ms)
+    }
+
+    pub(crate) fn expired_join_reservations(
+        &self,
+        now_ms: u64,
+    ) -> Vec<crate::domain::ExpiredJoinReservation> {
+        self.state_machine
+            .borrow()
+            .application
+            .expired_join_reservations(now_ms)
     }
 
     pub fn applied_index(&self) -> Option<u64> {
@@ -170,16 +262,13 @@ impl RaftStateMachine<TC> for Rc<StateMachine> {
             let response = match entry.payload {
                 EntryPayload::Blank => Res::default(),
                 EntryPayload::Normal(request) => {
-                    let result = sm.application.apply_operation(
-                        request.operation_id,
-                        request.submitted_at_ms,
-                        request.command,
-                    );
+                    let result = apply_request(&mut sm, request);
                     Res { result }
                 }
                 EntryPayload::Membership(mem) => {
                     membership_changed = true;
-                    sm.last_membership = StoredMembershipOf::<TC>::new(Some(entry.log_id), mem);
+                    let membership = StoredMembershipOf::<TC>::new(Some(entry.log_id), mem);
+                    apply_membership(&mut sm, membership);
                     Res::default()
                 }
             };
@@ -204,8 +293,10 @@ impl RaftStateMachine<TC> for Rc<StateMachine> {
         snapshot: Self::SnapshotData,
     ) -> io::Result<()> {
         let mut data = snapshot.into_inner();
-        let decoded = decode_snapshot(&data)?;
-        if decoded.migrated {
+        let mut decoded = decode_snapshot(&data)?;
+        let mut meta = meta.clone();
+        let seeded = migrate_legacy_membership(&mut decoded.value, &mut meta.last_membership);
+        if decoded.migrated || seeded {
             data = encode_snapshot(&decoded.value)?;
         }
         let new_snapshot = StoredSnapshot {
@@ -214,7 +305,7 @@ impl RaftStateMachine<TC> for Rc<StateMachine> {
         };
         let updated_state_machine = StateMachineData {
             last_applied_log: meta.last_log_id,
-            last_membership: meta.last_membership.clone(),
+            last_membership: meta.last_membership,
             application: decoded.value,
         };
         if let Some(repository) = &self.repository {
@@ -247,3 +338,112 @@ impl RaftStateMachine<TC> for Rc<StateMachine> {
         self.clone()
     }
 }
+fn apply_request(
+    state: &mut StateMachineData,
+    request: crate::raft::Req,
+) -> std::result::Result<crate::domain::CommandResult, crate::domain::DomainError> {
+    if let Some(result) = state
+        .application
+        .processed_operation_result(request.operation_id)
+    {
+        return result;
+    }
+    let command = match request.command {
+        crate::domain::Command::AbortPendingReadmission {
+            reservation_id,
+            reservation_operation_id,
+            completed_at_ms,
+        } if state.last_membership.get_node(&reservation_id).is_none() => {
+            crate::domain::Command::AbortPendingJoin {
+                reservation_id,
+                reservation_operation_id,
+                completed_at_ms,
+            }
+        }
+        command => command,
+    };
+    if let Err(error) = validate_reachability_command(
+        &command,
+        request.submitted_at_ms,
+        &state.last_membership,
+        &state.application,
+    ) {
+        return state.application.cache_operation_result(
+            request.operation_id,
+            request.submitted_at_ms,
+            Err(error),
+        );
+    }
+    state
+        .application
+        .apply_operation(request.operation_id, request.submitted_at_ms, command)
+}
+
+fn apply_membership(state: &mut StateMachineData, mut membership: StoredMembershipOf<TC>) {
+    let previous_members = state
+        .last_membership
+        .nodes()
+        .map(|(node_id, _)| *node_id)
+        .collect::<BTreeSet<_>>();
+    migrate_legacy_membership(&mut state.application, &mut membership);
+    let members = membership
+        .nodes()
+        .map(|(node_id, _)| *node_id)
+        .collect::<BTreeSet<_>>();
+    state.application.retain_member_reachability(&members);
+    if previous_members != members {
+        state.application.reset_connectivity_scan();
+    }
+    state.last_membership = membership;
+}
+
+pub(crate) fn migrate_snapshot_reachability(
+    snapshot: &mut Option<StoredSnapshot>,
+) -> io::Result<bool> {
+    let Some(snapshot) = snapshot else {
+        return Ok(false);
+    };
+    let mut decoded = decode_snapshot(&snapshot.data)?;
+    let migrated =
+        migrate_legacy_membership(&mut decoded.value, &mut snapshot.meta.last_membership);
+    if decoded.migrated || migrated {
+        snapshot.data = encode_snapshot(&decoded.value)?;
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+pub(crate) fn migrate_legacy_membership(
+    application: &mut ApplicationState,
+    membership: &mut StoredMembershipOf<TC>,
+) -> bool {
+    let legacy = membership
+        .nodes()
+        .filter_map(|(node_id, node)| {
+            node.legacy_address()
+                .cloned()
+                .map(|address| (*node_id, address))
+        })
+        .collect::<Vec<_>>();
+    if legacy.is_empty() {
+        return false;
+    }
+    for (node_id, address) in &legacy {
+        application
+            .node_reachability
+            .entry(*node_id)
+            .or_default()
+            .add_configured(address.clone());
+    }
+    let configs = membership.get_joint_config().clone();
+    let node_ids = membership
+        .nodes()
+        .map(|(node_id, _)| *node_id)
+        .collect::<Vec<_>>();
+    let identity = openraft::Membership::new_with_defaults(configs, node_ids);
+    *membership = StoredMembershipOf::<TC>::new(*membership.log_id(), identity);
+    true
+}
+
+#[cfg(test)]
+mod tests;

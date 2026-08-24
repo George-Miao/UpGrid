@@ -124,7 +124,7 @@ fn availability_transitions_create_one_alert_per_channel() {
         }
     );
     assert_eq!(state.alerts.len(), 2);
-    assert_eq!(state.transitions.len(), 2);
+    assert_eq!(state.availability_transitions.len(), 2);
 }
 
 #[test]
@@ -149,8 +149,8 @@ fn availability_transition_is_recorded_without_a_notification_channel() {
     }
 
     assert!(state.alerts.is_empty());
-    assert_eq!(state.transitions.len(), 1);
-    let transition = &state.transitions[&EvaluationId {
+    assert_eq!(state.availability_transitions.len(), 1);
+    let transition = &state.availability_transitions[&EvaluationId {
         target_id,
         scheduled_at_ms: 3_000,
     }];
@@ -220,7 +220,7 @@ fn default_channels_apply_unless_target_opts_out() {
             .unwrap();
     }
     assert!(opted_out.alerts.is_empty());
-    assert_eq!(opted_out.transitions.len(), 1);
+    assert_eq!(opted_out.availability_transitions.len(), 1);
 }
 
 #[test]

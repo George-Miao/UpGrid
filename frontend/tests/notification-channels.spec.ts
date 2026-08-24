@@ -78,6 +78,18 @@ test("explains Secret usage from related forms", async ({ page }) => {
   const reusableHelp = page.getByRole("button", { name: "About reusable secrets" });
   const reusableTooltip = page.locator("#secrets-help");
   await expect(reusableTooltip).toBeHidden();
+  const restingTriggerColors = await reusableHelp.evaluate((trigger) => {
+    const style = getComputedStyle(trigger);
+    return [style.backgroundColor, style.color];
+  });
+  await reusableHelp.hover();
+  await expect(reusableTooltip).toBeVisible();
+  const hoveredTriggerColors = await reusableHelp.evaluate((trigger) => {
+    const style = getComputedStyle(trigger);
+    return [style.backgroundColor, style.color];
+  });
+  expect(hoveredTriggerColors).toEqual(restingTriggerColors);
+  await page.mouse.move(0, 0);
   await reusableHelp.focus();
   await expect(reusableTooltip).toContainText("supported fields like TLS key");
   await expect(reusableTooltip).toBeVisible();
@@ -141,10 +153,14 @@ test("tests a channel and places its type beside the name", async ({ page }) => 
   await dialog.getByLabel("Name").fill("Browser test webhook");
   await dialog.getByRole("button", { name: "Create channel" }).click();
   const row = page.getByRole("region", { name: "Notification channels" }).locator(".resource", { hasText: "Browser test webhook" });
-  const [name, kind] = await Promise.all([row.locator("strong").boundingBox(), row.getByText("webhook", { exact: true }).boundingBox()]);
+  const name = await row.locator("strong").boundingBox();
+  const kind = row.getByRole("img", { name: "Webhook notification channel" });
+  const kindBox = await kind.boundingBox();
   expect(name).not.toBeNull();
-  expect(kind).not.toBeNull();
-  expect(kind!.x).toBeGreaterThan(name!.x + name!.width);
+  expect(kindBox).not.toBeNull();
+  expect(kindBox!.x).toBeGreaterThan(name!.x + name!.width);
+  await kind.hover();
+  await expect(row.getByRole("tooltip")).toHaveText("Webhook");
   const remove = row.getByRole("button", { name: "Delete channel Browser test webhook" });
   await expect(remove.locator("iconify-icon")).toBeVisible();
   page.once("dialog", (confirmation) => confirmation.accept());
@@ -176,7 +192,10 @@ test("creates, tests, and edits an SMTP channel", async ({ page }) => {
   const row = page.getByRole("region", { name: "Notification channels" }).locator(".resource", {
     hasText: channelName,
   });
-  await expect(row).toContainText("smtp");
+  const type = row.getByRole("img", { name: "SMTP email notification channel" });
+  await expect(type).toBeVisible();
+  await type.hover();
+  await expect(row.getByRole("tooltip")).toHaveText("SMTP email");
   await row.getByRole("button", { name: `Edit channel ${channelName}` }).click();
   const editDialog = page.getByRole("dialog", { name: "Edit channel" });
   await expect(editDialog.getByLabel("Type")).toHaveValue("smtp");
@@ -278,6 +297,15 @@ test("uses trash icons for secret and Target deletion", async ({ page }) => {
   });
   await expect(page.getByText("write-only", { exact: true })).toHaveCount(0);
   await expect(deleteSecret.locator("iconify-icon")).toBeVisible();
+  await deleteSecret.hover();
+  await expect
+    .poll(() =>
+      deleteSecret.evaluate((button) => {
+        const style = getComputedStyle(button);
+        return style.borderTopColor === style.color;
+      }),
+    )
+    .toBe(true);
   page.once("dialog", (confirmation) => confirmation.accept());
   await deleteSecret.click();
 
@@ -298,7 +326,36 @@ test("uses trash icons for secret and Target deletion", async ({ page }) => {
   await deleteTarget.click();
 });
 
-test("filters, acknowledges, and retries alert deliveries", async ({ page }) => {
+test("disables deletion for a secret used by a notification channel", async ({ page }) => {
+  const suffix = Date.now();
+  const created = await page.request.post("/api/v1/channels", {
+    data: {
+      type: "telegram",
+      name: `Managed secret Telegram ${suffix}`,
+      bot_token: "123456:test-token",
+      chat_id: "-100123456",
+      default: false,
+    },
+  });
+  expect(created.status()).toBe(201);
+  const channel = (await created.json()) as { id: string };
+  const secretsResponse = await page.request.get("/api/v1/secrets");
+  expect(secretsResponse.ok()).toBeTruthy();
+  const secrets = (await secretsResponse.json()) as Array<{ id: string; name: string; referenced: boolean }>;
+  const secret = secrets.find((candidate) => candidate.name === `telegram-${channel.id}`);
+  expect(secret).toMatchObject({ referenced: true });
+
+  await page.goto("/");
+  const row = page.getByRole("region", { name: "Secrets", exact: true }).locator(".resource", { hasText: secret!.name });
+  const remove = row.getByRole("button", { name: `Delete secret ${secret!.name}` });
+  await expect(remove).toBeDisabled();
+  await expect(remove).toHaveAttribute("title", "Secret is in use");
+
+  expect((await page.request.delete(`/api/v1/channels/${channel.id}`)).status()).toBe(204);
+  expect((await page.request.delete(`/api/v1/secrets/${secret!.id}`)).status()).toBe(204);
+});
+
+test("filters, acknowledges, and retries alerts", async ({ page }) => {
   const suffix = Date.now();
   const channelName = `Alert workflow webhook ${suffix}`;
   const targetName = `Alert workflow target ${suffix}`;
@@ -409,6 +466,11 @@ test("default channels deliver unless a Target opts out", async ({ page }) => {
   await targetDialog.getByRole("tab", { name: "Notifications" }).click();
   const defaultChannel = targetDialog.getByRole("checkbox", { name: channelName });
   const useDefaults = targetDialog.getByRole("switch", { name: "Use default channels" });
+  const defaultChannelOption = targetDialog.locator(".checkbox-option", { hasText: channelName });
+  const defaultChannelType = defaultChannelOption.getByRole("img", { name: "Webhook notification channel" });
+  await expect(defaultChannelType).toBeVisible();
+  await defaultChannelType.hover();
+  await expect(defaultChannelOption.getByRole("tooltip")).toHaveText("Webhook");
   await expect(defaultChannel).toBeChecked();
   await expect(defaultChannel).toBeDisabled();
   await useDefaults.uncheck();

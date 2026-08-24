@@ -12,7 +12,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use upgrid_config::{
-    Cipher, Config, JoinLink, Oobe, OobePhase, QuicCaKey, generate_join_token, now_ms,
+    Cipher, Config, JoinLink, LocalAddress, Oobe, OobePhase, QuicCaKey, generate_join_token, now_ms,
 };
 use upgrid_raft::domain::{
     AlertDelivery, AlertKind, ApplicationState, AvailabilityState, Command, CommandResult,
@@ -51,7 +51,7 @@ mod tests;
 pub use error::{Error, Result};
 use model::*;
 pub use server::{openapi_json, start};
-pub use setup::{OobeChoice, wait_for_oobe};
+pub use setup::{OobeChoice, OobeNetworkSources, wait_for_oobe};
 
 #[derive(Clone)]
 struct WebState {
@@ -59,7 +59,8 @@ struct WebState {
     cipher: Cipher,
     quic_ca_key: QuicCaKey,
     notifications: upgrid_notification::Tester,
-    raft_url: String,
+    local_addresses: BTreeSet<LocalAddress>,
+    discovery_urls: std::collections::BTreeSet<url::Url>,
     node_name: String,
     oobe: Oobe,
     startup_warning: Option<String>,
@@ -218,6 +219,10 @@ struct JoinTokenView {
 struct JoinClusterRequest {
     join_link: String,
     node_name: String,
+    #[serde(default)]
+    reachable_addresses: Vec<String>,
+    #[serde(default)]
+    discovery_urls: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -225,6 +230,10 @@ struct CreateClusterRequest {
     node_name: String,
     admin_username: String,
     admin_password: String,
+    #[serde(default)]
+    reachable_addresses: Vec<String>,
+    #[serde(default)]
+    discovery_urls: Vec<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -248,6 +257,21 @@ impl From<OobePhase> for SetupPhase {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+struct SetupLocalAddress {
+    host: String,
+    port: u16,
+}
+
+impl From<LocalAddress> for SetupLocalAddress {
+    fn from(address: LocalAddress) -> Self {
+        Self {
+            host: address.host.to_string(),
+            port: address.port,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
 struct SetupView {
     setup: bool,
     phase: SetupPhase,
@@ -255,6 +279,9 @@ struct SetupView {
     cluster_ready: bool,
     node_name: String,
     warning: Option<String>,
+    local_addresses: Vec<SetupLocalAddress>,
+    reachable_addresses: Vec<String>,
+    discovery_urls: Vec<String>,
     channel_count: usize,
     target_count: usize,
 }
@@ -350,7 +377,7 @@ struct AlertView {
 struct ClusterMemberView {
     id: Uuid,
     name: String,
-    raft_url: String,
+    reachable_addresses: Vec<String>,
     leader: bool,
     local: bool,
     draining: bool,
@@ -358,8 +385,16 @@ struct ClusterMemberView {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+struct DirectedRouteView {
+    source_node_id: Uuid,
+    destination_node_id: Uuid,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
 struct ClusterView {
     leader_node_id: Option<Uuid>,
     local_node_id: Uuid,
     members: Vec<ClusterMemberView>,
+    degraded: bool,
+    connectivity_failures: Vec<DirectedRouteView>,
 }

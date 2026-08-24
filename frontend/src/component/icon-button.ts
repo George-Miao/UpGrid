@@ -35,7 +35,7 @@ export class IconButton extends LitElement {
         opacity 160ms ease,
         transform 120ms ease;
     }
-    button:hover:not(:disabled) {
+    button.secondary:hover:not(:disabled) {
       border-color: var(--button-hover-border);
     }
     button:active:not(:disabled) {
@@ -70,6 +70,9 @@ export class IconButton extends LitElement {
       border-color: var(--green);
       background: transparent;
       color: var(--green);
+    }
+    button.success:hover:not(:disabled) {
+      border-color: var(--button-hover-border);
     }
     button.move {
       border-color: var(--line);

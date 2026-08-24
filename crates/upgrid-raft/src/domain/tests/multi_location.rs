@@ -11,6 +11,7 @@ fn location_results_are_aggregated_after_every_assigned_node_reports() {
             locations: 2,
         })
         .unwrap();
+    state.node_names.insert(id(11), "edge west".to_owned());
     let evaluation_id = EvaluationId {
         target_id,
         scheduled_at_ms: 1_000,
@@ -53,11 +54,9 @@ fn location_results_are_aggregated_after_every_assigned_node_reports() {
     assert!(!aggregate.succeeded);
     assert_eq!(aggregate.http.latency_ms, 80);
     assert_eq!(aggregate.http.received_bytes, 4);
-    assert!(
-        aggregate
-            .diagnostic
-            .as_deref()
-            .is_some_and(|value| value.contains("1/2 locations failed"))
+    assert_eq!(
+        aggregate.diagnostic.as_deref(),
+        Some("1/2 locations failed: edge west: connection refused"),
     );
     assert!(!state.has_evaluation_assignment(evaluation_id));
     assert!(state.evaluation_results(evaluation_id).is_none());

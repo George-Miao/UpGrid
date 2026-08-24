@@ -717,12 +717,45 @@ test("shows the local Raft topology and leader", async ({ page }) => {
   await page.getByRole("link", { name: "Cluster" }).click();
 
   const cluster = page.getByRole("region", { name: "Cluster topology" });
-  const expectedRaftUrl = process.env.UPGRID_EXPECTED_RAFT_URL ?? "up://127.0.0.1:18451";
-  await expect(cluster.getByText(expectedRaftUrl)).toBeVisible();
+  const expectedAddress = process.env.UPGRID_EXPECTED_REACHABLE_ADDRESS ?? "up://127.0.0.1:18451";
+  await expect(cluster.getByText(expectedAddress)).toBeVisible();
   await expect(cluster.locator(".resource strong")).not.toBeEmpty();
-  await expect(cluster.locator(".resource code")).toContainText(expectedRaftUrl);
+  await expect(cluster.locator(".resource code")).toContainText(expectedAddress);
   await expect(cluster.getByText("Leader")).toBeVisible();
   await expect(cluster.getByText("This node")).toBeVisible();
+});
+
+test("lists each unavailable directed cluster route", async ({ page }) => {
+  const first = "00000000-0000-0000-0000-000000000001";
+  const second = "00000000-0000-0000-0000-000000000002";
+  await page.route("**/api/v1/cluster", (route) =>
+    route.fulfill({
+      json: {
+        leader_node_id: first,
+        local_node_id: first,
+        degraded: true,
+        connectivity_failures: [
+          { source_node_id: first, destination_node_id: second },
+          { source_node_id: second, destination_node_id: first },
+        ],
+        members: [
+          { id: first, name: "source node", reachable_addresses: [], leader: true, local: true, draining: false, active_assignments: 0 },
+          { id: second, name: "destination node", reachable_addresses: [], leader: false, local: false, draining: false, active_assignments: 0 },
+        ],
+      },
+    }),
+  );
+
+  await page.goto("/cluster");
+
+  const notice = page.getByRole("status");
+  await expect(notice).toContainText("Cluster connectivity is degraded.");
+  const routes = notice.getByRole("listitem");
+  await expect(routes).toHaveCount(2);
+  await expect(routes.nth(0)).toContainText("source node");
+  await expect(routes.nth(0)).toContainText(first);
+  await expect(routes.nth(0)).toContainText("destination node");
+  await expect(routes.nth(0)).toContainText(second);
 });
 
 test("dismisses a startup compatibility warning", async ({ page }) => {
@@ -738,20 +771,25 @@ test("dismisses a startup compatibility warning", async ({ page }) => {
   await expect(page.getByRole("status")).toHaveCount(0);
 });
 
-test("filters and bulk-pauses selected targets", async ({ page }) => {
+test("filters and bulk-pauses selected targets", async ({ page }, testInfo) => {
   await page.goto("/");
-  for (const name of ["Search alpha", "Search beta"]) {
+  const suffix = `${testInfo.repeatEachIndex}-${testInfo.retry}`;
+  const alpha = `Search alpha ${suffix}`;
+  const beta = `Search beta ${suffix}`;
+  for (const name of [alpha, beta]) {
     await page.getByRole("button", { name: "Add target" }).click();
     const dialog = page.getByRole("dialog", { name: "Add target" });
     await dialog.getByLabel("Name").fill(name);
     await dialog.getByLabel("URL").fill("https://example.com");
     await dialog.getByRole("button", { name: "Create target" }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect(page.getByRole("button", { name })).toBeVisible();
   }
 
-  await page.getByLabel("Search targets").fill("alpha");
-  await expect(page.getByRole("button", { name: "Search alpha" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Search beta" })).not.toBeVisible();
-  await page.getByRole("checkbox", { name: "Select Search alpha" }).check();
+  await page.getByLabel("Search targets").fill(`alpha ${suffix}`);
+  await expect(page.getByRole("button", { name: alpha })).toBeVisible();
+  await expect(page.getByRole("button", { name: beta })).not.toBeVisible();
+  await page.getByRole("checkbox", { name: `Select ${alpha}` }).check();
   const pauseSelected = page.getByRole("button", { name: "Pause selected" });
   await expect(page.getByRole("button", { name: "Unselect all" }).locator("iconify-icon")).toBeVisible();
   const actionsMargin = await page.locator(".bulk-actions").evaluate((element) => Number.parseFloat(getComputedStyle(element).marginLeft));
@@ -760,20 +798,20 @@ test("filters and bulk-pauses selected targets", async ({ page }) => {
   await expect(pauseSelected.locator("iconify-icon")).toBeVisible();
   await expect(page.getByRole("button", { name: "Resume selected" })).toHaveCount(0);
   await pauseSelected.click();
-  await expect(page.getByRole("button", { name: "Search alpha" })).toContainText("Paused");
+  await expect(page.getByRole("button", { name: alpha })).toContainText("Paused");
 
-  await page.getByRole("checkbox", { name: "Select Search alpha" }).check();
+  await page.getByRole("checkbox", { name: `Select ${alpha}` }).check();
   await expect(page.getByRole("button", { name: "Pause selected" })).toHaveCount(0);
   const resumeSelected = page.getByRole("button", { name: "Resume selected" });
   await expect(resumeSelected).toHaveClass(/success/);
   await expect(resumeSelected.locator("iconify-icon")).toBeVisible();
   await resumeSelected.click();
-  await expect(page.getByRole("button", { name: "Search alpha" })).not.toContainText("Paused");
+  await expect(page.getByRole("button", { name: alpha })).not.toContainText("Paused");
 
-  await page.getByRole("checkbox", { name: "Select Search alpha" }).check();
+  await page.getByRole("checkbox", { name: `Select ${alpha}` }).check();
   await page.getByRole("button", { name: "Unselect all" }).click();
   await expect(page.locator(".bulk")).toHaveCount(0);
-  await expect(page.getByRole("checkbox", { name: "Select Search alpha" })).not.toBeChecked();
+  await expect(page.getByRole("checkbox", { name: `Select ${alpha}` })).not.toBeChecked();
 });
 
 test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
@@ -796,18 +834,18 @@ test("navigation opens dedicated Alert and Cluster pages", async ({ page }) => {
   await page.getByRole("link", { name: "Alerts" }).click();
   await expect(page).toHaveURL(/\/alerts$/);
   await expect(page.getByRole("link", { name: "Alerts" })).toHaveClass(/active/);
-  await expect(page.getByRole("heading", { name: "Alerts" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Alerts", level: 1 })).toBeVisible();
   await expect(page.getByRole("region", { name: "Targets" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Notification channels" })).toBeVisible();
-  const [alertBox, availabilityBox, channelsBox] = await Promise.all([page.getByRole("region", { name: "Alert history" }).boundingBox(), page.getByRole("region", { name: "Availability history" }).boundingBox(), page.getByRole("region", { name: "Notification channels" }).boundingBox()]);
+  const [alertBox, transitionBox, channelsBox] = await Promise.all([page.getByRole("region", { name: "Alert history" }).boundingBox(), page.getByRole("region", { name: "Availability transition history" }).boundingBox(), page.getByRole("region", { name: "Notification channels" }).boundingBox()]);
   expect(alertBox).not.toBeNull();
-  expect(availabilityBox).not.toBeNull();
+  expect(transitionBox).not.toBeNull();
   expect(channelsBox).not.toBeNull();
-  expect(alertBox!.y + alertBox!.height).toBeLessThanOrEqual(availabilityBox!.y);
-  expect(availabilityBox!.x).toBeLessThan(channelsBox!.x);
-  expect(Math.abs(availabilityBox!.y - channelsBox!.y)).toBeLessThan(2);
-  const [availabilityHead, channelsHead] = await Promise.all([page.getByRole("region", { name: "Availability history" }).locator(".panel-head").boundingBox(), page.getByRole("region", { name: "Notification channels" }).locator(".panel-head").boundingBox()]);
-  expect(Math.abs(availabilityHead!.height - channelsHead!.height)).toBeLessThan(1);
+  expect(alertBox!.y + alertBox!.height).toBeLessThanOrEqual(transitionBox!.y);
+  expect(transitionBox!.x).toBeLessThan(channelsBox!.x);
+  expect(Math.abs(transitionBox!.y - channelsBox!.y)).toBeLessThan(2);
+  const [transitionHead, channelsHead] = await Promise.all([page.getByRole("region", { name: "Availability transition history" }).locator(".panel-head").boundingBox(), page.getByRole("region", { name: "Notification channels" }).locator(".panel-head").boundingBox()]);
+  expect(Math.abs(transitionHead!.height - channelsHead!.height)).toBeLessThan(1);
   await expect(page.getByRole("region", { name: "Notification channels" }).getByRole("button", { name: "Add channel" })).toHaveCount(0);
 
   await page.getByRole("link", { name: "Cluster" }).click();
@@ -987,6 +1025,14 @@ test("target hover highlights the checkbox and content as one row", async ({ pag
   expect(backgrounds.row).not.toBe("rgba(0, 0, 0, 0)");
 });
 
+test("serves unauthenticated health checks during first-run setup", async () => {
+  const setupUrl = process.env.UPGRID_NEW_SETUP_URL ?? "http://127.0.0.1:18082";
+  const response = await fetch(`${setupUrl}/healthz`);
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toEqual({ status: "ok" });
+});
+
 test("keeps the first-run Cluster choice compact", async ({ page }) => {
   await page.setViewportSize({ width: 735, height: 560 });
   const setupUrl = process.env.UPGRID_NEW_SETUP_URL ?? "http://127.0.0.1:18082";
@@ -1015,6 +1061,12 @@ test("keeps the first-run Cluster choice compact", async ({ page }) => {
   const spaceBelow = shell!.y + shell!.height - (flow!.y + flow!.height);
   expect(Math.abs(spaceAbove - spaceBelow)).toBeLessThan(30);
 
+  await setup.getByText("Network settings", { exact: true }).click();
+  const configuredDiscovery = setup.getByLabel("Configured discovery service URL 1");
+  await expect(configuredDiscovery).toBeDisabled();
+  await expect(configuredDiscovery).toHaveValue("http://127.0.0.1:9/configured");
+  await expect(setup.getByLabel("Additional discovery service URL 1")).toHaveValue("");
+
   const script = await page.request.get(`${setupUrl}/assets/upgrid.js`);
   expect(script.ok()).toBeTruthy();
   expect(script.headers()["cache-control"]).toBe("no-store");
@@ -1036,8 +1088,13 @@ test("creates a Cluster and optional resources through OOBE", async ({ page }) =
   await setup.getByRole("textbox", { name: "Node name" }).first().fill("playwright-primary");
   await setup.getByRole("textbox", { name: "Administrator username" }).fill("playwright-admin");
   await setup.getByLabel("Administrator password").fill("playwright-password");
+  const repeatPassword = setup.getByLabel("Repeat password");
+  const createCluster = setup.getByRole("button", { name: "Create new cluster" });
+  await repeatPassword.fill("different-password");
+  await expect(createCluster).toBeDisabled();
+  await repeatPassword.fill("playwright-password");
   page.once("dialog", (dialog) => dialog.accept());
-  await setup.getByRole("button", { name: "Create new cluster" }).click();
+  await createCluster.click();
 
   await expect(page).toHaveURL(/\/setup\/channel$/, { timeout: 20_000 });
   const channelForm = page.locator("upgrid-notification-channel-form");
@@ -1079,8 +1136,26 @@ test("joins a fresh node to the Cluster from its WebUI", async ({ page, request 
   await expect(page.getByRole("button", { name: "Create token" })).toHaveCount(0);
   const setup = page.getByRole("region", { name: "UpGrid setup" });
   await setup.getByRole("textbox", { name: "Node name" }).last().fill("playwright-worker");
+  await setup.getByText("Network settings", { exact: true }).click();
+  await expect(setup.getByText("No address is configured. You can leave this empty while discovery is pending.")).toBeVisible();
+  await expect(setup.getByLabel("Configured reachable address 1")).toHaveCount(0);
+  const joiningRaftPort = process.env.UPGRID_JOINING_RAFT_PORT ?? "18452";
+  await setup.getByLabel("Additional reachable address 1").fill(`localhost:${joiningRaftPort}`);
+  await setup.getByLabel("Additional discovery service URL 1").fill("http://127.0.0.1:9/nodes");
   await setup.getByLabel("Join token").fill(token.url);
+  let releaseJoin = () => {};
+  const joinHeld = new Promise<void>((resolve) => {
+    releaseJoin = resolve;
+  });
+  await page.route("**/api/v1/cluster/join", async (route) => {
+    await joinHeld;
+    await route.continue();
+  });
   await setup.getByRole("button", { name: "Join cluster" }).click();
+  await expect(setup.getByRole("status")).toHaveText("Joining cluster. Checking route connectivity.");
+  await expect(setup.getByRole("textbox", { name: "Node name" }).last()).toBeDisabled();
+  await expect(setup.getByLabel("Join token")).toBeDisabled();
+  releaseJoin();
   await expect(page).toHaveURL(/\/setup\/channel$/, { timeout: 20_000 });
   await expect(page.getByRole("heading", { name: "Add a notification channel" })).toBeVisible();
   await expect(page.getByText(/already configured/)).toBeVisible();
@@ -1096,6 +1171,10 @@ test("joins a fresh node to the Cluster from its WebUI", async ({ page, request 
   await page.getByRole("link", { name: "Cluster" }).click();
   await expect(page.getByRole("region", { name: "Cluster topology" }).locator(".resource")).toHaveCount(2);
   await expect(page.getByText("playwright-worker")).toBeVisible();
+  const worker = page.getByRole("region", { name: "Cluster topology" }).locator(".resource", {
+    hasText: "playwright-worker",
+  });
+  await expect(worker).toContainText(`up://localhost:${joiningRaftPort}`);
 });
 
 test("drains and removes a remote Cluster Node", async ({ page }) => {

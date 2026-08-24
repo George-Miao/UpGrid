@@ -1,9 +1,9 @@
-use crate::domain::ApplicationState;
+use crate::domain::{ApplicationState, decode_v2026_08_12_application_state};
 
 pub(super) const VERSION: &str = "v2026_08_12_initial";
 
 pub(super) fn snapshot(payload: &[u8]) -> Result<ApplicationState, postcard::Error> {
-    postcard::from_bytes(payload)
+    decode_v2026_08_12_application_state(payload)
 }
 
 #[cfg(test)]

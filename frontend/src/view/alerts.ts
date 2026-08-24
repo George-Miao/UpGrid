@@ -3,8 +3,9 @@ import "@/component/switch.ts";
 import type { ToggleSwitch } from "@/component/switch.ts";
 import deleteIcon from "@iconify-icons/lucide/trash-2";
 import { html, nothing } from "lit";
-import type { Alert, Channel, Transition } from "@/app/api.ts";
+import type { Alert, AvailabilityTransition, Channel } from "@/app/api.ts";
 import "@/component/empty-state.ts";
+import "@/component/channel-type-icon.ts";
 import "@/component/icon-button.ts";
 import { renderCard } from "@/component/card.ts";
 
@@ -46,7 +47,7 @@ function deliveryDetail(alert: Alert): string {
   return alert.completed_at_ms === null ? "Delivered" : `Delivered ${new Date(alert.completed_at_ms).toLocaleString()}`;
 }
 
-export function renderAlertsPage(alerts: Alert[], transitions: Transition[], channels: Channel[], filters: AlertFilters, saving: boolean, actions: Actions) {
+export function renderAlertsPage(alerts: Alert[], transitions: AvailabilityTransition[], channels: Channel[], filters: AlertFilters, saving: boolean, actions: Actions) {
   const visibleAlerts = alerts.filter((alert) => matches(alert, filters));
   return html`
     <section class="heading" id="alerts">
@@ -54,7 +55,7 @@ export function renderAlertsPage(alerts: Alert[], transitions: Transition[], cha
       <button class="button" @click=${actions.create}>Add channel</button>
     </section>
     ${renderCard({
-      title: "Notification deliveries",
+      title: "Alerts",
       label: "Alert history",
       metadata: `${visibleAlerts.length} of ${alerts.length} alerts`,
       className: "alert-history",
@@ -94,8 +95,8 @@ export function renderAlertsPage(alerts: Alert[], transitions: Transition[], cha
     <div class="page-columns">
       ${renderCard({
         title: "Availability transitions",
-        label: "Availability history",
-        metadata: `${transitions.length} events`,
+        label: "Availability transition history",
+        metadata: `${transitions.length} transitions`,
         content: html`
           ${
             transitions.length
@@ -127,7 +128,7 @@ export function renderAlertsPage(alerts: Alert[], transitions: Transition[], cha
               ? channels.map(
                   (channel) => html`
                     <div class="resource channel-resource">
-                      <div class="channel-summary"><div class="channel-title"><strong>${channel.name}</strong><span class="badge">${channel.kind}</span></div><code>${channel.destination}</code></div>
+                      <div class="channel-summary"><div class="channel-title"><strong>${channel.name}</strong><upgrid-channel-type-icon .kind=${channel.kind}></upgrid-channel-type-icon></div><code>${channel.destination}</code></div>
                       <div class="channel-actions">
                         <upgrid-toggle-switch aria-label=${`Default channel ${channel.name}`} .checked=${channel.default} @change=${(event: Event) => actions.setDefault(channel, (event.currentTarget as ToggleSwitch).checked)}>Default</upgrid-toggle-switch>
                         <upgrid-icon-button .icon=${editIcon} label=${`Edit channel ${channel.name}`} title=${`Edit ${channel.name}`} @click=${() => actions.edit(channel)}></upgrid-icon-button>

@@ -185,6 +185,8 @@ export class Application extends AppController {
     .mini-bar.up { background: var(--green); }
     .mini-bar.down { background: var(--red); }
     .notice { margin: 0 0 16px; border: 1px solid var(--notice-border); border-radius: 14px; background: var(--notice-bg); color: var(--notice-text); padding: 10px 12px; }
+    .connectivity-failures { display: grid; gap: 4px; margin: 8px 0 0; padding-left: 20px; }
+    .connectivity-failures code { overflow-wrap: anywhere; font-size: 11px; }
     .toolbar { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
     .toolbar input, .toolbar select { padding: 7px 9px; }
     .toolbar select { appearance: none; padding-right: 38px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6' fill='none' stroke='%235f7168' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'/%3E%3C/svg%3E"); background-position: right 14px center; background-repeat: no-repeat; background-size: 16px; }
@@ -445,7 +447,7 @@ export class Application extends AppController {
             : this.activeSection === "alerts"
               ? renderAlertsPage(
                   this.alerts,
-                  this.transitions,
+                  this.availabilityTransitions,
                   this.channels,
                   {
                     search: this.alertSearch,
@@ -686,7 +688,7 @@ export class Application extends AppController {
       <div class="resource">
         <div>
           <strong>${member.name}</strong>
-          <code>${member.raft_url} · ${member.active_assignments} active assignments</code>
+          <code>${member.reachable_addresses.length ? member.reachable_addresses.join(", ") : "Discovery pending"} · ${member.active_assignments} active assignments</code>
         </div>
         <div class="actions">
           ${member.local ? html`<span class="badge">This node</span>` : nothing}
@@ -706,6 +708,10 @@ export class Application extends AppController {
     `;
   }
 
+  private clusterMemberName(nodeId: string) {
+    return this.cluster?.members.find((member) => member.id === nodeId)?.name ?? "Unknown node";
+  }
+
   private renderClusterPage() {
     return html`
       <section class="heading" id="cluster">
@@ -714,6 +720,27 @@ export class Application extends AppController {
           <button class="button" @click=${this.openTokenDialog}>Create token</button>
         </div>
       </section>
+      ${
+        this.cluster?.degraded
+          ? html`
+            <div class="notice" role="status">
+              <strong>Cluster connectivity is degraded.</strong>
+              <ul class="connectivity-failures" aria-label="Unavailable directed routes">
+                ${this.cluster.connectivity_failures.map(
+                  (failure) => html`
+                    <li>
+                      <strong>${this.clusterMemberName(failure.source_node_id)}</strong>
+                      (<code>${failure.source_node_id}</code>) cannot reach
+                      <strong>${this.clusterMemberName(failure.destination_node_id)}</strong>
+                      (<code>${failure.destination_node_id}</code>).
+                    </li>
+                  `,
+                )}
+              </ul>
+            </div>
+          `
+          : nothing
+      }
       <div class="page-columns">
       ${renderCard({
         title: "Nodes",

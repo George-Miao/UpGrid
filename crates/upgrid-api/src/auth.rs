@@ -18,6 +18,7 @@ const SESSION_COOKIE: &str = "upgrid_session";
 const REFRESH_COOKIE: &str = "upgrid_session_refresh";
 const SESSION_TTL_MS: u64 = 15 * 60 * 1_000;
 const REFRESH_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1_000;
+const SESSION_ROTATION_INTERVAL_MS: u64 = SESSION_TTL_MS - 60 * 1_000;
 const SESSION_JWT_PURPOSE: &[u8] = b"upgrid-api-session-v1";
 const REFRESH_JWT_PURPOSE: &[u8] = b"upgrid-api-session-refresh-v1";
 
@@ -38,6 +39,7 @@ pub(super) struct SessionView {
     identity_id: Uuid,
     username: String,
     expires_at_ms: u64,
+    refresh_after_ms: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -109,6 +111,7 @@ pub(super) async fn session(
             identity_id: principal.identity_id.0,
             username: principal.username,
             expires_at_ms,
+            refresh_after_ms: None,
         })
         .into_response());
     }
@@ -232,6 +235,7 @@ fn session_response(state: &WebState, identity: &OperatorIdentity) -> Result<Res
         identity_id: identity.id.0,
         username: identity.username.clone(),
         expires_at_ms,
+        refresh_after_ms: Some(SESSION_ROTATION_INTERVAL_MS),
     })
     .into_response();
     response.headers_mut().append(header::SET_COOKIE, cookie);

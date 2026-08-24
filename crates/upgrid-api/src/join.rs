@@ -53,10 +53,20 @@ pub(super) async fn create_join_token(
             "join token usage limit must be positive",
         ));
     }
+    let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
+    let remote = snapshot
+        .preferred_published_address(state.cluster.node_id, now_ms())
+        .ok_or_else(|| ApiError::bad_request("no reachable node address is available"))?;
     let token = generate_join_token().map_err(ApiError::unavailable)?;
     let hash = hash_join_token(&token);
-    let link = JoinLink::issue(&state.raft_url, &state.cipher, &state.quic_ca_key, token)
-        .map_err(ApiError::bad_request)?;
+    let link = JoinLink::issue(
+        &remote.to_string(),
+        state.cluster.node_id,
+        &state.cipher,
+        &state.quic_ca_key,
+        token,
+    )
+    .map_err(ApiError::bad_request)?;
     let expires_at_ms = input
         .expires_in_seconds
         .checked_mul(1_000)
@@ -122,6 +132,7 @@ pub(super) async fn get_setup(State(state): State<WebState>) -> Result<Json<Setu
         .map_err(ApiError::unavailable)?;
     Ok(Json(setup_view(
         &state,
+        &snapshot,
         snapshot.notification_channels.len(),
         snapshot.targets.len(),
     )))
@@ -183,8 +194,24 @@ pub(super) async fn create_cluster(
     })
 }
 
-fn setup_view(state: &WebState, channel_count: usize, target_count: usize) -> SetupView {
+fn setup_view(
+    state: &WebState,
+    snapshot: &upgrid_raft::domain::ApplicationState,
+    channel_count: usize,
+    target_count: usize,
+) -> SetupView {
     let phase = state.oobe.phase();
+    let reachable_addresses = snapshot
+        .node_reachability
+        .get(&state.cluster.node_id)
+        .map(|reachability| {
+            reachability
+                .candidates(state.cluster.node_id, now_ms())
+                .into_iter()
+                .map(|address| address.to_string())
+                .collect()
+        })
+        .unwrap_or_default();
     SetupView {
         setup: phase != OobePhase::Complete,
         phase: phase.into(),
@@ -192,6 +219,18 @@ fn setup_view(state: &WebState, channel_count: usize, target_count: usize) -> Se
         cluster_ready: true,
         node_name: state.node_name.clone(),
         warning: state.startup_warning.clone(),
+        local_addresses: state
+            .local_addresses
+            .iter()
+            .copied()
+            .map(Into::into)
+            .collect(),
+        reachable_addresses,
+        discovery_urls: state
+            .discovery_urls
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
         channel_count,
         target_count,
     }

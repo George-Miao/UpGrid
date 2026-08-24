@@ -482,6 +482,46 @@
         "security": []
       }
     },
+    "/api/v1/availability-transitions": {
+      "get": {
+        "operationId": "list_availability_transitions",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AvailabilityTransitionView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/channels": {
       "get": {
         "operationId": "list_channels",
@@ -2618,46 +2658,6 @@
         }
       }
     },
-    "/api/v1/transitions": {
-      "get": {
-        "operationId": "list_transitions",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TransitionView"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/trash/targets": {
       "get": {
         "operationId": "list_trashed_targets",
@@ -2964,6 +2964,32 @@
           }
         }
       },
+      "AvailabilityTransitionView": {
+        "type": "object",
+        "required": [
+          "target_id",
+          "kind",
+          "target_name",
+          "scheduled_at_ms"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "scheduled_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "target_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "target_name": {
+            "type": "string"
+          }
+        }
+      },
       "ChannelView": {
         "type": "object",
         "required": [
@@ -3039,7 +3065,7 @@
         "required": [
           "id",
           "name",
-          "raft_url",
+          "reachable_addresses",
           "leader",
           "local",
           "draining",
@@ -3066,8 +3092,11 @@
           "name": {
             "type": "string"
           },
-          "raft_url": {
-            "type": "string"
+          "reachable_addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -3075,9 +3104,20 @@
         "type": "object",
         "required": [
           "local_node_id",
-          "members"
+          "members",
+          "degraded",
+          "connectivity_failures"
         ],
         "properties": {
+          "connectivity_failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DirectedRouteView"
+            }
+          },
+          "degraded": {
+            "type": "boolean"
+          },
           "leader_node_id": {
             "type": [
               "string",
@@ -3190,8 +3230,20 @@
           "admin_username": {
             "type": "string"
           },
+          "discovery_urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "node_name": {
             "type": "string"
+          },
+          "reachable_addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -3272,6 +3324,23 @@
           },
           "url": {
             "type": "string"
+          }
+        }
+      },
+      "DirectedRouteView": {
+        "type": "object",
+        "required": [
+          "source_node_id",
+          "destination_node_id"
+        ],
+        "properties": {
+          "destination_node_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source_node_id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -3577,11 +3646,23 @@
           "node_name"
         ],
         "properties": {
+          "discovery_urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "join_link": {
             "type": "string"
           },
           "node_name": {
             "type": "string"
+          },
+          "reachable_addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -4050,6 +4131,23 @@
           }
         }
       },
+      "SetupLocalAddress": {
+        "type": "object",
+        "required": [
+          "host",
+          "port"
+        ],
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "SetupPhase": {
         "type": "string",
         "enum": [
@@ -4067,6 +4165,9 @@
           "path",
           "cluster_ready",
           "node_name",
+          "local_addresses",
+          "reachable_addresses",
+          "discovery_urls",
           "channel_count",
           "target_count"
         ],
@@ -4078,6 +4179,18 @@
           "cluster_ready": {
             "type": "boolean"
           },
+          "discovery_urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "local_addresses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SetupLocalAddress"
+            }
+          },
           "node_name": {
             "type": "string"
           },
@@ -4086,6 +4199,12 @@
           },
           "phase": {
             "$ref": "#/components/schemas/SetupPhase"
+          },
+          "reachable_addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "setup": {
             "type": "boolean"
@@ -4524,32 +4643,6 @@
             }
           }
         ]
-      },
-      "TransitionView": {
-        "type": "object",
-        "required": [
-          "target_id",
-          "kind",
-          "target_name",
-          "scheduled_at_ms"
-        ],
-        "properties": {
-          "kind": {
-            "type": "string"
-          },
-          "scheduled_at_ms": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          },
-          "target_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "target_name": {
-            "type": "string"
-          }
-        }
       },
       "TrashedTargetView": {
         "allOf": [

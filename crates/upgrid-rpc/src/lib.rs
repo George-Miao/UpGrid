@@ -11,7 +11,7 @@ pub mod server;
 mod transport;
 
 pub use context::Context;
-pub use error::{CallError, TransportError};
+pub use error::{CallError, CallFailure, TransportError, TransportStage};
 #[doc(hidden)]
 pub use serde as __serde;
 use serde::{Deserialize, Serialize};

@@ -61,7 +61,7 @@ pub(super) async fn rename_node(
         .status()
         .await
         .map_err(ApiError::unavailable)?;
-    if !status.members.contains_key(&id) {
+    if !status.member_ids.contains(&id) {
         return Err(ApiError::not_found(format!("Node not found: {id}")));
     }
     state
@@ -186,7 +186,7 @@ async fn require_member(state: &WebState, id: Uuid) -> Result<upgrid_raft::Statu
         .status()
         .await
         .map_err(ApiError::unavailable)?;
-    if !status.members.contains_key(&id) {
+    if !status.member_ids.contains(&id) {
         return Err(ApiError::not_found(format!("Node not found: {id}")));
     }
     Ok(status)

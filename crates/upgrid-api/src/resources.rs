@@ -5,7 +5,7 @@ use futures_util::SinkExt;
 use super::*;
 
 #[derive(Debug, Serialize, ToSchema)]
-pub(super) struct TransitionView {
+pub(super) struct AvailabilityTransitionView {
     target_id: Uuid,
     kind: String,
     target_name: String,
@@ -142,10 +142,9 @@ pub(super) async fn list_alerts(
         ));
     }
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
-    let alerts = snapshot
+    let mut alerts = snapshot
         .alerts
         .values()
-        .rev()
         .filter(|alert| {
             filters
                 .target_id
@@ -175,6 +174,16 @@ pub(super) async fn list_alerts(
                     .to_ms
                     .is_none_or(|to_ms| alert.id.evaluation_scheduled_at_ms <= to_ms)
         })
+        .collect::<Vec<_>>();
+    alerts.sort_unstable_by(|left, right| {
+        right
+            .id
+            .evaluation_scheduled_at_ms
+            .cmp(&left.id.evaluation_scheduled_at_ms)
+            .then_with(|| right.id.cmp(&left.id))
+    });
+    let alerts = alerts
+        .into_iter()
         .take(limit)
         .map(|alert| {
             let (delivery, attempts, next_attempt_at_ms, completed_at_ms, diagnostic) =
@@ -279,21 +288,21 @@ pub(super) async fn retry_alert(
 
 #[utoipa::path(
     get,
-    path = "/api/v1/transitions",
+    path = "/api/v1/availability-transitions",
     responses(
-        (status = 200, body = [TransitionView]),
+        (status = 200, body = [AvailabilityTransitionView]),
         (status = 401, body = ErrorBody),
         (status = 503, body = ErrorBody),
     )
 )]
-pub(super) async fn list_transitions(
+pub(super) async fn list_availability_transitions(
     State(state): State<WebState>,
-) -> Result<Json<Vec<TransitionView>>, ApiError> {
+) -> Result<Json<Vec<AvailabilityTransitionView>>, ApiError> {
     let snapshot = state.cluster.read().await.map_err(ApiError::unavailable)?;
     let mut transitions = snapshot
-        .transitions
+        .availability_transitions
         .values()
-        .map(|transition| TransitionView {
+        .map(|transition| AvailabilityTransitionView {
             target_id: transition.evaluation.id.target_id.0,
             kind: match transition.kind {
                 AlertKind::Down => "down",
@@ -332,20 +341,40 @@ pub(super) async fn get_cluster(
             .entry(assignment.executor_node_id)
             .or_default() += 1;
     }
+    let connectivity_failures = snapshot
+        .connectivity_failures
+        .iter()
+        .map(|route| DirectedRouteView {
+            source_node_id: route.source,
+            destination_node_id: route.destination,
+        })
+        .collect::<Vec<_>>();
     Ok(Json(ClusterView {
         leader_node_id: status.leader_node_id,
         local_node_id: status.local_node_id,
+        degraded: snapshot.connectivity_degraded(),
+        connectivity_failures,
         members: status
-            .members
+            .member_ids
             .into_iter()
-            .map(|(id, raft_url)| ClusterMemberView {
+            .map(|id| ClusterMemberView {
                 id,
                 name: snapshot
                     .node_names
                     .get(&id)
                     .cloned()
                     .unwrap_or_else(|| upgrid_config::friendly_node_name(id)),
-                raft_url,
+                reachable_addresses: snapshot
+                    .node_reachability
+                    .get(&id)
+                    .map(|reachability| {
+                        reachability
+                            .reachable(status.local_node_id, upgrid_config::now_ms())
+                            .into_iter()
+                            .map(|address| address.to_string())
+                            .collect()
+                    })
+                    .unwrap_or_default(),
                 leader: status.leader_node_id == Some(id),
                 local: status.local_node_id == id,
                 draining: snapshot.draining_nodes.contains(&id),

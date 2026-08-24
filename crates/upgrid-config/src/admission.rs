@@ -1,21 +1,29 @@
 //! Reusable, revocable Cluster admission links.
 
 use std::fmt::{Debug, Display, Formatter};
+use std::fs;
+use std::net::IpAddr;
+use std::path::Path;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde::{Deserialize, Serialize};
-use url::Url;
+use snafu::ResultExt as _;
+use url::{Host, Url};
+use uuid::Uuid;
 
+use crate::error::{RemoveSnafu, StoredJoinLinkSnafu, WriteSnafu};
 use crate::{Cipher, QuicCaKey};
 
-const VERSION: u8 = 2;
+const VERSION: u8 = 3;
+const PENDING_JOIN_FILE_NAME: &str = "pending-join-link";
 
-/// A bearer invitation containing everything a new Node needs to join.
+/// A bearer join link containing everything a new node needs to join.
 #[derive(Clone)]
 pub struct JoinLink {
     url: Url,
     remote: Url,
+    issuer_node_id: Uuid,
     cipher: Cipher,
     quic_ca_key: QuicCaKey,
     token: String,
@@ -24,6 +32,7 @@ pub struct JoinLink {
 #[derive(Serialize, Deserialize)]
 struct Payload {
     version: u8,
+    issuer_node_id: Uuid,
     deployment_key: String,
     quic_ca_key: String,
     token: String,
@@ -31,25 +40,28 @@ struct Payload {
 
 impl JoinLink {
     pub fn issue(
-        raft_url: &str,
+        reachable_address: &str,
+        issuer_node_id: Uuid,
         cipher: &Cipher,
         quic_ca_key: &QuicCaKey,
         token: String,
     ) -> Result<Self, Error> {
-        let remote = parse_remote(raft_url)?;
+        let remote = parse_remote(reachable_address)?;
         let payload = postcard::to_stdvec(&Payload {
             version: VERSION,
+            issuer_node_id,
             deployment_key: cipher.encoded(),
             quic_ca_key: quic_ca_key.encoded(),
             token: token.clone(),
         })
         .map_err(|_| Error::InvalidPayload)?;
-        let invitation = URL_SAFE_NO_PAD.encode(payload);
+        let encoded_payload = URL_SAFE_NO_PAD.encode(payload);
         let mut url = remote.clone();
-        url.set_path(&format!("/{invitation}"));
+        url.set_path(&format!("/{encoded_payload}"));
 
         Ok(Self {
             url,
+            issuer_node_id,
             remote,
             cipher: cipher.clone(),
             quic_ca_key: quic_ca_key.clone(),
@@ -69,13 +81,13 @@ impl JoinLink {
         {
             return Err(Error::InvalidShape);
         }
-        let invitation = url
+        let encoded_payload = url
             .path()
             .strip_prefix('/')
             .filter(|value| !value.is_empty() && !value.contains('/'))
             .ok_or(Error::InvalidShape)?;
         let bytes = URL_SAFE_NO_PAD
-            .decode(invitation)
+            .decode(encoded_payload)
             .map_err(|_| Error::InvalidPayload)?;
         let payload: Payload = postcard::from_bytes(&bytes).map_err(|_| Error::InvalidPayload)?;
         if payload.version != VERSION {
@@ -94,10 +106,15 @@ impl JoinLink {
         Ok(Self {
             url,
             remote,
+            issuer_node_id: payload.issuer_node_id,
             cipher,
             quic_ca_key,
             token: payload.token,
         })
+    }
+
+    pub fn issuer_node_id(&self) -> Uuid {
+        self.issuer_node_id
     }
 
     pub fn remote(&self) -> &Url {
@@ -143,11 +160,76 @@ fn parse_remote(value: &str) -> Result<Url, Error> {
     {
         return Err(Error::InvalidShape);
     }
-    if url.host_str().is_none() || url.port_or_known_default().is_none() {
+    let valid_host = match url.host() {
+        Some(Host::Ipv4(address)) => !address.is_unspecified(),
+        Some(Host::Ipv6(address)) => !address.is_unspecified(),
+        Some(Host::Domain(host)) => !host
+            .parse::<IpAddr>()
+            .is_ok_and(|address| address.is_unspecified()),
+        None => false,
+    };
+    if !valid_host || !matches!(url.port(), Some(1..=u16::MAX)) {
         return Err(Error::InvalidNode);
     }
     url.set_path("");
     Ok(url)
+}
+
+#[derive(Clone)]
+pub struct PendingJoin {
+    pub link: JoinLink,
+    pub complete_oobe: bool,
+}
+
+pub fn load_pending_join(data_dir: &Path) -> crate::Result<Option<PendingJoin>> {
+    let path = data_dir.join(PENDING_JOIN_FILE_NAME);
+    let contents = match fs::read_to_string(&path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(source) => return Err(crate::Error::Read { path, source }),
+    };
+    let (phase, encoded) =
+        contents
+            .split_once('\n')
+            .ok_or_else(|| crate::Error::StoredJoinLink {
+                path: path.clone(),
+                source: Error::InvalidPayload,
+            })?;
+    let complete_oobe = match phase {
+        "complete" => true,
+        "continue" => false,
+        _ => {
+            return Err(crate::Error::StoredJoinLink {
+                path,
+                source: Error::InvalidPayload,
+            });
+        }
+    };
+    let link = JoinLink::parse(encoded.trim()).context(StoredJoinLinkSnafu { path })?;
+    Ok(Some(PendingJoin {
+        link,
+        complete_oobe,
+    }))
+}
+
+pub fn store_pending_join(
+    data_dir: &Path,
+    link: &JoinLink,
+    complete_oobe: bool,
+) -> crate::Result<()> {
+    let path = data_dir.join(PENDING_JOIN_FILE_NAME);
+    let phase = if complete_oobe {
+        "complete"
+    } else {
+        "continue"
+    };
+    let contents = format!("{phase}\n{link}");
+    crate::durable::replace_private(&path, contents.as_bytes()).context(WriteSnafu { path })
+}
+
+pub fn remove_pending_join(data_dir: &Path) -> crate::Result<()> {
+    let path = data_dir.join(PENDING_JOIN_FILE_NAME);
+    crate::durable::remove(&path).context(RemoveSnafu { path })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,7 +252,7 @@ impl Display for Error {
             Self::UnsupportedVersion(version) => {
                 write!(formatter, "join link version {version} is not supported")
             }
-            Self::InvalidNode => formatter.write_str("join link contains an invalid Node address"),
+            Self::InvalidNode => formatter.write_str("join link contains an invalid node address"),
         }
     }
 }
@@ -189,10 +271,15 @@ mod tests {
         QuicCaKey::parse("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap()
     }
 
+    fn node_id() -> Uuid {
+        Uuid::from_u128(1)
+    }
+
     #[test]
     fn join_link_round_trips_without_exposing_secret_in_debug() {
         let link = JoinLink::issue(
             "up://127.0.0.1:11451",
+            node_id(),
             &cipher(),
             &quic_ca_key(),
             "reusable-token".to_owned(),
@@ -203,10 +290,48 @@ mod tests {
 
         assert!(encoded.starts_with("up://127.0.0.1:11451/"));
         assert_eq!(parsed.remote().as_str(), "up://127.0.0.1:11451");
+        assert_eq!(parsed.issuer_node_id(), node_id());
         assert_eq!(parsed.token(), "reusable-token");
         assert_eq!(parsed.cipher().encoded(), cipher().encoded());
         assert_eq!(parsed.quic_ca_key(), &quic_ca_key());
         assert_eq!(format!("{parsed:?}"), "JoinLink { url: \"[REDACTED]\" }");
+    }
+
+    #[test]
+    fn pending_join_round_trips_in_a_private_file() {
+        let directory =
+            std::env::temp_dir().join(format!("upgrid-pending-join-{}", Uuid::now_v7()));
+        fs::create_dir_all(&directory).unwrap();
+        let link = JoinLink::issue(
+            "up://127.0.0.1:11451",
+            node_id(),
+            &cipher(),
+            &quic_ca_key(),
+            "pending-token".to_owned(),
+        )
+        .unwrap();
+
+        store_pending_join(&directory, &link, false).unwrap();
+        let loaded = load_pending_join(&directory).unwrap().unwrap();
+        assert_eq!(loaded.link.to_string(), link.to_string());
+        assert!(!loaded.complete_oobe);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+
+            let mode = fs::metadata(directory.join(PENDING_JOIN_FILE_NAME))
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
+        store_pending_join(&directory, &link, true).unwrap();
+        let loaded = load_pending_join(&directory).unwrap().unwrap();
+        assert!(loaded.complete_oobe);
+
+        remove_pending_join(&directory).unwrap();
+        assert!(load_pending_join(&directory).unwrap().is_none());
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
@@ -219,5 +344,60 @@ mod tests {
             JoinLink::parse("up://127.0.0.1:11451/invite?leak=true").unwrap_err(),
             Error::InvalidShape
         );
+    }
+
+    #[test]
+    fn join_link_rejects_zero_port_authorities() {
+        assert_eq!(
+            JoinLink::issue(
+                "up://127.0.0.1:0",
+                node_id(),
+                &cipher(),
+                &quic_ca_key(),
+                "token".to_owned(),
+            )
+            .unwrap_err(),
+            Error::InvalidNode
+        );
+        let link = JoinLink::issue(
+            "up://127.0.0.1:11451",
+            node_id(),
+            &cipher(),
+            &quic_ca_key(),
+            "token".to_owned(),
+        )
+        .unwrap()
+        .to_string()
+        .replacen(":11451/", ":0/", 1);
+        assert_eq!(JoinLink::parse(&link).unwrap_err(), Error::InvalidNode);
+    }
+
+    #[test]
+    fn join_link_rejects_unspecified_hosts() {
+        for host in ["0.0.0.0", "[::]"] {
+            assert_eq!(
+                JoinLink::issue(
+                    &format!("up://{host}:11451"),
+                    node_id(),
+                    &cipher(),
+                    &quic_ca_key(),
+                    "token".to_owned(),
+                )
+                .unwrap_err(),
+                Error::InvalidNode
+            );
+        }
+
+        let link = JoinLink::issue(
+            "up://127.0.0.1:11451",
+            node_id(),
+            &cipher(),
+            &quic_ca_key(),
+            "token".to_owned(),
+        )
+        .unwrap()
+        .to_string()
+        .replacen("127.0.0.1", "0.0.0.0", 1);
+        assert_eq!(JoinLink::parse(&link).unwrap_err(), Error::InvalidNode);
     }
 }

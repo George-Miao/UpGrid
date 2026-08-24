@@ -7,6 +7,7 @@ use super::codec::{encode_application, encode_field, integer};
 use super::schema::{RaftLog, RaftMeta, Snapshot, StateMachine};
 use super::{count_rows, execute_insert, legacy, transaction_error};
 use crate::error::DatabaseError;
+use crate::state_machine::{migrate_legacy_membership, migrate_snapshot_reachability};
 
 pub(super) fn initialize(
     connection: &mut Connection,
@@ -50,7 +51,10 @@ pub(super) fn initialize(
         .as_ref()
         .map(|value| encode_field("raft_meta", "vote", value))
         .transpose()?;
-    let (state, snapshot, snapshot_idx) = recovered.state.runtime();
+    let (mut state, mut snapshot, snapshot_idx) = recovered.state.runtime();
+    migrate_legacy_membership(&mut state.application, &mut state.last_membership);
+    migrate_snapshot_reachability(&mut snapshot)
+        .map_err(|source| DatabaseError::LegacySnapshotMigration { source })?;
     let last_applied_log = state
         .last_applied_log
         .as_ref()

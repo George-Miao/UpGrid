@@ -117,6 +117,79 @@ pub enum Command {
     SetPublicStatusEnabled {
         enabled: bool,
     },
+    ReplaceConfiguredReachableAddresses {
+        node_id: Uuid,
+        addresses: BTreeSet<ReachableAddress>,
+    },
+    RenewReachabilityLeases(Vec<ReachableAddressLease>),
+    VerifyReachableAddress {
+        node_id: Uuid,
+        address: ReachableAddress,
+        verified_at_ms: u64,
+    },
+    RecordConnectivity {
+        leases: Vec<ReachableAddressLease>,
+
+        #[serde(default)]
+        verified: Option<BTreeMap<Uuid, BTreeSet<ReachableAddress>>>,
+
+        checked_at_ms: u64,
+        failures: BTreeSet<DirectedRoute>,
+    },
+    ReserveJoinToken {
+        hash: JoinTokenHash,
+        reservation_id: Uuid,
+        reservation_operation_id: Uuid,
+        reserved_at_ms: u64,
+        readmission: bool,
+    },
+    CompleteJoinTokenReservation {
+        reservation_id: Uuid,
+        reservation_operation_id: Uuid,
+        accepted: bool,
+        completed_at_ms: u64,
+    },
+    AbortPendingJoin {
+        reservation_id: Uuid,
+        reservation_operation_id: Uuid,
+        completed_at_ms: u64,
+    },
+    AbortPendingReadmission {
+        reservation_id: Uuid,
+        reservation_operation_id: Uuid,
+        completed_at_ms: u64,
+    },
+    ReplaceAdmissionConfiguredReachableAddresses {
+        node_id: Uuid,
+        addresses: BTreeSet<ReachableAddress>,
+        reservation_operation_id: Uuid,
+    },
+    RenewAdmissionReachabilityLeases {
+        reservation_id: Uuid,
+        reservation_operation_id: Uuid,
+        leases: Vec<ReachableAddressLease>,
+    },
+    VerifyAdmissionReachableAddress {
+        node_id: Uuid,
+        address: ReachableAddress,
+        verified_at_ms: u64,
+        reservation_operation_id: Uuid,
+    },
+}
+
+impl Command {
+    pub(crate) fn stamp_reachability_leases(&mut self, discovered_at_ms: u64) {
+        let leases = match self {
+            Self::RenewReachabilityLeases(leases)
+            | Self::RecordConnectivity { leases, .. }
+            | Self::RenewAdmissionReachabilityLeases { leases, .. } => leases,
+            _ => return,
+        };
+        for lease in leases {
+            lease.discovered_at_ms = discovered_at_ms;
+            lease.expires_at_ms = discovered_at_ms.saturating_add(crate::REACHABILITY_LEASE_MS);
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -128,6 +201,7 @@ pub enum CommandResult {
     TargetDeleted(TargetId),
     EvaluationAccepted {
         availability: AvailabilityState,
+        #[serde(alias = "alert_deliveries")]
         alerts: Vec<AlertId>,
     },
     EvaluationDiscarded,
@@ -155,6 +229,7 @@ pub enum CommandResult {
     NodeTargetsSynced,
     NodeEvaluationAccepted {
         availability: AvailabilityState,
+        #[serde(alias = "alert_deliveries")]
         alerts: Vec<AlertId>,
     },
     NotificationChannelUpdated(NotificationChannelId),
@@ -170,6 +245,13 @@ pub enum CommandResult {
     TargetTrashRetentionSet(u64),
     TargetTrashPruned(u64),
     PublicStatusEnabledSet(bool),
+    ConfiguredReachableAddressesReplaced(Uuid),
+    ReachabilityLeasesRenewed,
+    ReachableAddressVerified(Uuid),
+    ConnectivityRecorded,
+    JoinTokenReserved,
+    JoinTokenReservationCompleted,
+    AdmissionAccepted(Uuid),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -193,6 +275,8 @@ pub enum DomainError {
     ApiTokenAlreadyExists(ApiTokenId),
     ApiTokenNotFound(ApiTokenId),
     TrashedTargetNotFound(TargetId),
+    NodeNotInMembership(Uuid),
+    JoinAlreadyPending(Uuid),
 }
 
 impl Display for DomainError {
@@ -222,6 +306,15 @@ impl Display for DomainError {
             Self::InvalidJoinToken => {
                 formatter.write_str("join token is invalid, expired, or revoked")
             }
+            Self::JoinAlreadyPending(node_id) => {
+                write!(
+                    formatter,
+                    "node {node_id} already has an admission in progress"
+                )
+            }
+            Self::NodeNotInMembership(node_id) => {
+                write!(formatter, "node is not in current membership: {node_id}")
+            }
             Self::InvalidNodeName(message) => formatter.write_str(message),
             Self::IdentityAlreadyExists(id) => {
                 write!(formatter, "identity already exists: {}", id.0)
@@ -236,6 +329,7 @@ impl Display for DomainError {
 }
 
 impl std::error::Error for DomainError {}
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
 
 use serde::{Deserialize, Serialize};
@@ -246,3 +340,4 @@ use super::{
     EvaluationId, IdentityId, JoinTokenHash, NodeTarget, NotificationChannel,
     NotificationChannelId, OperatorIdentity, Secret, SecretId, Target, TargetId,
 };
+use crate::{DirectedRoute, ReachableAddress, ReachableAddressLease};

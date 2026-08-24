@@ -70,6 +70,102 @@ test("refreshes an expired browser session without showing an error", async ({ p
   await expect(page.getByText("authentication required", { exact: true })).toHaveCount(0);
 });
 
+for (const [clock, skew] of [
+  ["behind", -24 * 60 * 60 * 1_000],
+  ["ahead", 24 * 60 * 60 * 1_000],
+] as const) {
+  test(`rotates a browser session with the client clock ${clock}`, async ({ page }) => {
+    await page.clock.install();
+    await page.clock.setSystemTime(Date.now() + skew);
+    let sessionRequests = 0;
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/v1/auth/session") sessionRequests += 1;
+    });
+
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+    await expect.poll(() => sessionRequests).toBe(1);
+
+    await page.clock.fastForward(14 * 60 * 1_000 + 5_000);
+    await expect.poll(() => sessionRequests).toBe(2);
+    await expect(page.getByText("authentication required", { exact: true })).toHaveCount(0);
+  });
+}
+
+test("finishes an active session refresh before logout", async ({ page }) => {
+  await page.goto("/admin/manage");
+  await expect(page.getByRole("heading", { name: "Manage" })).toBeVisible();
+
+  let releaseRefresh = () => {};
+  const refreshReleased = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  let markRefreshStarted = () => {};
+  const refreshStarted = new Promise<void>((resolve) => {
+    markRefreshStarted = resolve;
+  });
+  await page.route("**/api/v1/auth/session", async (route) => {
+    markRefreshStarted();
+    await refreshReleased;
+    await route.fallback();
+  });
+
+  const publicAccess = page.getByRole("switch", { name: "Allow status viewing without login" });
+  const initiallyEnabled = await publicAccess.isChecked();
+  let settingsRequests = 0;
+  await page.route("**/api/v1/settings", async (route) => {
+    if (route.request().method() !== "PUT") {
+      await route.fallback();
+      return;
+    }
+    settingsRequests += 1;
+    await route.fulfill({
+      status: settingsRequests === 1 ? 401 : 200,
+      contentType: "application/json",
+      body: JSON.stringify(settingsRequests === 1 ? { error: "authentication required" } : { public_status_enabled: initiallyEnabled }),
+    });
+  });
+
+  if (initiallyEnabled) await publicAccess.uncheck();
+  else await publicAccess.check();
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await refreshStarted;
+
+  let logoutRequests = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/v1/auth/logout") logoutRequests += 1;
+  });
+  await page.getByLabel("Account menu for admin").click();
+  try {
+    await page.getByRole("menuitem", { name: "Logout" }).click();
+    expect(logoutRequests).toBe(0);
+  } finally {
+    releaseRefresh();
+  }
+
+  await expect.poll(() => logoutRequests).toBe(1);
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect.poll(async () => (await page.context().cookies()).some((cookie) => cookie.name === "upgrid_session" || cookie.name === "upgrid_session_refresh")).toBe(false);
+});
+
+test("redirects to sign in when session rotation fails", async ({ page }) => {
+  await page.goto("/alerts");
+  await expect(page.getByRole("heading", { name: "Alerts", level: 1 })).toBeVisible();
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "authentication required" }),
+    }),
+  );
+
+  await page.reload();
+
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/);
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByText("authentication required", { exact: true })).toHaveCount(0);
+});
+
 test("controls public status access from Manage", async ({ page, browser, baseURL }) => {
   await page.goto("/admin/manage");
   await expect(page.getByRole("heading", { name: "Manage" })).toBeVisible();

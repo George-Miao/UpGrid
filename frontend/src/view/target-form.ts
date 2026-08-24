@@ -1,6 +1,7 @@
 import { html, nothing } from "lit";
 import type { Channel, Secret, Target } from "@/app/api.ts";
 import "@/component/empty-state.ts";
+import "@/component/channel-type-icon.ts";
 import { renderFormSubmit } from "@/component/form-submit.ts";
 import "@/component/switch.ts";
 import type { ToggleSwitch } from "@/component/switch.ts";
@@ -33,7 +34,7 @@ export function renderChannelFields(channels: Channel[], selected: string[] = []
                 const inherited = useDefaults && channel.default;
                 return html`
                   <label class="checkbox-option">
-                    <span class="switch-label">${channel.name} <span class="badge">${channel.kind}</span></span>
+                    <span class="switch-label">${channel.name} <upgrid-channel-type-icon .kind=${channel.kind}></upgrid-channel-type-icon></span>
                     <input
                       class="checkbox-control"
                       name="channel_id"

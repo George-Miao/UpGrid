@@ -32,6 +32,7 @@ enum Error {
 
 const INTERVAL_MS: u64 = 10_000;
 const FAILURE_THRESHOLD: u32 = 3;
+const UNAVAILABLE_NODE_URL: &str = "up://unavailable.invalid:1";
 
 pub(super) async fn run(cluster: Handle) {
     loop {
@@ -48,10 +49,15 @@ async fn evaluate(cluster: &Handle) -> Result<(), Error> {
     }
     let state = cluster.read().await.context(ReadSnafu)?;
     let status = cluster.status().await.context(StatusSnafu)?;
+    let now = now_ms();
     let targets = status
-        .members
+        .member_ids
         .iter()
-        .map(|(node_id, url)| {
+        .map(|node_id| {
+            let url = state
+                .preferred_reachable_address(*node_id, status.local_node_id, now)
+                .map(ToString::to_string)
+                .unwrap_or_else(|| UNAVAILABLE_NODE_URL.to_owned());
             Ok(NodeTarget {
                 node_id: *node_id,
                 name: state
@@ -59,7 +65,7 @@ async fn evaluate(cluster: &Handle) -> Result<(), Error> {
                     .get(node_id)
                     .cloned()
                     .unwrap_or_else(|| format!("Node {}", &node_id.to_string()[..8])),
-                url: Url::parse(url).context(NodeUrlSnafu { node_id: *node_id })?,
+                url: Url::parse(&url).context(NodeUrlSnafu { node_id: *node_id })?,
                 policy: EvaluationPolicy {
                     interval_ms: INTERVAL_MS,
                     timeout_ms: 2_000,
@@ -80,7 +86,6 @@ async fn evaluate(cluster: &Handle) -> Result<(), Error> {
             .context(ApplySnafu)?;
     }
 
-    let now = now_ms();
     for target in targets {
         let target_id = TargetId(target.node_id);
         let Some(scheduled_at_ms) = slot_at_or_before_ms(target_id, INTERVAL_MS, now) else {
@@ -95,10 +100,18 @@ async fn evaluate(cluster: &Handle) -> Result<(), Error> {
             continue;
         }
         let started_at_ms = now_ms();
-        let result = cluster
-            .probe_node(target.node_id, target.url.to_string())
-            .await;
+        let result = cluster.probe_node(target.node_id).await;
         let recorded_at_ms = now_ms();
+        let (succeeded, final_url, diagnostic) = match result {
+            Ok(address) => (
+                true,
+                Url::parse(&address.to_string()).context(NodeUrlSnafu {
+                    node_id: target.node_id,
+                })?,
+                None,
+            ),
+            Err(error) => (false, target.url, Some(error.to_string())),
+        };
         let evaluation = Evaluation {
             id: EvaluationId {
                 target_id,
@@ -106,14 +119,14 @@ async fn evaluate(cluster: &Handle) -> Result<(), Error> {
             },
             recorded_at_ms,
             executor_node_id: cluster.node_id,
-            succeeded: result.is_ok(),
+            succeeded,
             http: HttpEvaluationMetadata {
                 status_code: None,
                 latency_ms: recorded_at_ms.saturating_sub(started_at_ms),
                 received_bytes: 0,
-                final_url: target.url,
+                final_url,
             },
-            diagnostic: result.err().map(|error| error.to_string()),
+            diagnostic,
         };
         cluster
             .apply(Command::RecordNodeEvaluation(evaluation))

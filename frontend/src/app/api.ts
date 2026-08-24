@@ -119,7 +119,7 @@ export interface Alert {
   acknowledged_at_ms: number | null;
 }
 
-export interface Transition {
+export interface AvailabilityTransition {
   target_id: string;
   kind: "down" | "recovered";
   target_name: string;
@@ -151,11 +151,16 @@ export interface JoinToken {
 export interface ClusterMember {
   id: string;
   name: string;
-  raft_url: string;
+  reachable_addresses: string[];
   leader: boolean;
   local: boolean;
   draining: boolean;
   active_assignments: number;
+}
+
+export interface LocalAddress {
+  host: string;
+  port: number;
 }
 
 export interface Setup {
@@ -165,6 +170,9 @@ export interface Setup {
   cluster_ready: boolean;
   node_name: string;
   warning: string | null;
+  local_addresses: LocalAddress[];
+  reachable_addresses: string[];
+  discovery_urls: string[];
   channel_count: number;
   target_count: number;
 }
@@ -173,6 +181,7 @@ export interface Session {
   identity_id: string;
   username: string;
   expires_at_ms: number;
+  refresh_after_ms: number | null;
 }
 
 export interface Identity {
@@ -197,6 +206,8 @@ export interface Cluster {
   leader_node_id: string | null;
   local_node_id: string;
   members: ClusterMember[];
+  degraded: boolean;
+  connectivity_failures: Array<{ source_node_id: string; destination_node_id: string }>;
 }
 
 export interface TargetInput {
@@ -234,7 +245,8 @@ export class ApiRequestError extends Error {
 
 export const sessionExpiredEvent = "upgrid-session-expired";
 
-let sessionRefresh: Promise<void> | undefined;
+let sessionRefresh: Promise<Session> | undefined;
+let sessionEnding = false;
 
 async function responseBody<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -244,16 +256,26 @@ async function responseBody<T>(response: Response): Promise<T> {
   return response.status === 204 ? (undefined as T) : response.json();
 }
 
-function refreshSession(): Promise<void> {
+export function refreshBrowserSession(): Promise<Session> {
+  if (sessionEnding) return Promise.reject(new ApiRequestError(401, ""));
   if (!sessionRefresh) {
     sessionRefresh = fetch("/api/v1/auth/session")
       .then((response) => responseBody<Session>(response))
-      .then(() => undefined)
       .finally(() => {
         sessionRefresh = undefined;
       });
   }
   return sessionRefresh;
+}
+
+export async function logoutBrowserSession(): Promise<void> {
+  sessionEnding = true;
+  try {
+    await sessionRefresh?.catch(() => undefined);
+    await responseBody<void>(await fetch("/api/v1/auth/logout", { method: "POST" }));
+  } finally {
+    sessionEnding = false;
+  }
 }
 
 function expireSession(): ApiRequestError {
@@ -274,10 +296,9 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (response.status === 401 && !path.startsWith("/api/v1/auth/")) {
     await response.body?.cancel();
     try {
-      await refreshSession();
-    } catch (error) {
-      if (error instanceof ApiRequestError && error.status === 401) throw expireSession();
-      throw error;
+      await refreshBrowserSession();
+    } catch {
+      throw expireSession();
     }
     response = await fetchRequest();
     if (response.status === 401) {

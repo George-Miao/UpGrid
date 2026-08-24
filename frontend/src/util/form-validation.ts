@@ -13,3 +13,10 @@ export function controlValidationMessage(control: ValidatableControl): string {
   if (control.validity.valueMissing && label) return `Please fill out ${label.toLocaleLowerCase()}`;
   return label ? `${label}: ${control.validationMessage}` : control.validationMessage;
 }
+
+export function updatePasswordConfirmationValidity(form: HTMLFormElement): void {
+  const password = form.elements.namedItem("password");
+  const confirmation = form.elements.namedItem("password_confirmation");
+  if (!(password instanceof HTMLInputElement) || !(confirmation instanceof HTMLInputElement)) return;
+  confirmation.setCustomValidity(password.value === confirmation.value ? "" : "Passwords do not match.");
+}

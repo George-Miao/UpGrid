@@ -17,7 +17,7 @@ compio = { version = "0.19.1", features = ["macros", "runtime", "io", "net", "ti
 compio-quic = "0.8.0"
 compio-tls = { version = "0.10", default-features = false, features = ["ring"] }
 criterion = "0.8"
-cyper = { version = "0.9.0", default-features = false, features = ["rustls"] }
+cyper = { version = "0.9.0", default-features = false, features = ["rustls", "stream"] }
 cyper-axum = { version = "0.9.0", features = ["http2"] }
 figment = { version = "0.10.19", features = ["env", "toml"] }
 futures-channel = "0.3.31"
@@ -45,6 +45,7 @@ sea-query-rusqlite = "0.8"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1"
 serde_json_path = "0.7.2"
+socket2 = "0.6.5"
 snafu = { version = "0.8.6", features = ["futures"] }
 synchrony = { version = "0.1.9", features = ["event", "watch"] }
 tikv-jemallocator = "0.7"

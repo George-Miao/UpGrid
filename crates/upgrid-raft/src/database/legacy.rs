@@ -7,7 +7,7 @@ use redb::{ReadOnlyDatabase, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 
-use crate::domain::ApplicationState;
+use crate::domain::{ApplicationState, ApplicationStateV20260812};
 use crate::error::DatabaseError;
 use crate::raft::TC;
 use crate::state_machine::{StateMachineData, StoredSnapshot};
@@ -45,7 +45,7 @@ pub(super) struct LegacyInMemStore {
 pub(super) struct LegacyStateMachineData {
     pub(super) last_applied_log: Option<LogIdOf<TC>>,
     pub(super) last_membership: StoredMembershipOf<TC>,
-    pub(super) application: ApplicationState,
+    pub(super) application: ApplicationStateV20260812,
 }
 
 #[derive(Deserialize)]
@@ -63,11 +63,13 @@ pub(super) struct LegacyPersistedStateMachine {
 
 impl LegacyPersistedStateMachine {
     pub(super) fn runtime(self) -> (StateMachineData, Option<StoredSnapshot>, u64) {
+        let mut application = ApplicationState::from(self.state_machine.application);
+        application.normalize_alert_ids();
         (
             StateMachineData {
                 last_applied_log: self.state_machine.last_applied_log,
                 last_membership: self.state_machine.last_membership,
-                application: self.state_machine.application,
+                application,
             },
             self.current_snapshot.map(|snapshot| StoredSnapshot {
                 meta: snapshot.meta,

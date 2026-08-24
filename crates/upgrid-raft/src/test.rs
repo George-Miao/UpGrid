@@ -2,6 +2,8 @@
 
 //! Multi-Node manual fixtures.
 
+use std::collections::BTreeSet;
+use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
 
 use compio::io::AsyncWriteExt;
@@ -13,12 +15,12 @@ use tracing_subscriber::Layer;
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use upgrid_config::{QuicCaKey, now_ms};
-use upgrid_transport::secure_endpoint;
+use upgrid_config::{LocalAddress, QuicCaKey, now_ms};
+use upgrid_transport::secure_endpoints;
 
 use crate::domain::Command;
 use crate::node::Node;
-use crate::raft::Identity;
+use crate::raft::NodeRegistration;
 use crate::token::hash_join_token;
 
 fn init_tracing() {
@@ -70,9 +72,13 @@ async fn worker() {
     sleep(Duration::from_secs(1)).await;
     info!("Node 2 started");
 
-    node.join("up://127.0.0.1:8080", "test-join-token")
-        .await
-        .unwrap();
+    node.join(
+        uuid::Uuid::from_u128(1),
+        "up://127.0.0.1:8080",
+        "test-join-token",
+    )
+    .await
+    .unwrap();
 
     info!("Node 2 joined");
 }
@@ -82,12 +88,20 @@ async fn worker() {
 async fn master_raw() {
     init_tracing();
 
-    let id = Identity::new("up://127.0.0.1:8080").unwrap();
+    let id = NodeRegistration::new("up://127.0.0.1:8080").unwrap();
 
     let quic_ca_key = QuicCaKey::parse("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap();
-    let endpoint = secure_endpoint(id.node.host().to_owned(), id.node.port(), &quic_ca_key)
-        .await
-        .unwrap();
+    let mut endpoints = secure_endpoints(
+        &BTreeSet::from([LocalAddress {
+            host: IpAddr::V4(Ipv4Addr::LOCALHOST),
+            port: id.bootstrap.port(),
+        }]),
+        id.id,
+        &quic_ca_key,
+    )
+    .await
+    .unwrap();
+    let endpoint = endpoints.pop().unwrap();
 
     while let Some(incoming) = endpoint.wait_incoming().await {
         info!("Received incoming connection: {:?}", incoming);
@@ -109,15 +123,23 @@ async fn master_raw() {
 async fn worker_raw() {
     init_tracing();
 
-    let id = Identity::new("up://127.0.0.1:8081").unwrap();
+    let id = NodeRegistration::new("up://127.0.0.1:8081").unwrap();
 
     let quic_ca_key = QuicCaKey::parse("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap();
-    let endpoint = secure_endpoint(id.node.host().to_owned(), id.node.port(), &quic_ca_key)
-        .await
-        .unwrap();
+    let mut endpoints = secure_endpoints(
+        &BTreeSet::from([LocalAddress {
+            host: IpAddr::V4(Ipv4Addr::LOCALHOST),
+            port: id.bootstrap.port(),
+        }]),
+        id.id,
+        &quic_ca_key,
+    )
+    .await
+    .unwrap();
+    let endpoint = endpoints.pop().unwrap();
 
     let conn = endpoint
-        .connect("127.0.0.1:8080".parse().unwrap(), "127.0.0.1", None)
+        .connect("127.0.0.1:8080".parse().unwrap(), "upgrid-node", None)
         .unwrap()
         .await
         .unwrap();

@@ -290,7 +290,24 @@ fn checkpoint_round_trips_composite_map_keys_as_json_entries() {
     application
         .assignments
         .insert(EvaluationAssignmentKey::from(&assignment), assignment);
-    application.join_tokens.insert(JoinTokenHash([7; 32]), 3);
+    let token_hash = JoinTokenHash([7; 32]);
+    let reservation_id = Uuid::now_v7();
+    application
+        .apply(crate::domain::Command::PutLimitedJoinToken {
+            hash: token_hash,
+            expires_at_ms: 3_000,
+            uses: 1,
+        })
+        .unwrap();
+    application
+        .apply(crate::domain::Command::ReserveJoinToken {
+            hash: token_hash,
+            reservation_id,
+            reservation_operation_id: Uuid::nil(),
+            reserved_at_ms: 1_000,
+            readmission: false,
+        })
+        .unwrap();
     let state = StateMachineData {
         application,
         ..StateMachineData::default()

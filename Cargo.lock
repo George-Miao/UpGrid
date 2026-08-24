@@ -3880,6 +3880,11 @@ version = "0.3.0"
 dependencies = [
  "clap",
  "compio",
+ "cyper",
+ "futures-util",
+ "http",
+ "serde",
+ "serde_json",
  "snafu",
  "tikv-jemallocator",
  "tracing",
@@ -3889,6 +3894,7 @@ dependencies = [
  "upgrid-monitor",
  "upgrid-notification",
  "upgrid-raft",
+ "url",
  "uuid",
 ]
 
@@ -3986,6 +3992,7 @@ dependencies = [
  "compio",
  "criterion",
  "futures-channel",
+ "futures-util",
  "openraft",
  "openraft-rt-compio",
  "postcard",
@@ -4032,15 +4039,20 @@ dependencies = [
  "async-stream",
  "compio",
  "compio-quic",
+ "futures-channel",
  "futures-core",
+ "futures-util",
  "postcard",
  "quick_cache",
  "rcgen",
+ "ring",
  "rustls",
  "serde",
  "snafu",
+ "socket2",
  "upgrid-config",
  "upgrid-rpc",
+ "uuid",
 ]
 
 [[package]]

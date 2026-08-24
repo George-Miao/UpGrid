@@ -37,8 +37,7 @@ enum Request {
     },
     ProbeNode {
         node_id: Uuid,
-        url: String,
-        reply: oneshot::Sender<Result<(), crate::Error>>,
+        reply: oneshot::Sender<Result<crate::ReachableAddress, crate::Error>>,
     },
     RemoveNode {
         node_id: Uuid,
@@ -50,7 +49,7 @@ enum Request {
 pub struct Status {
     pub local_node_id: Uuid,
     pub leader_node_id: Option<Uuid>,
-    pub members: std::collections::BTreeMap<Uuid, String>,
+    pub member_ids: BTreeSet<Uuid>,
 }
 
 #[derive(Clone)]
@@ -158,20 +157,16 @@ impl Handle {
         })
     }
 
-    pub async fn probe_node(&self, node_id: Uuid, url: String) -> Result<(), ClusterError> {
+    pub async fn probe_node(&self, node_id: Uuid) -> Result<crate::ReachableAddress, ClusterError> {
         let (reply, response) = oneshot::channel();
         self.sender
-            .unbounded_send(Request::ProbeNode {
-                node_id,
-                url,
-                reply,
-            })
+            .unbounded_send(Request::ProbeNode { node_id, reply })
             .ok()
             .context(RuntimeStoppedSnafu {
-                operation: "probe Node",
+                operation: "probe node",
             })?;
         let result = response.await.context(RuntimeResponseSnafu {
-            operation: "probe Node",
+            operation: "probe node",
         })?;
         result.context(OperationSnafu)
     }
@@ -212,7 +207,7 @@ pub enum MembershipError {
     LastVoter,
     LeaderUnavailable,
     ChangeRejected(String),
-    Transport(String),
+    Connection(crate::ConnectionFailure),
 }
 
 impl std::fmt::Display for MembershipError {
@@ -222,7 +217,7 @@ impl std::fmt::Display for MembershipError {
             Self::LastVoter => formatter.write_str("cannot remove the final voting Node"),
             Self::LeaderUnavailable => formatter.write_str("Cluster leader is unavailable"),
             Self::ChangeRejected(message) => formatter.write_str(message),
-            Self::Transport(message) => formatter.write_str(message),
+            Self::Connection(error) => error.fmt(formatter),
         }
     }
 }
@@ -289,19 +284,15 @@ impl Receiver {
                     let _ = reply.send(node.voters());
                 }
                 Some(Request::Status { reply }) => {
-                    let (leader_node_id, members) = node.cluster_topology();
+                    let (leader_node_id, member_ids) = node.cluster_topology();
                     let _ = reply.send(Status {
                         local_node_id: node.node_id(),
                         leader_node_id,
-                        members,
+                        member_ids,
                     });
                 }
-                Some(Request::ProbeNode {
-                    node_id,
-                    url,
-                    reply,
-                }) => {
-                    let _ = reply.send(node.probe_node(node_id, &url).await);
+                Some(Request::ProbeNode { node_id, reply }) => {
+                    let _ = reply.send(node.probe_node(node_id).await);
                 }
                 Some(Request::RemoveNode { node_id, reply }) => {
                     let _ = reply.send(node.remove_node(node_id).await);

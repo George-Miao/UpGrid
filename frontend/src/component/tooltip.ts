@@ -37,7 +37,7 @@ export class Tooltip extends LitElement {
       position: fixed;
       inset: auto;
       z-index: 30;
-      width: min(280px, calc(100dvw - 24px));
+      width: var(--tooltip-width, min(280px, calc(100dvw - 24px)));
       margin: 0;
       border: 1px solid var(--line);
       border-radius: 9px;
@@ -48,6 +48,7 @@ export class Tooltip extends LitElement {
       font-size: 12px;
       font-weight: 400;
       line-height: 1.45;
+      pointer-events: var(--tooltip-pointer-events, auto);
     }
     .popup:not(:popover-open) { display: none; }
   `;
@@ -138,8 +139,7 @@ export class Tooltip extends LitElement {
 export const helpTooltipStyles = css`
   .form-field { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
   .title-with-help { position: relative; display: flex; align-items: center; gap: 3px; }
-  .help-tooltip-trigger { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 0; cursor: pointer; user-select: none; transition: background-color 160ms ease, color 160ms ease; }
-  .help-tooltip-trigger:hover { background: var(--panel-2); color: var(--text); }
+  .help-tooltip-trigger { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 0; cursor: pointer; user-select: none; }
   .help-tooltip-trigger iconify-icon { width: 16px; height: 16px; font-size: 16px; }
   .help-tooltip-content a { display: inline-block; margin-top: 5px; color: var(--green); font-weight: 600; }
 `;

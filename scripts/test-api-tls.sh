@@ -26,7 +26,8 @@ target_directory=$(cargo metadata --manifest-path "$workspace/Cargo.toml" \
 "$target_directory/debug/upgrid" \
   --new-cluster \
   --bind 127.0.0.1:18443 \
-  --raft-url up://127.0.0.1:18454 \
+  --raft-port 18454 \
+  --reachable-address up://127.0.0.1:18454 \
   --data-dir "$test_data/data" \
   --username admin \
   --password test-password \

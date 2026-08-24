@@ -1,5 +1,7 @@
 //! Command-line and environment configuration.
 
+use std::collections::BTreeSet;
+use std::net::{IpAddr, Ipv4Addr};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs, io};
@@ -8,11 +10,14 @@ use figment::Figment;
 use figment::providers::{Env, Format, Serialized, Toml};
 use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
+use url::Url;
 use uuid::Uuid;
 
 use crate::cli::ConfigArgs;
-use crate::error::{LoadSnafu, NodeIdSnafu, ReadSnafu, WriteSnafu};
-use crate::{Cipher, Error, JoinLink, QuicCaKey, Result, durable};
+use crate::error::{
+    ConfiguredReachableAddressSnafu, LoadSnafu, NodeIdSnafu, ReadSnafu, WriteSnafu,
+};
+use crate::{Cipher, Error, JoinLink, QuicCaKey, ReachableAddress, Result, durable};
 
 #[derive(Clone)]
 pub enum JoinIntent {
@@ -20,10 +25,20 @@ pub enum JoinIntent {
     Invalid,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+pub struct LocalAddress {
+    pub host: IpAddr,
+    pub port: u16,
+}
+
 #[derive(Clone)]
 pub struct Config {
     pub bind: String,
-    pub raft_url: String,
+    pub local_addresses: BTreeSet<LocalAddress>,
+    pub reachable_addresses: BTreeSet<ReachableAddress>,
+    pub reachable_addresses_explicit: bool,
+    pub discovery_urls: BTreeSet<Url>,
+    pub discovery_urls_explicit: bool,
     pub join: Option<JoinIntent>,
     pub new_cluster: bool,
     pub data_dir: PathBuf,
@@ -48,7 +63,11 @@ impl Config {
 #[derive(Clone, Deserialize, Serialize)]
 struct RawConfig {
     bind: String,
-    raft_url: String,
+    local_addresses: BTreeSet<IpAddr>,
+    raft_port: u16,
+    raft_url: Option<String>,
+    reachable_addresses: Option<BTreeSet<String>>,
+    discovery_urls: Option<BTreeSet<Url>>,
     join: Option<String>,
     new_cluster: bool,
     data_dir: PathBuf,
@@ -68,7 +87,11 @@ impl Default for RawConfig {
     fn default() -> Self {
         Self {
             bind: "127.0.0.1:8080".to_owned(),
-            raft_url: "up://127.0.0.1:11451".to_owned(),
+            local_addresses: BTreeSet::from([IpAddr::V4(Ipv4Addr::LOCALHOST)]),
+            raft_port: 11451,
+            raft_url: None,
+            reachable_addresses: None,
+            discovery_urls: None,
             join: None,
             new_cluster: false,
             data_dir: PathBuf::from("upgrid-data"),
@@ -107,7 +130,10 @@ fn load_with(args: ConfigArgs, load_env: bool) -> Result<Config> {
         };
     }
     override_value!(bind);
-    override_value!(raft_url);
+    override_value!(local_addresses);
+    override_value!(raft_port);
+    override_value!(reachable_addresses);
+    override_value!(discovery_urls);
     override_value!(join);
     override_value!(data_dir);
     override_value!(node_name);
@@ -130,6 +156,37 @@ impl TryFrom<RawConfig> for Config {
     type Error = Error;
 
     fn try_from(raw: RawConfig) -> Result<Self, Self::Error> {
+        if raw.raft_url.is_some() {
+            return Err(Error::ObsoleteRaftUrl);
+        }
+        if raw.raft_port == 0 {
+            return Err(Error::InvalidConfiguration {
+                message: "raft_port must be nonzero",
+            });
+        }
+        if raw.local_addresses.is_empty() {
+            return Err(Error::InvalidConfiguration {
+                message: "local_addresses must contain at least one IP address",
+            });
+        }
+        if raw
+            .discovery_urls
+            .as_ref()
+            .is_some_and(|urls| urls.len() > crate::MAX_DISCOVERY_SERVICES)
+        {
+            return Err(Error::InvalidConfiguration {
+                message: "discovery_urls contains more than 8 services",
+            });
+        }
+        if raw.discovery_urls.as_ref().is_some_and(|urls| {
+            urls.iter()
+                .any(|url| !crate::discovery::is_supported_discovery_url(url))
+        }) {
+            return Err(Error::InvalidConfiguration {
+                message: "discovery_urls must use http or https and contain no credentials, \
+                          query, or fragment",
+            });
+        }
         if raw.new_cluster && raw.join.is_some() {
             return Err(Error::InvalidConfiguration {
                 message: "new_cluster and join cannot be configured together",
@@ -152,9 +209,32 @@ impl TryFrom<RawConfig> for Config {
             .target_trash_retention_days
             .map(target_trash_retention_ms)
             .transpose()?;
+        let reachable_addresses_explicit = raw.reachable_addresses.is_some();
+        let reachable_addresses = raw
+            .reachable_addresses
+            .unwrap_or_default()
+            .into_iter()
+            .map(|value| {
+                ReachableAddress::parse(&value).context(ConfiguredReachableAddressSnafu { value })
+            })
+            .collect::<Result<_>>()?;
+        let discovery_urls_explicit = raw.discovery_urls.is_some();
+        let discovery_urls = raw.discovery_urls.unwrap_or_default();
+        let local_addresses = raw
+            .local_addresses
+            .into_iter()
+            .map(|host| LocalAddress {
+                host,
+                port: raw.raft_port,
+            })
+            .collect();
         Ok(Self {
             bind: raw.bind,
-            raft_url: raw.raft_url,
+            local_addresses,
+            discovery_urls,
+            discovery_urls_explicit,
+            reachable_addresses,
+            reachable_addresses_explicit,
             join: raw.join.map(|value| match JoinLink::parse(&value) {
                 Ok(link) => JoinIntent::Valid(Box::new(link)),
                 Err(_) => JoinIntent::Invalid,
@@ -279,143 +359,4 @@ pub fn now_ms() -> u64 {
 }
 
 #[cfg(test)]
-mod tests {
-    use clap::Parser;
-
-    use super::*;
-
-    #[derive(Debug, Parser)]
-    #[command(name = "upgrid")]
-    struct TestCli {
-        #[command(flatten)]
-        config: ConfigArgs,
-    }
-
-    #[test]
-    fn node_identity_survives_reopen() {
-        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
-        fs::create_dir_all(&directory).unwrap();
-        let first = load_or_create_node_id(&directory).unwrap();
-        let second = load_or_create_node_id(&directory).unwrap();
-        assert_eq!(first, second);
-        fs::remove_dir_all(directory).unwrap();
-    }
-
-    #[test]
-    fn deployment_key_survives_reopen_and_is_required_for_join() {
-        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
-        fs::create_dir_all(&directory).unwrap();
-        let first = load_or_create_cipher(&directory, None, false).unwrap();
-        let second = load_or_create_cipher(&directory, None, true).unwrap();
-        assert_eq!(first.encoded(), second.encoded());
-
-        let joining = directory.join("joining");
-        fs::create_dir_all(&joining).unwrap();
-        assert!(load_or_create_cipher(&joining, None, true).is_err());
-        fs::remove_dir_all(directory).unwrap();
-    }
-
-    #[test]
-    fn configured_deployment_and_quic_ca_keys_survive_reopen() {
-        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
-        fs::create_dir_all(&directory).unwrap();
-        let cipher = Cipher::parse("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap();
-        let quic_ca = QuicCaKey::parse("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap();
-
-        let stored_cipher = load_or_create_cipher(&directory, Some(&cipher), false).unwrap();
-        let stored_quic_ca =
-            load_or_create_quic_ca_key(&directory, Some(&quic_ca), &stored_cipher).unwrap();
-
-        assert_eq!(stored_cipher.encoded(), cipher.encoded());
-        assert_eq!(stored_quic_ca, quic_ca);
-        assert!(
-            load_or_create_quic_ca_key(&directory, Some(&QuicCaKey::derive(&cipher)), &cipher,)
-                .is_err()
-        );
-        fs::remove_dir_all(directory).unwrap();
-    }
-
-    #[test]
-    fn tls_configuration_requires_a_certificate_and_key() {
-        let cert_only = RawConfig {
-            tls_cert: Some(PathBuf::from("cert.pem")),
-            ..RawConfig::default()
-        };
-        assert!(Config::try_from(cert_only).is_err());
-
-        let pair = RawConfig {
-            tls_cert: Some(PathBuf::from("cert.pem")),
-            tls_key: Some(PathBuf::from("key.pem")),
-            ..RawConfig::default()
-        };
-        assert!(Config::try_from(pair).is_ok());
-    }
-
-    #[test]
-    fn history_retention_windows_use_distinct_units() {
-        let config = Config::try_from(RawConfig {
-            history_retention_hours: Some(2),
-            history_rollup_retention_days: Some(3),
-            target_trash_retention_days: Some(4),
-            ..RawConfig::default()
-        })
-        .unwrap();
-
-        assert_eq!(config.history_retention_ms, Some(2 * 60 * 60 * 1_000));
-        assert_eq!(
-            config.history_rollup_retention_ms,
-            Some(3 * 24 * 60 * 60 * 1_000)
-        );
-        assert_eq!(
-            config.target_trash_retention_ms,
-            Some(4 * 24 * 60 * 60 * 1_000)
-        );
-        assert!(
-            Config::try_from(RawConfig {
-                target_trash_retention_days: Some(0),
-                ..RawConfig::default()
-            })
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn cli_overrides_toml_configuration() {
-        let directory = std::env::temp_dir().join(format!("upgrid-test-{}", Uuid::now_v7()));
-        fs::create_dir_all(&directory).unwrap();
-        let path = directory.join("upgrid.toml");
-        fs::write(
-            &path,
-            "bind = \"127.0.0.1:9000\"\nusername = \"from-file\"\n",
-        )
-        .unwrap();
-        let args = TestCli::try_parse_from([
-            "upgrid",
-            "--config",
-            path.to_str().unwrap(),
-            "--bind",
-            "127.0.0.1:9001",
-        ])
-        .unwrap()
-        .config;
-
-        let config = load_with(args, false).unwrap();
-
-        assert_eq!(config.bind, "127.0.0.1:9001");
-        assert_eq!(config.username, "from-file");
-        fs::remove_dir_all(directory).unwrap();
-    }
-
-    #[test]
-    #[allow(clippy::result_large_err)] // Required by Figment's fixed Jail callback signature.
-    fn environment_can_select_a_new_cluster() {
-        figment::Jail::expect_with(|jail| {
-            jail.set_env("UPGRID_NEW_CLUSTER", "true");
-            let raw: RawConfig = Figment::from(Serialized::defaults(RawConfig::default()))
-                .merge(Env::prefixed("UPGRID_"))
-                .extract()?;
-            assert!(raw.new_cluster);
-            Ok(())
-        });
-    }
-}
+mod tests;

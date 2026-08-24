@@ -7,13 +7,13 @@ impl ApplicationState {
         alert_id: AlertId,
         acknowledged_at_ms: u64,
     ) -> Result<CommandResult, DomainError> {
-        if !self.alerts.contains_key(&alert_id) {
-            return Err(DomainError::AlertNotFound(alert_id));
-        }
+        let resolved = self
+            .resolve_alert_id(alert_id)
+            .ok_or(DomainError::AlertNotFound(alert_id))?;
         self.alert_acknowledgements
-            .entry(alert_id)
+            .entry(resolved)
             .or_insert(acknowledged_at_ms);
-        Ok(CommandResult::AlertUpdated(alert_id))
+        Ok(CommandResult::AlertUpdated(resolved))
     }
 
     pub(super) fn retry_alert(
@@ -21,10 +21,13 @@ impl ApplicationState {
         alert_id: AlertId,
         retry_at_ms: u64,
     ) -> Result<CommandResult, DomainError> {
+        let resolved = self
+            .resolve_alert_id(alert_id)
+            .ok_or(DomainError::AlertNotFound(alert_id))?;
         let alert = self
             .alerts
-            .get_mut(&alert_id)
-            .ok_or(DomainError::AlertNotFound(alert_id))?;
+            .get_mut(&resolved)
+            .expect("resolved alert exists");
         let attempts = match alert.delivery {
             AlertDelivery::Pending { attempts, .. } => attempts,
             AlertDelivery::Failed { .. } => 0,
@@ -38,7 +41,7 @@ impl ApplicationState {
             attempts,
             next_attempt_at_ms: retry_at_ms,
         };
-        Ok(CommandResult::AlertUpdated(alert_id))
+        Ok(CommandResult::AlertUpdated(resolved))
     }
 
     pub(super) fn record_alert_failure(
@@ -53,12 +56,15 @@ impl ApplicationState {
                 "diagnostic exceeds {MAX_DIAGNOSTIC_BYTES} bytes"
             )));
         }
+        let resolved = self
+            .resolve_alert_id(alert_id)
+            .ok_or(DomainError::AlertNotFound(alert_id))?;
         let alert = self
             .alerts
-            .get_mut(&alert_id)
-            .ok_or(DomainError::AlertNotFound(alert_id))?;
+            .get_mut(&resolved)
+            .expect("resolved alert exists");
         if matches!(&alert.delivery, AlertDelivery::Delivered { .. }) {
-            return Ok(CommandResult::AlertUpdated(alert_id));
+            return Ok(CommandResult::AlertUpdated(resolved));
         }
         let attempts = match &alert.delivery {
             AlertDelivery::Pending { attempts, .. } => (*attempts).saturating_add(1),
@@ -74,6 +80,20 @@ impl ApplicationState {
                 diagnostic,
             },
         };
-        Ok(CommandResult::AlertUpdated(alert_id))
+        Ok(CommandResult::AlertUpdated(resolved))
+    }
+
+    pub(super) fn resolve_alert_id(&self, alert_id: AlertId) -> Option<AlertId> {
+        self.alerts
+            .contains_key(&alert_id)
+            .then_some(alert_id)
+            .or_else(|| {
+                self.alerts.keys().copied().find(|candidate| {
+                    candidate.target_id == alert_id.target_id
+                        && candidate.channel_id == alert_id.channel_id
+                        && candidate.evaluation_scheduled_at_ms
+                            == alert_id.evaluation_scheduled_at_ms
+                })
+            })
     }
 }

@@ -1,8 +1,10 @@
+use std::net::IpAddr;
 use std::path::PathBuf;
 
 use clap::{ArgAction, Args};
+use url::Url;
 
-/// Command-line arguments that configure ordinary Node startup.
+/// Command-line arguments that configure ordinary node startup.
 #[derive(Debug, Args)]
 pub struct ConfigArgs {
     /// Read configuration from this TOML file.
@@ -13,23 +15,36 @@ pub struct ConfigArgs {
     #[arg(long, value_name = "ADDRESS")]
     pub(super) bind: Option<String>,
 
-    /// Advertised inter-Node Raft URL.
-    #[arg(long, value_name = "URL")]
-    pub(super) raft_url: Option<String>,
+    /// Local IP address for inter-node Raft traffic. Repeat for each address.
+    #[arg(long = "local-address", value_name = "IP", action = ArgAction::Append)]
+    pub(super) local_addresses: Option<Vec<IpAddr>>,
 
-    /// Join with an up:// invitation.
+    /// Shared local port for inter-node Raft traffic.
+    #[arg(long, value_name = "PORT")]
+    pub(super) raft_port: Option<u16>,
+
+    /// Reachable inter-node URL. Repeat for each address.
+    #[arg(long = "reachable-address", value_name = "UP_URL", action = ArgAction::Append)]
+    pub(super) reachable_addresses: Option<Vec<String>>,
+
+    /// HTTP service URL that returns reachable address candidates. Repeat for
+    /// each service.
+    #[arg(long = "discovery-url", value_name = "HTTP_URL", action = ArgAction::Append)]
+    pub(super) discovery_urls: Option<Vec<Url>>,
+
+    /// Join with an up:// join link.
     #[arg(long, value_name = "JOIN_LINK", conflicts_with = "new_cluster")]
     pub(super) join: Option<String>,
 
-    /// Create a new single-Node Cluster without opening OOBE.
+    /// Create a new single-node cluster without opening OOBE.
     #[arg(long, action = ArgAction::SetTrue)]
     pub(super) new_cluster: bool,
 
-    /// Persistent Node data directory.
+    /// Persistent node data directory.
     #[arg(long, value_name = "PATH")]
     pub(super) data_dir: Option<PathBuf>,
 
-    /// Friendly name shown for this Node.
+    /// Friendly name shown for this node.
     #[arg(long, value_name = "NAME")]
     pub(super) node_name: Option<String>,
 
@@ -51,15 +66,15 @@ pub struct ConfigArgs {
     #[arg(long, value_name = "BASE64")]
     pub(super) quic_ca_key: Option<String>,
 
-    /// Raw Evaluation retention period.
+    /// Raw evaluation retention period.
     #[arg(long, value_name = "HOURS")]
     pub(super) history_retention_hours: Option<u64>,
 
-    /// Long-term hourly Evaluation rollup retention period.
+    /// Long-term hourly evaluation rollup retention period.
     #[arg(long, value_name = "DAYS")]
     pub(super) history_rollup_retention_days: Option<u64>,
 
-    /// Deleted Target retention period.
+    /// Deleted target retention period.
     #[arg(long, value_name = "DAYS")]
     pub(super) target_trash_retention_days: Option<u64>,
 
@@ -111,6 +126,13 @@ mod tests {
             .is_ok()
         );
         assert!(TestCli::try_parse_from(["upgrid", "--secret-key", "legacy"]).is_err());
+    }
+
+    #[test]
+    fn obsolete_raft_url_flag_is_rejected() {
+        assert!(
+            TestCli::try_parse_from(["upgrid", "--raft-url", "up://legacy.example:11451"]).is_err()
+        );
     }
 
     #[test]

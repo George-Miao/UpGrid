@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use super::{entry, leader, open_database, test_directory};
 use crate::database::{LogRepository, StateRepository};
-use crate::domain::ApplicationState;
+use crate::domain::{ApplicationState, ApplicationStateV20260812};
 use crate::raft::TC;
 
 #[derive(Serialize)]
@@ -36,7 +36,7 @@ struct LegacyStateFixture {
 struct LegacyStateDataFixture {
     last_applied_log: Option<LogIdOf<TC>>,
     last_membership: StoredMembershipOf<TC>,
-    application: ApplicationState,
+    application: ApplicationStateV20260812,
 }
 
 #[derive(Serialize)]
@@ -56,7 +56,7 @@ fn write_legacy_state(
         state_machine: LegacyStateDataFixture {
             last_applied_log: Some(LogIdOf::<TC>::new(leader, 3)),
             last_membership: StoredMembershipOf::<TC>::default(),
-            application,
+            application: application.into(),
         },
         current_snapshot: None,
         snapshot_idx: 6,

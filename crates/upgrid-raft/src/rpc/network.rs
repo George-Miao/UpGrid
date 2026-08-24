@@ -19,29 +19,28 @@ use upgrid_rpc::{CallError, Context};
 
 use super::runtime::Rpc;
 use super::service::UpgridServiceClient;
-use crate::raft::{Identity, TC};
-use crate::{Result, UpgridNode};
+use crate::Result;
+use crate::raft::TC;
 
 /// [`RaftNetworkFactory`] implementation for UpGrid RPC.
 pub struct UpgridNetwork {
-    id: Identity,
+    self_id: NodeIdOf<TC>,
     rpc: Rpc,
 }
 
 impl UpgridNetwork {
-    pub fn new(id: Identity, rpc: Rpc) -> Self {
-        UpgridNetwork { id, rpc }
+    pub fn new(self_id: NodeIdOf<TC>, rpc: Rpc) -> Self {
+        Self { self_id, rpc }
     }
 }
 
 impl RaftNetworkFactory<TC> for UpgridNetwork {
     type Network = RpcConnector;
 
-    async fn new_client(&mut self, target_id: NodeIdOf<TC>, target: &NodeOf<TC>) -> Self::Network {
+    async fn new_client(&mut self, target_id: NodeIdOf<TC>, _: &NodeOf<TC>) -> Self::Network {
         RpcConnector {
-            self_id: self.id.id,
+            self_id: self.self_id,
             target_id,
-            target: target.clone(),
             rpc: self.rpc.clone(),
         }
     }
@@ -52,13 +51,12 @@ impl RaftNetworkFactory<TC> for UpgridNetwork {
 pub struct RpcConnector {
     self_id: NodeIdOf<TC>,
     target_id: NodeIdOf<TC>,
-    target: UpgridNode,
     rpc: Rpc,
 }
 
 impl RpcConnector {
     async fn client(&self) -> Result<UpgridServiceClient> {
-        self.rpc.client(&self.target).await
+        self.rpc.client_to(self.target_id).await
     }
 
     fn context(&self, option: &RPCOption) -> Context {
@@ -73,7 +71,7 @@ impl RpcConnector {
     ) -> RPCError<TC> {
         if matches!(error, CallError::DeadlineExceeded) {
             debug!("deadline exceeded");
-            self.rpc.invalidate(&self.target);
+            self.rpc.invalidate_node(self.target_id);
             return Timeout {
                 action,
                 id: self.self_id,
@@ -84,12 +82,12 @@ impl RpcConnector {
         }
 
         debug!(%error, "connection error");
-        self.rpc.invalidate(&self.target);
+        self.rpc.invalidate_node(self.target_id);
         Unreachable::new(&error).into()
     }
 
     fn timeout_error(&self, action: RPCTypes, duration: Duration) -> RPCError<TC> {
-        self.rpc.invalidate(&self.target);
+        self.rpc.invalidate_node(self.target_id);
         Timeout {
             action,
             id: self.self_id,
@@ -101,7 +99,7 @@ impl RpcConnector {
 
     fn map_remote_err(&self, error: impl std::error::Error + 'static) -> RPCError<TC> {
         debug!(%error, "remote Raft error");
-        self.rpc.invalidate(&self.target);
+        self.rpc.invalidate_node(self.target_id);
         Unreachable::new(&error).into()
     }
 }

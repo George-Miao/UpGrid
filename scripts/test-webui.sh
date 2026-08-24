@@ -9,6 +9,8 @@ server_log="$test_data/server.log"
 setup_log="$test_data/setup.log"
 new_setup_log="$test_data/new-setup.log"
 warning_log="$test_data/warning.log"
+setup_username="setup-admin"
+setup_password="setup-password"
 server_pid=""
 setup_pid=""
 new_setup_pid=""
@@ -41,7 +43,8 @@ target_directory=$(cargo metadata --manifest-path "$workspace/Cargo.toml" \
 "$target_directory/debug/upgrid" \
   --new-cluster \
   --bind "127.0.0.1:${api_base_port}" \
-  --raft-url "up://127.0.0.1:${raft_base_port}" \
+  --raft-port "${raft_base_port}" \
+  --reachable-address "up://127.0.0.1:${raft_base_port}" \
   --data-dir "$test_data/data" \
   --username admin \
   --password test-password \
@@ -104,14 +107,17 @@ fi
 
 "$target_directory/debug/upgrid" \
   --bind "127.0.0.1:$((api_base_port + 1))" \
-  --raft-url "up://127.0.0.1:$((raft_base_port + 1))" \
+  --raft-port "$((raft_base_port + 1))" \
   --data-dir "$test_data/joining-data" \
+  --username "$setup_username" \
+  --password "$setup_password" \
   >"$setup_log" 2>&1 &
 setup_pid=$!
 
 ready=false
 for _ in $(seq 1 100); do
-  if curl -fsS "http://127.0.0.1:$((api_base_port + 1))/" >/dev/null; then
+  if curl -fsS --user "$setup_username:$setup_password" \
+    "http://127.0.0.1:$((api_base_port + 1))/" >/dev/null; then
     ready=true
     break
   fi
@@ -126,17 +132,27 @@ if [[ "$ready" != true ]]; then
   cat "$setup_log"
   exit 1
 fi
+if [[ "$(curl --silent --output /dev/null --write-out "%{http_code}" \
+  "http://127.0.0.1:$((api_base_port + 1))/api/v1/setup")" != 401 ]]; then
+  echo "UpGrid setup API did not require authentication" >&2
+  exit 1
+fi
 
 "$target_directory/debug/upgrid" \
   --bind "127.0.0.1:$((api_base_port + 2))" \
-  --raft-url "up://127.0.0.1:$((raft_base_port + 2))" \
+  --raft-port "$((raft_base_port + 2))" \
+  --reachable-address "up://127.0.0.1:$((raft_base_port + 2))" \
+  --discovery-url "http://127.0.0.1:9/configured" \
   --data-dir "$test_data/new-data" \
+  --username "$setup_username" \
+  --password "$setup_password" \
   >"$new_setup_log" 2>&1 &
 new_setup_pid=$!
 
 ready=false
 for _ in $(seq 1 100); do
-  if curl -fsS "http://127.0.0.1:$((api_base_port + 2))/" >/dev/null; then
+  if curl -fsS --user "$setup_username:$setup_password" \
+    "http://127.0.0.1:$((api_base_port + 2))/" >/dev/null; then
     ready=true
     break
   fi
@@ -155,7 +171,8 @@ fi
 "$target_directory/debug/upgrid" \
   --new-cluster \
   --bind "127.0.0.1:$((api_base_port + 3))" \
-  --raft-url "up://127.0.0.1:$((raft_base_port + 3))" \
+  --raft-port "$((raft_base_port + 3))" \
+  --reachable-address "up://127.0.0.1:$((raft_base_port + 3))" \
   --data-dir "$test_data/warning-data" \
   --username admin \
   --password test-password \
@@ -184,7 +201,8 @@ warning_pid=""
 "$target_directory/debug/upgrid" \
   --join not-a-valid-join-token \
   --bind "127.0.0.1:$((api_base_port + 3))" \
-  --raft-url "up://127.0.0.1:$((raft_base_port + 3))" \
+  --raft-port "$((raft_base_port + 3))" \
+  --reachable-address "up://127.0.0.1:$((raft_base_port + 3))" \
   --data-dir "$test_data/warning-data" \
   >"$warning_log" 2>&1 &
 warning_pid=$!
@@ -210,6 +228,9 @@ UPGRID_UI_URL="http://127.0.0.1:${api_base_port}" \
   UPGRID_SETUP_URL="http://127.0.0.1:$((api_base_port + 1))" \
   UPGRID_NEW_SETUP_URL="http://127.0.0.1:$((api_base_port + 2))" \
   UPGRID_WARNING_URL="http://127.0.0.1:$((api_base_port + 3))" \
-  UPGRID_EXPECTED_RAFT_URL="up://127.0.0.1:${raft_base_port}" \
+  UPGRID_JOINING_RAFT_PORT="$((raft_base_port + 1))" \
+  UPGRID_EXPECTED_REACHABLE_ADDRESS="up://127.0.0.1:${raft_base_port}" \
   UPGRID_STORAGE_STATE="$test_data/storage-state.json" \
+  UPGRID_SETUP_USERNAME="$setup_username" \
+  UPGRID_SETUP_PASSWORD="$setup_password" \
   pnpm --dir "$workspace/frontend" test "$@"

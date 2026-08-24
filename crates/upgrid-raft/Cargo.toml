@@ -9,6 +9,7 @@ license.workspace = true
 base64.workspace = true
 compio.workspace = true
 futures-channel.workspace = true
+futures-util.workspace = true
 openraft.workspace = true
 openraft-rt-compio.workspace = true
 postcard.workspace = true

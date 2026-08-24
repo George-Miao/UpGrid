@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use url::Url;
@@ -47,7 +48,7 @@ impl ApplicationState {
                 .remove(&id)
                 .expect("complete evaluation batch must exist");
             self.assignments.retain(|key, _| key.id != id);
-            aggregate(batch.results)
+            aggregate(batch.results, &self.node_names)
         } else {
             self.assignments.remove(&EvaluationAssignmentKey {
                 id,
@@ -80,7 +81,8 @@ impl ApplicationState {
             self.history_retention_ms,
         );
         self.record_history_rollup(&evaluation);
-        let alerts = self.record_transition(transition, name, url, evaluation, channels);
+        let alerts =
+            self.record_availability_transition(transition, name, url, evaluation, channels);
         Ok(CommandResult::EvaluationAccepted {
             availability,
             alerts,
@@ -121,14 +123,15 @@ impl ApplicationState {
         );
         self.record_history_rollup(&evaluation);
         let channels = self.default_notification_channels.clone();
-        let alerts = self.record_transition(transition, name, url, evaluation, channels);
+        let alerts =
+            self.record_availability_transition(transition, name, url, evaluation, channels);
         Ok(CommandResult::NodeEvaluationAccepted {
             availability,
             alerts,
         })
     }
 
-    fn record_transition(
+    pub(super) fn record_availability_transition(
         &mut self,
         transition: Option<AlertKind>,
         target_name: String,
@@ -139,12 +142,12 @@ impl ApplicationState {
         let cutoff = evaluation
             .recorded_at_ms
             .saturating_sub(self.history_retention_ms);
-        self.transitions
-            .retain(|_, item| item.evaluation.recorded_at_ms >= cutoff);
+        self.availability_transitions
+            .retain(|_, transition| transition.evaluation.recorded_at_ms >= cutoff);
         let Some(kind) = transition else {
             return Vec::new();
         };
-        self.transitions
+        self.availability_transitions
             .entry(evaluation.id)
             .or_insert_with(|| AvailabilityTransition {
                 kind,
@@ -177,7 +180,10 @@ impl ApplicationState {
     }
 }
 
-fn aggregate(results: BTreeMap<Uuid, Evaluation>) -> Evaluation {
+fn aggregate(
+    results: BTreeMap<Uuid, Evaluation>,
+    node_names: &BTreeMap<Uuid, String>,
+) -> Evaluation {
     let evaluations = results.into_values().collect::<Vec<_>>();
     let representative = evaluations
         .iter()
@@ -207,9 +213,16 @@ fn aggregate(results: BTreeMap<Uuid, Evaluation>) -> Evaluation {
         let details = failed
             .iter()
             .map(|evaluation| {
+                let node_name = node_names.get(&evaluation.executor_node_id).map_or_else(
+                    || {
+                        Cow::Owned(upgrid_config::friendly_node_name(
+                            evaluation.executor_node_id,
+                        ))
+                    },
+                    |name| Cow::Borrowed(name.as_str()),
+                );
                 format!(
-                    "{}: {}",
-                    evaluation.executor_node_id,
+                    "{node_name}: {}",
                     evaluation
                         .diagnostic
                         .as_deref()

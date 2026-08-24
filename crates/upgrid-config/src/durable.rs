@@ -14,6 +14,14 @@ pub fn replace_private(path: &Path, contents: &[u8]) -> io::Result<()> {
     replace_with_mode(path, contents, true)
 }
 
+pub fn remove(path: &Path) -> io::Result<()> {
+    match fs::remove_file(path) {
+        Ok(()) => sync_parent(path),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
 fn replace_with_mode(path: &Path, contents: &[u8], private: bool) -> io::Result<()> {
     replace_with_mode_and(path, contents, private, || Ok(()))
 }

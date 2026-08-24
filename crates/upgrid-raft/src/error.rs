@@ -7,9 +7,8 @@ use openraft::error::{ClientWriteError, Fatal, InitializeError, LinearizableRead
 use openraft::metrics::WaitError;
 use snafu::Snafu;
 use upgrid_rpc::CallError;
-use url::Url;
 
-use crate::UpgridNode;
+use crate::ReachableAddress;
 use crate::raft::TC;
 
 #[derive(Debug, Snafu)]
@@ -87,6 +86,9 @@ pub(crate) enum DatabaseError {
         path: PathBuf,
         source: postcard::Error,
     },
+
+    #[snafu(display("failed to migrate legacy snapshot membership: {source}"))]
+    LegacySnapshotMigration { source: std::io::Error },
 }
 
 impl From<DatabaseError> for std::io::Error {
@@ -96,7 +98,8 @@ impl From<DatabaseError> for std::io::Error {
             | DatabaseError::FieldDecode { .. }
             | DatabaseError::IntegerRange { .. }
             | DatabaseError::MissingRow { .. }
-            | DatabaseError::LegacyPostcard { .. } => std::io::ErrorKind::InvalidData,
+            | DatabaseError::LegacyPostcard { .. }
+            | DatabaseError::LegacySnapshotMigration { .. } => std::io::ErrorKind::InvalidData,
             _ => std::io::ErrorKind::Other,
         };
         Self::new(kind, error)
@@ -108,24 +111,20 @@ pub enum Error {
     #[snafu(transparent)]
     Transport { source: upgrid_transport::Error },
 
-    #[snafu(display("failed to parse Node URL: {source}"))]
-    UrlParse { source: url::ParseError },
+    #[snafu(transparent)]
+    ReachableAddress {
+        source: upgrid_config::ReachableAddressError,
+    },
 
-    #[snafu(display("invalid Node scheme in {url}; expected `up`"))]
-    UrlInvalidScheme { url: Url },
-
-    #[snafu(display("Node URL has no host: {url}"))]
-    UrlInvalidHost { url: Url },
-
-    #[snafu(display("Failed to create Raft instance: {}", source))]
+    #[snafu(display("failed to create Raft instance: {}", source))]
     RaftCreation { source: Fatal<TC> },
 
-    #[snafu(display("Failed to initialize Raft: {}", source))]
+    #[snafu(display("failed to initialize Raft: {}", source))]
     RaftInitialize {
         source: RaftError<TC, InitializeError<TC>>,
     },
 
-    #[snafu(display("Failed to join Raft: {}", source))]
+    #[snafu(display("failed to join Raft: {}", source))]
     RaftJoin {
         source: RaftError<TC, ClientWriteError<TC>>,
     },
@@ -133,11 +132,33 @@ pub enum Error {
     #[snafu(display("RPC error: {}", source))]
     RpcError { source: CallError },
 
+    #[snafu(display("node {node_id} has no configured or verified reachable address"))]
+    NoReachableAddress { node_id: uuid::Uuid },
+
+    #[snafu(display(
+        "address {address} belongs to node {actual_node_id}, expected node {expected_node_id}"
+    ))]
+    NodeIdentityMismatch {
+        address: ReachableAddress,
+        expected_node_id: uuid::Uuid,
+        actual_node_id: uuid::Uuid,
+    },
+
+    #[snafu(display(
+        "authenticated node cannot publish configured reachable addresses for node {node_id}"
+    ))]
+    ConfiguredReachableAddressAuthentication { node_id: uuid::Uuid },
+
+    #[snafu(display(
+        "remote node cannot submit reachability maintenance owned by the local leader"
+    ))]
+    ReachabilityMaintenanceAuthentication,
+
     #[snafu(display("leadership could not be established before the write deadline"))]
     LeadershipDeadline,
 
     #[snafu(display("timed out connecting to forwarded leader {node}"))]
-    ForwardConnectTimeout { node: UpgridNode },
+    ForwardConnectTimeout { node: ReachableAddress },
 
     #[snafu(display("Raft rejected a replicated write: {source}"))]
     RaftWrite {
@@ -152,25 +173,22 @@ pub enum Error {
     #[snafu(display("linearizable read unavailable before the read deadline"))]
     LinearizableReadDeadline,
 
-    #[snafu(display("timed out connecting to forwarded read leader {node}"))]
-    ForwardReadConnectTimeout { node: UpgridNode },
-
     #[snafu(display("timed out waiting for the local read barrier: {source}"))]
     ReadBarrier { source: WaitError },
 
-    #[snafu(display("Node RPC probe timed out for {node}"))]
-    NodeProbeTimeout { node: UpgridNode },
+    #[snafu(display("node RPC probe failed for {node_id}"))]
+    NodeProbeFailed { node_id: uuid::Uuid },
 
-    #[snafu(display("Failed to open Raft database at {}: {source}", path.display()))]
+    #[snafu(display("failed to open Raft database at {}: {source}", path.display()))]
     DatabaseOpen {
         path: PathBuf,
         source: std::io::Error,
     },
 
-    #[snafu(display("deployment key does not match the Cluster"))]
+    #[snafu(display("deployment key does not match the cluster"))]
     DeploymentKeyMismatch,
 
-    #[snafu(display("Cluster rejected join request: {}", source))]
+    #[snafu(display("cluster rejected join request: {}", source))]
     JoinRejected { source: crate::rpc::JoinError },
 }
 

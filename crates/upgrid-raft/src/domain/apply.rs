@@ -1,9 +1,28 @@
+use uuid::Uuid;
+
+use super::state::ProcessedOperation;
+use super::{
+    AlertDelivery, ApplicationState, Command, CommandResult, DEFAULT_OPERATION_RETENTION_MS,
+    DomainError, Secret, TargetId,
+};
+
 mod alert;
 mod evaluation;
+mod join_token;
+mod resource;
 mod secret;
 mod trash;
 
 impl ApplicationState {
+    pub(crate) fn processed_operation_result(
+        &self,
+        operation_id: Uuid,
+    ) -> Option<Result<CommandResult, DomainError>> {
+        self.processed_operations
+            .get(&operation_id)
+            .map(|processed| processed.result.clone())
+    }
+
     pub fn apply_operation(
         &mut self,
         operation_id: Uuid,
@@ -14,7 +33,16 @@ impl ApplicationState {
             return processed.result.clone();
         }
 
-        let result = self.apply(command);
+        let result = self.apply_with_operation(command);
+        self.cache_operation_result(operation_id, submitted_at_ms, result)
+    }
+
+    pub(crate) fn cache_operation_result(
+        &mut self,
+        operation_id: Uuid,
+        submitted_at_ms: u64,
+        result: Result<CommandResult, DomainError>,
+    ) -> Result<CommandResult, DomainError> {
         self.latest_operation_at_ms = self.latest_operation_at_ms.max(submitted_at_ms);
         let cutoff = self
             .latest_operation_at_ms
@@ -32,6 +60,10 @@ impl ApplicationState {
     }
 
     pub fn apply(&mut self, command: Command) -> Result<CommandResult, DomainError> {
+        self.apply_with_operation(command)
+    }
+
+    fn apply_with_operation(&mut self, command: Command) -> Result<CommandResult, DomainError> {
         match command {
             Command::CreateIdentity(identity) => self.create_identity(identity),
             Command::UpdateIdentity(identity) => self.update_identity(identity),
@@ -194,9 +226,17 @@ impl ApplicationState {
                 Ok(CommandResult::JoinTokenAuthorized)
             }
             Command::RevokeJoinToken(hash) => {
-                self.join_tokens
-                    .remove(&hash)
-                    .ok_or(DomainError::InvalidJoinToken)?;
+                let removed = self.join_tokens.remove(&hash).is_some();
+                let mut reserved = false;
+                for reservation in self.join_token_reservations.values_mut() {
+                    if reservation.hash == hash {
+                        reservation.expires_at_ms = 0;
+                        reserved = true;
+                    }
+                }
+                if !removed && !reserved {
+                    return Err(DomainError::InvalidJoinToken);
+                }
                 self.join_token_uses.remove(&hash);
                 Ok(CommandResult::JoinTokenRevoked)
             }
@@ -250,14 +290,17 @@ impl ApplicationState {
                 alert_id,
                 delivered_at_ms,
             } => {
+                let resolved = self
+                    .resolve_alert_id(alert_id)
+                    .ok_or(DomainError::AlertNotFound(alert_id))?;
                 let alert = self
                     .alerts
-                    .get_mut(&alert_id)
-                    .ok_or(DomainError::AlertNotFound(alert_id))?;
+                    .get_mut(&resolved)
+                    .expect("resolved alert exists");
                 if !matches!(&alert.delivery, AlertDelivery::Delivered { .. }) {
                     alert.delivery = AlertDelivery::Delivered { delivered_at_ms };
                 }
-                Ok(CommandResult::AlertUpdated(alert_id))
+                Ok(CommandResult::AlertUpdated(resolved))
             }
             Command::RecordAlertFailure {
                 alert_id,
@@ -273,7 +316,130 @@ impl ApplicationState {
                 alert_id,
                 retry_at_ms,
             } => self.retry_alert(alert_id, retry_at_ms),
+            Command::ReplaceConfiguredReachableAddresses { node_id, addresses } => {
+                self.replace_configured_reachable_addresses(node_id, addresses)
+            }
+            Command::RenewReachabilityLeases(leases) => self.renew_reachability_leases(leases),
+            Command::VerifyReachableAddress {
+                node_id,
+                address,
+                verified_at_ms,
+            } => self.verify_reachable_address(node_id, address, verified_at_ms),
+            Command::ReplaceAdmissionConfiguredReachableAddresses {
+                node_id,
+                addresses,
+                reservation_operation_id,
+            } => {
+                self.ensure_join_reservation(node_id, reservation_operation_id)?;
+                self.replace_configured_reachable_addresses(node_id, addresses)
+            }
+            Command::RenewAdmissionReachabilityLeases {
+                reservation_id,
+                reservation_operation_id,
+                leases,
+            } => {
+                self.ensure_join_reservation(reservation_id, reservation_operation_id)?;
+                if leases.iter().any(|lease| lease.node_id != reservation_id) {
+                    return Err(DomainError::NodeNotInMembership(reservation_id));
+                }
+                self.renew_reachability_leases(leases)
+            }
+            Command::VerifyAdmissionReachableAddress {
+                node_id,
+                address,
+                verified_at_ms,
+                reservation_operation_id,
+            } => {
+                self.ensure_join_reservation(node_id, reservation_operation_id)?;
+                self.verify_reachable_address(node_id, address, verified_at_ms)
+            }
+            Command::RecordConnectivity {
+                leases,
+                verified,
+                checked_at_ms,
+                failures,
+            } => self.record_connectivity(leases, verified, checked_at_ms, failures),
+            Command::ReserveJoinToken {
+                hash,
+                reservation_id,
+                reserved_at_ms,
+                readmission,
+                reservation_operation_id,
+            } => self.reserve_join_token(
+                hash,
+                reservation_id,
+                reservation_operation_id,
+                reserved_at_ms,
+                readmission,
+            ),
+            Command::CompleteJoinTokenReservation {
+                reservation_id,
+                reservation_operation_id,
+                accepted,
+                completed_at_ms,
+            } => self.complete_join_token_reservation(
+                reservation_id,
+                reservation_operation_id,
+                accepted,
+                completed_at_ms,
+            ),
+            Command::AbortPendingJoin {
+                reservation_id,
+                reservation_operation_id,
+                completed_at_ms,
+            } => self.abort_pending_join(reservation_id, reservation_operation_id, completed_at_ms),
+            Command::AbortPendingReadmission {
+                reservation_id,
+                reservation_operation_id,
+                completed_at_ms,
+            } => self.abort_pending_readmission(
+                reservation_id,
+                reservation_operation_id,
+                completed_at_ms,
+            ),
         }
+    }
+
+    fn replace_configured_reachable_addresses(
+        &mut self,
+        node_id: Uuid,
+        addresses: std::collections::BTreeSet<crate::ReachableAddress>,
+    ) -> Result<CommandResult, DomainError> {
+        self.node_reachability
+            .entry(node_id)
+            .or_default()
+            .replace_configured(addresses);
+        Ok(CommandResult::ConfiguredReachableAddressesReplaced(node_id))
+    }
+
+    fn renew_reachability_leases(
+        &mut self,
+        leases: Vec<crate::ReachableAddressLease>,
+    ) -> Result<CommandResult, DomainError> {
+        for lease in leases {
+            let reachability = self.node_reachability.entry(lease.node_id).or_default();
+            reachability.expire(lease.discovered_at_ms);
+            reachability.renew(
+                lease.address,
+                lease.source,
+                lease.discovered_at_ms,
+                lease.expires_at_ms,
+            );
+        }
+        Ok(CommandResult::ReachabilityLeasesRenewed)
+    }
+
+    fn verify_reachable_address(
+        &mut self,
+        node_id: Uuid,
+        address: crate::ReachableAddress,
+        verified_at_ms: u64,
+    ) -> Result<CommandResult, DomainError> {
+        self.node_reachability
+            .entry(node_id)
+            .or_default()
+            .verify(&address, verified_at_ms);
+        Ok(CommandResult::ReachableAddressVerified(node_id))
     }
 
     fn put_secret(&mut self, secret: Secret) -> Result<CommandResult, DomainError> {
@@ -282,197 +448,4 @@ impl ApplicationState {
         self.secrets.insert(id, secret);
         Ok(CommandResult::SecretStored(id))
     }
-
-    fn create_notification_channel(
-        &mut self,
-        channel: NotificationChannel,
-        generated_secret: Option<Secret>,
-        is_default: bool,
-    ) -> Result<CommandResult, DomainError> {
-        if let Some(secret) = &generated_secret {
-            secret.validate()?;
-        }
-        channel.validate()?;
-        for secret_id in channel.secret_ids() {
-            let is_generated = generated_secret
-                .as_ref()
-                .is_some_and(|secret| secret.id == secret_id);
-            if !is_generated && !self.secrets.contains_key(&secret_id) {
-                return Err(DomainError::SecretNotFound(secret_id));
-            }
-        }
-
-        let id = channel.id;
-        if let Some(secret) = generated_secret {
-            self.secrets.insert(secret.id, secret);
-        }
-        self.notification_channels.insert(id, channel);
-        if is_default {
-            self.default_notification_channels.insert(id);
-        } else {
-            self.default_notification_channels.remove(&id);
-        }
-        Ok(CommandResult::NotificationChannelStored(id))
-    }
-
-    fn update_notification_channel(
-        &mut self,
-        channel: NotificationChannel,
-        generated_secret: Option<Secret>,
-        is_default: bool,
-    ) -> Result<CommandResult, DomainError> {
-        let id = channel.id;
-        if !self.notification_channels.contains_key(&id) {
-            return Err(DomainError::NotificationChannelNotFound(id));
-        }
-        if let Some(secret) = &generated_secret {
-            secret.validate()?;
-        }
-        channel.validate()?;
-        for secret_id in channel.secret_ids() {
-            let is_generated = generated_secret
-                .as_ref()
-                .is_some_and(|secret| secret.id == secret_id);
-            if !is_generated && !self.secrets.contains_key(&secret_id) {
-                return Err(DomainError::SecretNotFound(secret_id));
-            }
-        }
-
-        if let Some(secret) = generated_secret {
-            self.secrets.insert(secret.id, secret);
-        }
-        self.notification_channels.insert(id, channel);
-        if is_default {
-            self.default_notification_channels.insert(id);
-        } else {
-            self.default_notification_channels.remove(&id);
-        }
-        Ok(CommandResult::NotificationChannelUpdated(id))
-    }
-
-    fn create_target(
-        &mut self,
-        target: Target,
-        use_default_notifications: bool,
-    ) -> Result<CommandResult, DomainError> {
-        target.validate()?;
-        if self.targets.contains_key(&target.id) || self.trashed_targets.contains_key(&target.id) {
-            return Err(DomainError::TargetAlreadyExists(target.id));
-        }
-        self.validate_target_references(&target)?;
-
-        let id = target.id;
-        self.targets.insert(id, TargetState::new(target));
-        self.set_target_default_notifications(id, use_default_notifications);
-        Ok(CommandResult::TargetCreated(id))
-    }
-
-    fn update_target(
-        &mut self,
-        target: Target,
-        use_default_notifications: bool,
-    ) -> Result<CommandResult, DomainError> {
-        target.validate()?;
-        self.validate_target_references(&target)?;
-        let target_state = self
-            .targets
-            .get_mut(&target.id)
-            .ok_or(DomainError::TargetNotFound(target.id))?;
-
-        let id = target.id;
-        target_state.target = target;
-        self.set_target_default_notifications(id, use_default_notifications);
-        Ok(CommandResult::TargetUpdated(id))
-    }
-
-    fn create_target_with_locations(
-        &mut self,
-        target: Target,
-        use_default_notifications: bool,
-        locations: u16,
-    ) -> Result<CommandResult, DomainError> {
-        validate_locations(locations)?;
-        let id = target.id;
-        let result = self.create_target(target, use_default_notifications)?;
-        self.target_locations.insert(id, locations);
-        Ok(result)
-    }
-
-    fn update_target_with_locations(
-        &mut self,
-        target: Target,
-        use_default_notifications: bool,
-        locations: u16,
-    ) -> Result<CommandResult, DomainError> {
-        validate_locations(locations)?;
-        let id = target.id;
-        let result = self.update_target(target, use_default_notifications)?;
-        self.target_locations.insert(id, locations);
-        Ok(result)
-    }
-
-    fn set_target_default_notifications(&mut self, id: TargetId, enabled: bool) {
-        if enabled {
-            self.default_notifications_disabled.remove(&id);
-        } else {
-            self.default_notifications_disabled.insert(id);
-        }
-    }
-
-    fn validate_target_references(&self, target: &Target) -> Result<(), DomainError> {
-        for channel_id in &target.notification_channels {
-            if !self.notification_channels.contains_key(channel_id) {
-                return Err(DomainError::NotificationChannelNotFound(*channel_id));
-            }
-        }
-        for secret_id in target.http.secret_ids() {
-            if !self.secrets.contains_key(&secret_id) {
-                return Err(DomainError::SecretNotFound(secret_id));
-            }
-        }
-        Ok(())
-    }
-
-    fn sync_node_targets(
-        &mut self,
-        targets: Vec<NodeTarget>,
-    ) -> Result<CommandResult, DomainError> {
-        let mut ids = BTreeSet::new();
-        for target in &targets {
-            target.validate()?;
-            if !ids.insert(target.id()) {
-                return Err(DomainError::InvalidTarget(
-                    "Node Target list contains duplicate Nodes".to_owned(),
-                ));
-            }
-        }
-        self.node_targets.retain(|id, _| ids.contains(id));
-        for target in targets {
-            let id = target.id();
-            if let Some(state) = self.node_targets.get_mut(&id) {
-                state.target = target;
-            } else {
-                self.node_targets.insert(id, NodeTargetState::new(target));
-            }
-        }
-        Ok(CommandResult::NodeTargetsSynced)
-    }
 }
-
-fn validate_locations(locations: u16) -> Result<(), DomainError> {
-    if !(1..=MAX_EVALUATION_LOCATIONS).contains(&locations) {
-        return Err(DomainError::InvalidTarget(format!(
-            "evaluation locations must be between 1 and {MAX_EVALUATION_LOCATIONS}",
-        )));
-    }
-    Ok(())
-}
-use std::collections::BTreeSet;
-
-use uuid::Uuid;
-
-use super::{
-    AlertDelivery, ApplicationState, Command, CommandResult, DEFAULT_OPERATION_RETENTION_MS,
-    DomainError, MAX_EVALUATION_LOCATIONS, NodeTarget, NodeTargetState, NotificationChannel,
-    ProcessedOperation, Secret, Target, TargetId, TargetState,
-};

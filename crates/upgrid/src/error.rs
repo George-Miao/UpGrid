@@ -14,6 +14,9 @@ pub enum Error {
     #[snafu(display("configured Join Token is invalid"))]
     JoinTokenInvalid,
 
+    #[snafu(display("incomplete cluster admission requires a configured join token"))]
+    IncompleteAdmission,
+
     #[snafu(display("configured deployment key does not match the Join Token"))]
     JoinDeploymentKeyMismatch,
 

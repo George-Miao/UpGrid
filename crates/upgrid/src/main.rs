@@ -134,8 +134,10 @@ async fn run() -> Result<()> {
         .await
         .context(ClusterWriteSnafu)?;
     }
+    let discovery_urls = config.discovery_urls.clone();
     let (cluster, receiver) = Handle::new(node_id);
     let notifications = upgrid_notification::start(cluster.clone(), cipher.clone());
+    bootstrap::start_discovery(cluster.clone(), node_id, discovery_urls);
     upgrid_api::start(
         config,
         cluster.clone(),

@@ -1,78 +1,161 @@
 //! Raft Node lifecycle and forwarded Cluster operations.
+mod admission_reaper;
+mod publication;
+mod runtime;
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::net::IpAddr;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use admission_reaper::watch_expired_admissions;
 use compio::runtime::{JoinHandle, spawn};
 use compio::time::{sleep, timeout};
-use openraft::async_runtime::watch::WatchReceiver as _;
-use openraft::error::{ClientWriteError, InitializeError, RaftError};
-use openraft::{Config, ReadPolicy};
+use openraft::ReadPolicy;
+use openraft::error::{InitializeError, RaftError};
+use runtime::{
+    bootstrap_address, raft_config, watch_cluster_events, watch_connectivity,
+    watch_reachable_address_candidates,
+};
 use snafu::ResultExt;
-use tracing::{debug, info};
-use upgrid_config::{Cipher, QuicCaKey};
+use tracing::debug;
+use upgrid_config::{Cipher, LocalAddress, QuicCaKey};
 use upgrid_rpc::Context;
 use upgrid_transport::RpcTransport;
 
-use crate::UpgridNode;
+use crate::ReachableAddress;
 use crate::cluster::{ClusterError, DomainSnafu};
-use crate::database::RaftDatabase;
+use crate::database::{RaftDatabase, StateRepository};
 use crate::error::*;
-use crate::raft::{Identity, Raft, Req, Res};
+use crate::raft::{NodeRegistration, Raft, Req, Res};
 use crate::rpc::{JoinError, Rpc, UpgridNetwork};
 use crate::state_machine::StateMachine;
 use crate::storage::InMemStore;
 
+const ADMISSION_TIMEOUT: Duration = Duration::from_secs(20);
+
+pub struct NodeNetworkConfig {
+    local_addresses: BTreeSet<LocalAddress>,
+    configured: BTreeSet<ReachableAddress>,
+    configured_explicit: bool,
+    candidates: Vec<crate::ReachableAddressCandidate>,
+}
+
+impl NodeNetworkConfig {
+    pub fn new(
+        local_addresses: BTreeSet<LocalAddress>,
+        configured: BTreeSet<ReachableAddress>,
+        configured_explicit: bool,
+        candidates: Vec<crate::ReachableAddressCandidate>,
+    ) -> Self {
+        Self {
+            local_addresses,
+            configured,
+            configured_explicit,
+            candidates,
+        }
+    }
+}
+
+fn local_reachable_address(address: &LocalAddress) -> Option<ReachableAddress> {
+    let host = match address.host {
+        IpAddr::V4(host) if host.is_unspecified() => IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        IpAddr::V6(host) if host.is_unspecified() => IpAddr::V6(std::net::Ipv6Addr::LOCALHOST),
+        host => host,
+    };
+    ReachableAddress::from_host_port(host.to_string(), address.port)
+}
+
 pub struct Node {
-    id: Identity,
+    id: uuid::Uuid,
+    registration: Option<NodeRegistration>,
+    configured: BTreeSet<ReachableAddress>,
+    configured_explicit: bool,
+    candidates: Vec<crate::ReachableAddressCandidate>,
     raft: Raft,
     state_machine: Rc<StateMachine>,
     rpc: Rpc,
     deployment_key_fingerprint: [u8; 32],
     _server_handle: JoinHandle<()>,
+    _connectivity_handle: JoinHandle<()>,
+    _admission_reaper_handle: JoinHandle<()>,
+    _candidate_renewal_handle: JoinHandle<()>,
     _metrics_handle: JoinHandle<()>,
 }
 
 impl Node {
-    pub fn data_membership_urls(data_dir: &Path) -> Result<BTreeSet<String>> {
+    pub fn data_membership_addresses(
+        data_dir: &Path,
+        observer_node_id: uuid::Uuid,
+    ) -> Result<Option<BTreeMap<uuid::Uuid, BTreeSet<ReachableAddress>>>> {
         let path = data_dir.join("raft.sqlite3");
         let database = Rc::new(
             RaftDatabase::open(data_dir)
                 .map_err(std::io::Error::from)
-                .context(DatabaseOpenSnafu { path })?,
+                .context(DatabaseOpenSnafu { path: path.clone() })?,
         );
-        let state_machine = StateMachine::open(database).context(DatabaseOpenSnafu {
-            path: data_dir.join("raft.sqlite3"),
-        })?;
-        Ok(state_machine
-            .state_machine
-            .borrow()
+        let (state, ..) = StateRepository::new(database)
+            .load()
+            .map_err(std::io::Error::from)
+            .context(DatabaseOpenSnafu { path })?;
+        let now_ms = upgrid_config::now_ms();
+        let members = state
             .last_membership
             .nodes()
-            .map(|(_, node)| node.to_string())
-            .collect())
+            .map(|(node_id, identity)| {
+                let mut addresses = state
+                    .application
+                    .node_reachability
+                    .get(node_id)
+                    .map(|reachability| reachability.reachable(observer_node_id, now_ms))
+                    .unwrap_or_default();
+                addresses.extend(identity.legacy_address().cloned());
+                (*node_id, addresses)
+            })
+            .collect::<BTreeMap<_, _>>();
+        Ok((!members.is_empty()).then_some(members))
     }
 
     pub fn node_id(&self) -> uuid::Uuid {
-        self.id.id
+        self.id
     }
 
     #[cfg(test)]
     pub async fn new(advertise_url: impl AsRef<str>) -> Result<Self> {
-        let id = Identity::new(advertise_url)?;
-        Self::with_identity(id).await
+        let registration = NodeRegistration::new(advertise_url)?;
+        Self::with_identity(registration).await
     }
 
     #[cfg(test)]
-    pub async fn with_identity(id: Identity) -> Result<Self> {
+    pub async fn with_identity(registration: NodeRegistration) -> Result<Self> {
         let cipher = Cipher::parse("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
             .expect("test deployment key should be valid");
         let quic_ca_key = QuicCaKey::derive(&cipher);
+        let local_address = registration
+            .bootstrap
+            .host()
+            .parse()
+            .unwrap_or(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
+        let local_address = LocalAddress {
+            host: local_address,
+            port: registration.bootstrap.port(),
+        };
+        let id = registration.id;
+        let configured = registration.configured.clone();
+        let configured_explicit = registration.configured_explicit;
+        let candidates = registration.candidates.clone();
+        let network = NodeNetworkConfig::new(
+            BTreeSet::from([local_address]),
+            configured,
+            configured_explicit,
+            candidates,
+        );
         Self::build(
             id,
+            Some(registration),
+            network,
             InMemStore::new(),
             Rc::new(StateMachine::default()),
             &cipher,
@@ -82,11 +165,29 @@ impl Node {
     }
 
     pub async fn open(
-        id: Identity,
+        id: uuid::Uuid,
+        network: NodeNetworkConfig,
         data_dir: &Path,
         cipher: &Cipher,
         quic_ca_key: &QuicCaKey,
     ) -> Result<Self> {
+        let registration = bootstrap_address(id, &network.configured, &network.candidates)
+            .ok()
+            .or_else(|| {
+                network
+                    .local_addresses
+                    .iter()
+                    .find_map(local_reachable_address)
+            })
+            .map(|bootstrap| {
+                NodeRegistration::from_network(
+                    id,
+                    bootstrap,
+                    network.configured.clone(),
+                    network.configured_explicit,
+                    network.candidates.clone(),
+                )
+            });
         let path = data_dir.join("raft.sqlite3");
         let database = Rc::new(
             RaftDatabase::open(data_dir)
@@ -99,24 +200,46 @@ impl Node {
         let state_machine = Rc::new(StateMachine::open(database).context(DatabaseOpenSnafu {
             path: data_dir.join("raft.sqlite3"),
         })?);
-        Self::build(id, storage, state_machine, cipher, quic_ca_key).await
+        Self::build(
+            id,
+            registration,
+            network,
+            storage,
+            state_machine,
+            cipher,
+            quic_ca_key,
+        )
+        .await
     }
 
     async fn build(
-        id: Identity,
+        id: uuid::Uuid,
+        registration: Option<NodeRegistration>,
+        network: NodeNetworkConfig,
         storage: InMemStore<crate::raft::TC>,
         state_machine: Rc<StateMachine>,
         cipher: &Cipher,
         quic_ca_key: &QuicCaKey,
     ) -> Result<Self> {
-        let transport = RpcTransport::bind(id.node.host(), id.node.port(), quic_ca_key).await?;
+        let NodeNetworkConfig {
+            local_addresses,
+            configured,
+            configured_explicit,
+            candidates,
+        } = network;
+        let transport = RpcTransport::bind(&local_addresses, id, quic_ca_key).await?;
         let deployment_key_fingerprint = cipher.fingerprint();
-        let rpc = Rpc::new(transport, deployment_key_fingerprint);
-        let network = UpgridNetwork::new(id.clone(), rpc.clone());
+        let rpc = Rpc::new(
+            id,
+            transport,
+            state_machine.clone(),
+            deployment_key_fingerprint,
+        );
+        let network = UpgridNetwork::new(id, rpc.clone());
         let config = raft_config();
 
         let raft = Raft::new(
-            id.id,
+            id,
             Arc::new(config),
             network,
             storage,
@@ -127,57 +250,89 @@ impl Node {
 
         rpc.init_raft(raft.clone());
 
-        let metrics_handle = watch_cluster_events(raft.clone());
+        let connectivity_handle =
+            watch_connectivity(id, raft.clone(), rpc.clone(), state_machine.clone());
+        let admission_reaper_handle =
+            watch_expired_admissions(id, raft.clone(), rpc.clone(), state_machine.clone());
+        let candidate_renewal_handle =
+            watch_reachable_address_candidates(id, raft.clone(), rpc.clone());
+        let metrics_handle = watch_cluster_events(raft.clone(), rpc.clone());
 
         let server_handle = spawn(rpc.clone().run());
 
         Ok(Self {
             id,
+            registration,
+            configured,
+            configured_explicit,
+            candidates,
             raft,
             state_machine,
             rpc,
             deployment_key_fingerprint,
             _server_handle: server_handle,
+            _connectivity_handle: connectivity_handle,
+            _admission_reaper_handle: admission_reaper_handle,
+            _candidate_renewal_handle: candidate_renewal_handle,
             _metrics_handle: metrics_handle,
         })
     }
 
-    pub async fn join(&self, remote: impl AsRef<str>, token: &str) -> Result<()> {
-        let remote = UpgridNode::parse(remote.as_ref())?;
-        debug!(%remote, "requesting Cluster membership");
+    pub async fn join(
+        &self,
+        mut remote_node_id: uuid::Uuid,
+        remote: impl AsRef<str>,
+        token: &str,
+    ) -> Result<()> {
+        let deadline = Instant::now() + ADMISSION_TIMEOUT;
+        let mut remote_addresses = vec![ReachableAddress::parse(remote.as_ref())?];
 
-        let client = self.rpc.client(&remote).await?;
-        let remote_fingerprint = client
-            .deployment_key_fingerprint(Context::current())
-            .await
-            .context(RpcSnafu)?;
-        if remote_fingerprint != self.deployment_key_fingerprint {
-            return Err(Error::DeploymentKeyMismatch);
+        match timeout(ADMISSION_TIMEOUT, async {
+            loop {
+                debug!(
+                    routes = remote_addresses.len(),
+                    "requesting cluster membership"
+                );
+                let client = self
+                    .rpc
+                    .client_to_addresses(remote_node_id, remote_addresses)
+                    .await?;
+                let remote_fingerprint = client
+                    .deployment_key_fingerprint(Context::with_deadline(deadline))
+                    .await
+                    .context(RpcSnafu)?;
+                if remote_fingerprint != self.deployment_key_fingerprint {
+                    return Err(Error::DeploymentKeyMismatch);
+                }
+
+                let result = client
+                    .ask_to_join(
+                        Context::with_deadline(deadline),
+                        self.registration
+                            .clone()
+                            .ok_or(Error::NoReachableAddress { node_id: self.id })?,
+                        token.to_owned(),
+                    )
+                    .await
+                    .context(RpcSnafu)?;
+                match result {
+                    Ok(()) => return Ok(()),
+                    Err(JoinError::Redirect { node_id, addresses }) => {
+                        remote_node_id = node_id;
+                        remote_addresses = addresses;
+                    }
+                    Err(JoinError::Raft(source)) => return Err(Error::RaftJoin { source }),
+                    Err(source) => return Err(Error::JoinRejected { source }),
+                }
+            }
+        })
+        .await
+        {
+            Ok(result) => result,
+            Err(_) => Err(Error::JoinRejected {
+                source: JoinError::Deadline,
+            }),
         }
-
-        let result = client
-            .ask_to_join(Context::current(), self.id.clone(), token.to_owned())
-            .await
-            .context(RpcSnafu)?;
-        let result = match result {
-            Err(JoinError::Raft(RaftError::APIError(ClientWriteError::ForwardToLeader(
-                forward,
-            )))) if forward.leader_node.is_some() => self
-                .rpc
-                .client(&forward.leader_node.expect("checked above"))
-                .await?
-                .ask_to_join(Context::current(), self.id.clone(), token.to_owned())
-                .await
-                .context(RpcSnafu)?,
-            result => result,
-        };
-        match result {
-            Ok(()) => {}
-            Err(JoinError::Raft(source)) => return Err(Error::RaftJoin { source }),
-            Err(source) => return Err(Error::JoinRejected { source }),
-        }
-
-        Ok(())
     }
 
     pub fn has_membership(&self) -> bool {
@@ -185,21 +340,22 @@ impl Node {
             .state_machine
             .borrow()
             .last_membership
-            .nodes()
-            .next()
-            .is_some()
+            .membership()
+            .voter_ids()
+            .any(|node_id| node_id == self.id)
     }
 
     pub async fn start_cluster(&self) -> Result<()> {
         let mut map = BTreeMap::new();
-        map.insert(self.id.id, self.id.node.clone());
-        let res = self.raft.initialize(map).await;
-
-        if let Err(RaftError::APIError(InitializeError::NotAllowed(_))) = &res {
-            Ok(())
-        } else {
-            res.context(RaftInitializeSnafu)
+        map.insert(self.id, crate::NodeIdentity::default());
+        let result = self.raft.initialize(map).await;
+        if !matches!(
+            &result,
+            Err(RaftError::APIError(InitializeError::NotAllowed(_)))
+        ) {
+            result.context(RaftInitializeSnafu)?;
         }
+        self.publish_configured_reachable_addresses().await
     }
 
     pub fn local_application_state(&self) -> crate::domain::ApplicationState {
@@ -222,66 +378,9 @@ impl Node {
     }
 
     pub(crate) async fn write(&self, request: Req) -> Result<Res> {
-        let deadline = Instant::now() + Duration::from_secs(5);
-        let mut leader = None;
-        let mut last_error = None;
-        loop {
-            if Instant::now() >= deadline {
-                return Err(last_error.unwrap_or(Error::LeadershipDeadline));
-            }
-
-            let result = if let Some(forwarded_to) = leader.take() {
-                let attempt_timeout = deadline
-                    .saturating_duration_since(Instant::now())
-                    .min(Duration::from_secs(1));
-                let client = match timeout(attempt_timeout, self.rpc.client(&forwarded_to)).await {
-                    Ok(Ok(client)) => client,
-                    Ok(Err(error)) => {
-                        last_error = Some(error);
-                        self.rpc.invalidate(&forwarded_to);
-                        sleep(Duration::from_millis(50)).await;
-                        continue;
-                    }
-                    Err(_) => {
-                        last_error = Some(Error::ForwardConnectTimeout {
-                            node: forwarded_to.clone(),
-                        });
-                        self.rpc.invalidate(&forwarded_to);
-                        sleep(Duration::from_millis(50)).await;
-                        continue;
-                    }
-                };
-                let context = Context::with_deadline(
-                    Instant::now()
-                        + deadline
-                            .saturating_duration_since(Instant::now())
-                            .min(Duration::from_secs(1)),
-                );
-                match client.client_write(context, request.clone()).await {
-                    Ok(result) => result,
-                    Err(source) => {
-                        last_error = Some(Error::RpcError { source });
-                        self.rpc.invalidate(&forwarded_to);
-                        sleep(Duration::from_millis(50)).await;
-                        continue;
-                    }
-                }
-            } else {
-                self.raft.client_write(request.clone()).await
-            };
-            match result {
-                Ok(response) => return Ok(response.data),
-                Err(RaftError::APIError(ClientWriteError::ForwardToLeader(forward)))
-                    if Instant::now() < deadline =>
-                {
-                    leader = forward.leader_node;
-                    if leader.is_none() {
-                        sleep(Duration::from_millis(50)).await;
-                    }
-                }
-                Err(source) => return Err(Error::RaftWrite { source }),
-            }
-        }
+        self.rpc
+            .write_to_leader(request, Instant::now() + Duration::from_secs(5))
+            .await
     }
 
     pub async fn read(&self) -> Result<crate::domain::ApplicationState> {
@@ -294,9 +393,9 @@ impl Node {
             match self.raft.ensure_linearizable(ReadPolicy::ReadIndex).await {
                 Ok(_) => return Ok(self.local_application_state()),
                 Err(source) => {
-                    let Some(leader) = source
+                    let Some(leader_id) = source
                         .forward_to_leader()
-                        .and_then(|forward| forward.leader_node.clone())
+                        .and_then(|forward| forward.leader_id)
                     else {
                         last_error = Some(Error::LinearizableRead { source });
                         sleep(Duration::from_millis(50)).await;
@@ -305,19 +404,18 @@ impl Node {
                     let attempt_timeout = deadline
                         .saturating_duration_since(Instant::now())
                         .min(Duration::from_secs(1));
-                    let client = match timeout(attempt_timeout, self.rpc.client(&leader)).await {
+                    let client = match timeout(attempt_timeout, self.rpc.client_to(leader_id)).await
+                    {
                         Ok(Ok(client)) => client,
                         Ok(Err(error)) => {
                             last_error = Some(error);
-                            self.rpc.invalidate(&leader);
+                            self.rpc.invalidate_node(leader_id);
                             sleep(Duration::from_millis(50)).await;
                             continue;
                         }
                         Err(_) => {
-                            last_error = Some(Error::ForwardReadConnectTimeout {
-                                node: leader.clone(),
-                            });
-                            self.rpc.invalidate(&leader);
+                            last_error = Some(Error::LinearizableReadDeadline);
+                            self.rpc.invalidate_node(leader_id);
                             sleep(Duration::from_millis(50)).await;
                             continue;
                         }
@@ -337,7 +435,7 @@ impl Node {
                         }
                         Err(source) => {
                             last_error = Some(Error::RpcError { source });
-                            self.rpc.invalidate(&leader);
+                            self.rpc.invalidate_node(leader_id);
                             sleep(Duration::from_millis(50)).await;
                             continue;
                         }
@@ -359,139 +457,7 @@ impl Node {
             }
         }
     }
-
-    pub async fn is_leader(&self) -> bool {
-        self.raft.current_leader().await == Some(self.id.id)
-    }
-
-    pub async fn probe_node(&self, node_id: uuid::Uuid, url: &str) -> Result<()> {
-        if node_id == self.id.id {
-            return Ok(());
-        }
-        let node = UpgridNode::parse(url)?;
-        let result = timeout(Duration::from_secs(2), async {
-            let client = self.rpc.client(&node).await?;
-            client.ping(Context::current()).await.context(RpcSnafu)
-        })
-        .await;
-        match result {
-            Ok(result) => result,
-            Err(_) => {
-                self.rpc.invalidate(&node);
-                Err(Error::NodeProbeTimeout { node })
-            }
-        }
-    }
-
-    pub(crate) async fn remove_node(
-        &self,
-        node_id: uuid::Uuid,
-    ) -> Result<(), crate::MembershipError> {
-        let leader = {
-            let metrics = self.raft.metrics();
-            let current = metrics.borrow_watched();
-            let leader_id = current
-                .current_leader
-                .ok_or(crate::MembershipError::LeaderUnavailable)?;
-            current
-                .membership_config
-                .nodes()
-                .find_map(|(id, node)| (*id == leader_id).then(|| node.clone()))
-                .ok_or(crate::MembershipError::LeaderUnavailable)?
-        };
-        let client = self
-            .rpc
-            .client(&leader)
-            .await
-            .map_err(|error| crate::MembershipError::Transport(error.to_string()))?;
-        client
-            .remove_node(Context::current(), node_id)
-            .await
-            .map_err(|error| crate::MembershipError::Transport(error.to_string()))?
-    }
-
-    pub fn voters(&self) -> BTreeSet<uuid::Uuid> {
-        self.raft
-            .metrics()
-            .borrow_watched()
-            .membership_config
-            .membership()
-            .voter_ids()
-            .collect()
-    }
-
-    pub fn cluster_topology(&self) -> (Option<uuid::Uuid>, BTreeMap<uuid::Uuid, String>) {
-        let metrics = self.raft.metrics();
-        let current = metrics.borrow_watched();
-        let members = current
-            .membership_config
-            .nodes()
-            .map(|(node_id, node)| (*node_id, node.to_string()))
-            .collect();
-        (current.current_leader, members)
-    }
-}
-
-fn watch_cluster_events(raft: Raft) -> JoinHandle<()> {
-    spawn(async move {
-        let mut metrics = raft.metrics();
-        let mut previous_leader = None;
-        let mut previous_members = BTreeSet::new();
-
-        loop {
-            let (leader, members) = {
-                let current = metrics.borrow_watched();
-                let members = current
-                    .membership_config
-                    .nodes()
-                    .map(|(node_id, _)| *node_id)
-                    .collect::<BTreeSet<_>>();
-                (current.current_leader, members)
-            };
-
-            for node_id in members.difference(&previous_members) {
-                info!(%node_id, "Node joined Cluster");
-            }
-            for node_id in previous_members.difference(&members) {
-                info!(%node_id, "Node exited Cluster");
-            }
-            if leader != previous_leader {
-                info!(?previous_leader, ?leader, "Cluster leader changed");
-            }
-
-            previous_leader = leader;
-            previous_members = members;
-            if metrics.changed().await.is_err() {
-                break;
-            }
-        }
-    })
-}
-
-fn raft_config() -> Config {
-    Config {
-        cluster_name: "UpGrid".to_string(),
-        heartbeat_interval: 1_000,
-        election_timeout_min: 3_000,
-        election_timeout_max: 6_000,
-        install_snapshot_timeout: 10_000,
-        ..Config::default()
-    }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn raft_timing_allows_for_network_and_disk_latency() {
-        let config = raft_config();
-        assert!(
-            config.heartbeat_interval >= 500,
-            "AppendEntries must not inherit OpenRaft's 50 ms default deadline"
-        );
-        assert!(config.election_timeout_min >= config.heartbeat_interval * 3);
-        assert!(config.election_timeout_max >= config.election_timeout_min * 2);
-        config.validate().unwrap();
-    }
-}
+mod tests;

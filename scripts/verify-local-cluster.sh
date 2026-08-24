@@ -9,12 +9,14 @@ node_count="${UPGRID_TEST_NODE_COUNT:-3}"
 admission_only="${UPGRID_TEST_ADMISSION_ONLY:-false}"
 node_lifecycle_only="${UPGRID_TEST_NODE_LIFECYCLE_ONLY:-false}"
 rust_log="${UPGRID_TEST_RUST_LOG:-info}"
+peer_lease_wait_seconds="${UPGRID_TEST_PEER_LEASE_WAIT_SECONDS:-31}"
 test_root="$(mktemp -d "${TMPDIR:-/tmp}/upgrid-cluster.XXXXXX")"
 username="cluster-test"
 password="cluster-test-password"
 deployment_key="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 quic_ca_key="AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
 pids=()
+moved_raft_port=""
 
 cleanup() {
   for pid in "${pids[@]:-}"; do
@@ -30,11 +32,20 @@ binary="${target_directory}/debug/upgrid"
 start_node() {
   local number="$1"
   local api_port=$((api_base_port + number - 1))
-  local raft_port=$((raft_base_port + number - 1))
+  local raft_port="${UPGRID_TEST_RAFT_PORT_OVERRIDE:-$((raft_base_port + number - 1))}"
   shift
+  local reachability=()
+  local configured_reachability="${UPGRID_TEST_CONFIGURED_REACHABILITY:-true}"
+  if (( number > 1 )); then
+    configured_reachability="${UPGRID_TEST_JOINER_CONFIGURED_REACHABILITY:-$configured_reachability}"
+  fi
+  if [[ "$configured_reachability" == true ]]; then
+    reachability=(--reachable-address "up://127.0.0.1:${raft_port}")
+  fi
   RUST_LOG="$rust_log" "$binary" \
     --bind "127.0.0.1:${api_port}" \
-    --raft-url "up://127.0.0.1:${raft_port}" \
+    --raft-port "${raft_port}" \
+    "${reachability[@]}" \
     --data-dir "${test_root}/node-${number}" \
     --node-name "test-node-${number}" \
     "$@" >"${test_root}/node-${number}.log" 2>&1 &
@@ -58,6 +69,24 @@ wait_for_api() {
     fi
     sleep 0.1
   done
+}
+
+wait_for_setup() {
+  local port="$1"
+  local pid="$2"
+  local response
+  for _ in $(seq 1 100); do
+    if response="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
+      "http://127.0.0.1:${port}/api/v1/setup")"; then
+      printf '%s' "$response"
+      return 0
+    fi
+    if ! kill -0 "$pid" 2>/dev/null; then
+      return 1
+    fi
+    sleep 0.1
+  done
+  return 1
 }
 
 start_node 1 --new-cluster --deployment-key "$deployment_key" --quic-ca-key "$quic_ca_key" --username "$username" --password "$password"
@@ -126,11 +155,11 @@ fi
 if (( node_count >= 3 )); then
   kill "${pids[2]}"
   wait "${pids[2]}" 2>/dev/null || true
-  start_node 3 --join "$join_link"
+  moved_raft_port=$((raft_base_port + node_count + 10))
+  UPGRID_TEST_RAFT_PORT_OVERRIDE="$moved_raft_port" start_node 3 --join "$join_link"
   matching_restart_pid="${pids[${#pids[@]} - 1]}"
   wait_for_api "$((api_base_port + 2))" "$matching_restart_pid"
-  setup_state="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
-    "http://127.0.0.1:$((api_base_port + 2))/api/v1/setup")"
+  setup_state="$(wait_for_setup "$((api_base_port + 2))" "$matching_restart_pid")"
   if [[ "$(printf '%s' "$setup_state" | jq --raw-output '.warning')" != "null" ]]; then
     echo "Matching persisted Join Token unexpectedly produced a warning: ${setup_state}" >&2
     exit 1
@@ -138,23 +167,41 @@ if (( node_count >= 3 )); then
 
   kill "$matching_restart_pid"
   wait "$matching_restart_pid" 2>/dev/null || true
-  start_node 3 --join "not-a-valid-join-token"
+  UPGRID_TEST_RAFT_PORT_OVERRIDE="$moved_raft_port" start_node 3 --join "not-a-valid-join-token"
   existing_restart_pid="${pids[${#pids[@]} - 1]}"
   wait_for_api "$((api_base_port + 2))" "$existing_restart_pid"
-  setup_state="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
-    "http://127.0.0.1:$((api_base_port + 2))/api/v1/setup")"
+  setup_state="$(wait_for_setup "$((api_base_port + 2))" "$existing_restart_pid")"
   if [[ "$(printf '%s' "$setup_state" | jq --raw-output '.warning')" != *"invalid"* ]]; then
     echo "Invalid persisted Join Token did not produce a WebUI warning: ${setup_state}" >&2
     exit 1
   fi
 fi
 
+if (( node_count > 1 )); then
+  sleep "$peer_lease_wait_seconds"
+  cluster="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
+    "http://127.0.0.1:${api_base_port}/api/v1/cluster")"
+  if (( $(printf '%s' "$cluster" | jq '[.members[] | select(.reachable_addresses | length == 0)] | length') != 0 )); then
+    echo "Peer-discovered reachable address lease was not renewed: ${cluster}" >&2
+    exit 1
+  fi
+  if (( $(printf '%s' "$cluster" | jq '.connectivity_failures | length') != 0 )); then
+    echo "Healthy cluster reported connectivity failures: ${cluster}" >&2
+    exit 1
+  fi
+  if [[ -n "$moved_raft_port" ]]; then
+    moved_address="up://127.0.0.1:${moved_raft_port}"
+    if (( $(printf '%s' "$cluster" | jq --arg address "$moved_address" '[.members[] | select(.name == "test-node-3") | .reachable_addresses[] | select(. == $address)] | length') == 0 )); then
+      echo "Changed peer endpoint was not renewed: ${cluster}" >&2
+      exit 1
+    fi
+  fi
+fi
 if [[ "$node_lifecycle_only" == true ]]; then
   cluster="$(curl --fail --silent --header "authorization: Bearer ${api_token}" \
     "http://127.0.0.1:${api_base_port}/api/v1/cluster")"
   removed_id="$(printf '%s' "$cluster" | jq --raw-output \
-    --arg url "up://127.0.0.1:$((raft_base_port + 2))" \
-    '.members[] | select(.raft_url == $url) | .id')"
+    '.members[] | select(.name == "test-node-3") | .id')"
   drain="$(curl --fail --silent --request PUT \
     --header "authorization: Bearer ${api_token}" \
     --header 'content-type: application/json' \
@@ -176,7 +223,7 @@ if [[ "$node_lifecycle_only" == true ]]; then
     --header "authorization: Bearer ${api_token}" \
     "http://127.0.0.1:${api_base_port}/api/v1/nodes/${removed_id}?force=true")"
   if [[ "$(printf '%s' "$removed" | jq --raw-output '.status')" != "removed" ]] ||
-    [[ "$removed" != *"one-use Join Token"* ]]; then
+    [[ "$removed" != *"one-use join token"* ]]; then
     echo "Failed-Node removal did not return replacement guidance: ${removed}" >&2
     exit 1
   fi
@@ -272,6 +319,7 @@ fi
 UPGRID_API_URL="http://127.0.0.1:${api_base_port}" \
 UPGRID_API_TOKEN="$api_token" \
   "${script_dir}/verify-reference-workload.sh"
+
 
 if (( node_count >= 3 )); then
   kill "${pids[0]}"

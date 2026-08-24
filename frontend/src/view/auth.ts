@@ -7,6 +7,7 @@ import "@/component/icon-button.ts";
 import { renderCard } from "@/component/card.ts";
 import { renderFormSubmit } from "@/component/form-submit.ts";
 import { renderHeaderBrand } from "@/component/header-brand.ts";
+import { updatePasswordConfirmationValidity } from "@/util/form-validation.ts";
 
 export interface AuthActions {
   login: (event: SubmitEvent) => void;
@@ -25,14 +26,6 @@ export interface AuthActions {
   revokeApiToken: (token: ApiToken) => void;
   dismissToken: () => void;
   changed: () => void;
-}
-
-function validatePasswordConfirmation(event: Event): void {
-  const form = event.currentTarget as HTMLFormElement;
-  const password = form.elements.namedItem("password");
-  const confirmation = form.elements.namedItem("password_confirmation");
-  if (!(password instanceof HTMLInputElement) || !(confirmation instanceof HTMLInputElement)) return;
-  confirmation.setCustomValidity(confirmation.value && confirmation.value !== password.value ? "Passwords do not match." : "");
 }
 
 export function renderLogin(online: boolean, saving: boolean, error: string, actions: AuthActions) {
@@ -66,7 +59,7 @@ export function renderChangePassword(identity: Identity | undefined, saving: boo
         className: "auth-panel",
         content: html`
           <form class="choice" @submit=${(event: SubmitEvent) => actions.updateIdentity(identity, event)} @input=${(event: Event) => {
-            validatePasswordConfirmation(event);
+            updatePasswordConfirmationValidity(event.currentTarget as HTMLFormElement);
             actions.changed();
           }}>
             <input name="username" type="hidden" .value=${identity.username} />
@@ -107,7 +100,7 @@ export function renderUsersPage(identities: Identity[], currentIdentityId: strin
     <dialog id="add-user-dialog" aria-labelledby="add-user-title" @click=${actions.dismissDialog}>
       <div class="dialog-head"><h2 id="add-user-title">Add user</h2></div>
       <form @submit=${actions.createIdentity} @input=${(event: Event) => {
-        validatePasswordConfirmation(event);
+        updatePasswordConfirmationValidity(event.currentTarget as HTMLFormElement);
         actions.changed();
       }}>
         <label>Username<input name="username" autocomplete="username" required autofocus /></label>
@@ -122,7 +115,7 @@ export function renderUsersPage(identities: Identity[], currentIdentityId: strin
           <dialog id="edit-user-dialog" aria-labelledby="edit-user-title" @click=${actions.dismissDialog}>
             <div class="dialog-head"><h2 id="edit-user-title">Edit user</h2></div>
             <form @submit=${(event: SubmitEvent) => actions.updateIdentity(editingIdentity, event)} @input=${(event: Event) => {
-              validatePasswordConfirmation(event);
+              updatePasswordConfirmationValidity(event.currentTarget as HTMLFormElement);
               actions.changed();
             }}>
               <label>Username<input name="username" .value=${editingIdentity.username} autocomplete="username" required autofocus /></label>

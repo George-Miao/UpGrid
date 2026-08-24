@@ -1,6 +1,7 @@
 import { type Alert, type ApiToken, type Channel, type ClusterMember, type CreatedApiToken, type Identity, type JoinLink, type JoinToken, type ManageSettings, type Secret, type SecretCleanup, type Session, type Setup, type Target, type TargetInput, type TrashedTarget, request } from "@/app/api.ts";
 import { AppState } from "@/app/app-state.ts";
 import type { HttpAssertionEditor } from "@/component/http-assertion-editor.ts";
+import { updatePasswordConfirmationValidity } from "@/util/form-validation.ts";
 import { targetInput } from "@/util/resource-input.ts";
 
 export class AppController extends AppState {
@@ -167,18 +168,12 @@ export class AppController extends AppState {
       this.saving = false;
     }
   }
-  private passwordsMatch(form: HTMLFormElement): boolean {
-    const password = form.elements.namedItem("password") as HTMLInputElement | null;
-    const confirmation = form.elements.namedItem("password_confirmation") as HTMLInputElement | null;
-    if (!password || !confirmation) return true;
-    confirmation.setCustomValidity(password.value === confirmation.value ? "" : "Passwords do not match.");
-    return form.reportValidity();
-  }
 
   protected async createIdentity(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
-    if (!this.passwordsMatch(form)) return;
+    updatePasswordConfirmationValidity(form);
+    if (!form.reportValidity()) return;
     const fields = new FormData(form);
     await this.saveResource(async () => {
       await request<Identity>("/api/v1/identities", {
@@ -196,7 +191,8 @@ export class AppController extends AppState {
   protected async updateIdentity(identity: Identity, event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
-    if (!this.passwordsMatch(form)) return;
+    updatePasswordConfirmationValidity(form);
+    if (!form.reportValidity()) return;
     const fields = new FormData(form);
     const password = String(fields.get("password") ?? "");
     await this.saveResource(async () => {
@@ -316,7 +312,7 @@ export class AppController extends AppState {
     window.history.replaceState(null, "", setup.path);
     if (setup.setup) {
       if (setup.cluster_ready) {
-        this.session = await request<Session>("/api/v1/auth/session");
+        this.setSession(await request<Session>("/api/v1/auth/session"));
         await this.refresh();
         this.connectEvents();
       }

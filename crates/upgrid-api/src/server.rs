@@ -36,7 +36,8 @@ pub fn start(
         cipher,
         quic_ca_key,
         notifications,
-        raft_url: config.raft_url.clone(),
+        local_addresses: config.local_addresses.clone(),
+        discovery_urls: config.discovery_urls.clone(),
         node_name: config
             .node_name
             .clone()
@@ -166,7 +167,7 @@ fn api_routes() -> OpenApiRouter<WebState> {
         .routes(routes!(list_alerts))
         .routes(routes!(acknowledge_alert))
         .routes(routes!(retry_alert))
-        .routes(routes!(list_transitions))
+        .routes(routes!(list_availability_transitions))
         .routes(routes!(get_cluster))
         .routes(routes!(get_setup))
         .routes(routes!(advance_setup))
