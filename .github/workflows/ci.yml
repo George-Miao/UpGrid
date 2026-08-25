@@ -46,11 +46,8 @@ jobs:
       - name: Lint workspace
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-      - name: Build workspace
-        run: cargo build --workspace
-
-      - name: Test packages
-        run: cargo test -p upgrid -p upgrid-config -p upgrid-transport -p upgrid-rpc -p upgrid-raft -p upgrid-monitor -p upgrid-api -p upgrid-notification
+      - name: Compile tests
+        run: cargo test --workspace --no-run
 
       - name: Test generated OpenAPI
         run: cargo test -p upgrid-api published_openapi_matches_routes
