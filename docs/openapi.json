@@ -4101,6 +4101,14 @@
             "type": "string",
             "format": "uuid"
           },
+          "refresh_after_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
           "username": {
             "type": "string"
           }
